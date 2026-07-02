@@ -1,3 +1,5 @@
+"use client"
+
 import { useState, useMemo } from "react"
 import { Search, Eye, Copy, ArrowRight, Plus, SlidersHorizontal } from "lucide-react"
 

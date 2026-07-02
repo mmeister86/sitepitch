@@ -50,7 +50,7 @@
 /*
   ============================================================
   SitePitch — custom indigo theme
-  Signature: dark sidebar in both modes, score-band tokens
+  Signature: theme-aware sidebar, score-band tokens
   (critical / weak / solid / strong) for audit scoring.
   ============================================================
 */
@@ -85,14 +85,14 @@
   --score-weak: oklch(0.66 0.16 55);
   --score-solid: oklch(0.72 0.13 95);
   --score-strong: oklch(0.62 0.15 155);
-  --sidebar: oklch(0.21 0.02 275);
-  --sidebar-foreground: oklch(0.9 0.01 270);
-  --sidebar-primary: oklch(0.62 0.2 274);
+  --sidebar: oklch(0.982 0.006 270);
+  --sidebar-foreground: oklch(0.27 0.025 275);
+  --sidebar-primary: oklch(0.54 0.21 274);
   --sidebar-primary-foreground: oklch(0.99 0.01 274);
-  --sidebar-accent: oklch(0.28 0.03 275);
-  --sidebar-accent-foreground: oklch(0.97 0.01 270);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.62 0.2 274);
+  --sidebar-accent: oklch(0.935 0.018 274);
+  --sidebar-accent-foreground: oklch(0.38 0.12 274);
+  --sidebar-border: oklch(0.885 0.012 272);
+  --sidebar-ring: oklch(0.54 0.21 274);
 }
 
 .dark {

@@ -1001,8 +1001,11 @@ zusätzlich Burst-Limit, z.B. 10 Audits pro Stunde
 
 ### Technische Umsetzung
 
-- Redis / Upstash Redis für Rate Limits
-- optional Convex Rate Limiter
+- Convex Rate Limiter als primärer Application-Limiter für Demo-Audit, Audit-Erstellung, Lead Search, Provider-Aufrufe, LLM-Generierung, PDF-Export und Public Report View Tracking
+- Fixed-Window-Limits für UI-/User-Aktionen wie Demo-Audit und Audit-Start; Token-Bucket-Limits für kosten- oder volumenrelevante Provider- und LLM-Nutzung
+- Limits müssen nach Workspace, User, IP, Provider und Plan unterscheidbar sein
+- Convex Workpool begrenzt zusätzlich die parallele Ausführung kostenrelevanter Actions pro Provider und Job-Typ, z.B. Screenshot, PageSpeed, Business Data, LLM und PDF
+- Redis / Upstash Redis nur optional für Edge-nahe, kurzlebige Abuse-Signale oder Idempotency Locks, nicht als primäre Business-Wahrheit
 - Cloudflare Turnstile für öffentliche Formulare
 - Provider-spezifische Limits zusätzlich beachten
 
@@ -1040,6 +1043,9 @@ zusätzlich Burst-Limit, z.B. 10 Audits pro Stunde
 - Convex Scheduler / Cron
 - Convex HTTP Actions für Webhooks
 - Convex File Storage oder Cloudflare R2
+- Convex Workpool für Audit-, Provider-, LLM- und PDF-Jobs mit konfigurierter Parallelität, Retry-Strategie und Completion-Callbacks
+- Convex Rate Limiter für Workspace-, User-, IP-, Provider- und Plan-Limits
+- Convex Runtime für Queries/Mutations und leichtgewichtige Actions; Node.js Runtime für Actions mit externen SDKs, Provider-Aufrufen, Eve-/AI-SDK-Läufen und PDF-Erzeugung
 
 ### Auth
 
@@ -1053,7 +1059,9 @@ zusätzlich Burst-Limit, z.B. 10 Audits pro Stunde
 
 ### Rate Limiting
 
-- Redis / Upstash Redis
+- Convex Rate Limiter
+- Convex Workpool `maxParallelism` pro Provider/Job-Typ als Durchsatzbremse für externe APIs
+- optional Redis / Upstash Redis für Edge-nahe, kurzlebige Abuse-Signale
 - Cloudflare Turnstile für Demo- und Public-Formulare
 
 ### Datenquellen
@@ -1091,7 +1099,11 @@ Browser / Next.js App
         ↓
 Convex Queries/Mutations
         ↓
+Convex Rate Limiter + Credit Reservation
+        ↓
 Audit Job in Convex
+        ↓
+Convex Workpool
         ↓
 Convex Action / Worker
         ↓
@@ -1123,7 +1135,11 @@ Next.js Report Page
 Product App ≠ Audit Engine
 ```
 
-Next.js zeigt UI und Reports. Convex hält Daten, Status und orchestriert Jobs. Provider-Aufrufe und Audit-Auswertung laufen in Actions oder später in dedizierten Workern.
+Next.js zeigt UI und Reports. Convex hält Daten, Status und orchestriert Jobs. Provider-Aufrufe und Audit-Auswertung laufen in Actions oder später in dedizierten Workern. Kosten- und providerrelevante Arbeit wird über Convex Workpool eingeplant, damit parallele Ausführung kontrolliert, Retry-Verhalten zentral definiert und externe Rate Limits respektiert werden.
+
+Convex Rate Limiter schützt alle Einstiegspunkte, die Kosten oder Abuse verursachen können. Rate Limits werden vor Credit-Reservierung und Job-Enqueue geprüft; provider- oder tokenbezogene Limits werden zusätzlich unmittelbar vor dem externen Aufruf geprüft.
+
+Runtime-Regel: Queries und Mutations bleiben in der Standard-Convex-Runtime und enthalten keine langsamen Provider-Aufrufe. Actions, die externe SDKs, AI SDK/Eve, Screenshots, PDF-Erzeugung oder Node-spezifische APIs brauchen, laufen in der Node.js Runtime. Jede Runtime-Grenze muss explizit dokumentieren, welche Daten gelesen, geschrieben und geloggt werden.
 
 Eve wird als spezialisierte Agentenschicht innerhalb oder neben der Next.js-App integriert. Convex bleibt Source of Truth für Audit-Status, Credits, Rohdaten, Scores und gespeicherte Outputs. Eve erhält pro Lauf nur den notwendigen Audit-Kontext, erzeugt validierte KI-Ausgaben und schreibt diese über interne Tools zurück.
 
@@ -2170,6 +2186,8 @@ SitePitch helps web designers turn weak local websites into branded audits and o
 - Next.js App initialisieren
 - Tailwind + shadcn/ui
 - Convex Setup
+- Convex Workpool und Convex Rate Limiter Setup
+- Runtime-Policy für Convex Actions festlegen
 - Eve Setup mit `agent/`-Struktur und Next.js-Integration
 - Auth Setup
 - Basisschema
@@ -2237,6 +2255,8 @@ SitePitch helps web designers turn weak local websites into branded audits and o
 - Tailwind 4
 - shadcn/ui
 - Convex Setup
+- Convex Workpool und Convex Rate Limiter einrichten
+- Runtime-Policy für Convex- und Node.js-Actions dokumentieren
 - Auth Setup
 - Grundlayout
 - Landingpage Skeleton
@@ -2253,6 +2273,8 @@ SitePitch helps web designers turn weak local websites into branded audits and o
 
 - Audit Statusmodell
 - Convex Action für Audit
+- Audit-Start mit Convex Rate Limiter und Credit-Reservierung schützen
+- Audit-Ausführung über Convex Workpool einplanen
 - HTML Fetch
 - Basic Metadata Extraction
 - Audit Detail Page mit Live-Status
@@ -2315,7 +2337,9 @@ SitePitch helps web designers turn weak local websites into branded audits and o
 
 #### Tag 11: Rate Limiting + Security
 
-- Redis/Upstash
+- Convex Rate Limiter
+- Workpool-Provider-Limits prüfen
+- optional Redis/Upstash für Edge-nahe Abuse-Signale
 - Turnstile für Demo
 - SSRF-Schutz
 - Provider Timeouts
@@ -2564,7 +2588,7 @@ Testseiten:
 - Business Data Lookup
 - Storage
 - E-Mail/Transactional
-- Redis/Rate Limiting anteilig
+- Convex Rate Limiter / optional Redis anteilig
 
 ### Ziel
 

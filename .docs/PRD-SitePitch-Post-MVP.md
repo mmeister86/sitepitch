@@ -224,8 +224,10 @@ Ziel: Agenturen können mehrere Websites effizient auditieren, ohne Provider-Kos
 ### Anforderungen
 
 - Batch Audits laufen asynchron.
+- Batch Audits werden über Convex Workpool eingeplant, damit Parallelität, Retry-Verhalten und Completion-Callbacks pro Plan, Provider und Job-Typ kontrollierbar bleiben.
 - Credits werden reserviert und nur nach definierter Regel verbraucht.
-- Rate Limits gelten pro Workspace, User und Provider.
+- Convex Rate Limiter schützt Batch-Start, einzelne Audit-Jobs, Provider-Aufrufe und LLM-/Token-Verbrauch.
+- Rate Limits gelten pro Workspace, User, Provider, Plan und Public-API-Key.
 - Gleiche Domain innerhalb kurzer Zeit nutzt Cache, sofern erlaubt.
 - Nutzer sieht vor Start die geschätzten Credits und Limits.
 
@@ -657,10 +659,13 @@ Die folgenden Tabellen erweitern das MVP-Datenmodell konzeptionell.
 ## 8.1 Prinzipien
 
 - Convex bleibt Source of Truth.
-- Redis ist nur ephemer: Rate Limits, kurze Caches, Idempotency Locks und Abuse-Signale. Keine Business-Wahrheit liegt dauerhaft in Redis.
+- Convex Rate Limiter ist der primäre Application-Limiter für kostenrelevante Aktionen.
+- Redis ist nur optional und ephemer: kurze Caches, Edge-nahe Abuse-Signale oder Idempotency Locks. Keine Business-Wahrheit liegt dauerhaft in Redis.
 - Eve bleibt Agent-Layer, nicht Billing-, Auth- oder Public-Report-System.
 - Provider bleiben austauschbar.
 - Jeder kostenrelevante Job hat Credit-, Rate-Limit- und Cost-Tracking.
+- Convex Workpool begrenzt Parallelität und Retry-Verhalten pro Provider, Job-Typ und Priorität.
+- Runtime-Grenzen sind explizit: Queries/Mutations bleiben leichtgewichtig, externe SDKs, AI SDK/Eve, Provider-Aufrufe und PDF-Erzeugung laufen in passenden Convex Actions mit Node.js Runtime.
 - Batch- und Monitoring-Jobs laufen asynchron und abbrechbar.
 - Integrationen sind isoliert, fehlertolerant und opt-in.
 - Public API nutzt dieselben Grenzen wie die App.
@@ -683,6 +688,9 @@ Post-MVP braucht eine robustere Job-Schicht für:
 
 - Jeder Job hat Status, Retry Count, Error Message und Workspace-Bezug.
 - Jobs sind idempotent, soweit möglich.
+- Jeder Job-Typ ist einem Convex Workpool mit dokumentiertem `maxParallelism`, Retry-Policy und Backoff zugeordnet.
+- Kostenrelevante Jobs prüfen Convex Rate Limiter vor Enqueue und unmittelbar vor externen Provider-/LLM-Aufrufen.
+- Provider-Workpools können unabhängig voneinander gedrosselt werden, ohne die gesamte Audit-Pipeline anzuhalten.
 - Nutzer kann langlaufende Batch-Jobs abbrechen.
 - Failed Jobs sind im Admin sichtbar.
 

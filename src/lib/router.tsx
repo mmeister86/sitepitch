@@ -1,10 +1,7 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react"
+"use client"
+
+import { usePathname, useRouter as useNextRouter } from "next/navigation"
+import type { ReactNode } from "react"
 
 export type View =
   | { name: "dashboard" }
@@ -14,10 +11,11 @@ export type View =
   | { name: "campaigns" }
   | { name: "settings" }
 
-function parseHash(): View {
-  const hash = window.location.hash.replace(/^#\/?/, "")
-  const parts = hash.split("/").filter(Boolean)
-  if (parts[0] === "audits" && parts[1]) return { name: "audit", id: parts[1] }
+function parsePath(pathname: string): View {
+  const parts = pathname.split("/").filter(Boolean)
+  if (parts[0] === "audits" && parts[1]) {
+    return { name: "audit", id: decodeURIComponent(parts[1]) }
+  }
   if (parts[0] === "audits") return { name: "audits" }
   if (parts[0] === "leads") return { name: "leads" }
   if (parts[0] === "campaigns") return { name: "campaigns" }
@@ -25,14 +23,14 @@ function parseHash(): View {
   return { name: "dashboard" }
 }
 
-function viewToHash(view: View): string {
+function viewToPath(view: View): string {
   switch (view.name) {
     case "dashboard":
-      return "#/"
+      return "/"
     case "audit":
-      return `#/audits/${view.id}`
+      return `/audits/${encodeURIComponent(view.id)}`
     default:
-      return `#/${view.name}`
+      return `/${view.name}`
   }
 }
 
@@ -41,32 +39,19 @@ interface RouterContextValue {
   navigate: (view: View) => void
 }
 
-const RouterContext = createContext<RouterContextValue | null>(null)
-
 export function RouterProvider({ children }: { children: ReactNode }) {
-  const [view, setView] = useState<View>(parseHash)
-
-  useEffect(() => {
-    const onChange = () => setView(parseHash())
-    window.addEventListener("hashchange", onChange)
-    return () => window.removeEventListener("hashchange", onChange)
-  }, [])
-
-  const navigate = (next: View) => {
-    window.location.hash = viewToHash(next)
-    setView(next)
-    window.scrollTo({ top: 0 })
-  }
-
-  return (
-    <RouterContext.Provider value={{ view, navigate }}>
-      {children}
-    </RouterContext.Provider>
-  )
+  return children
 }
 
-export function useRouter() {
-  const ctx = useContext(RouterContext)
-  if (!ctx) throw new Error("useRouter must be used within RouterProvider")
-  return ctx
+export function useRouter(): RouterContextValue {
+  const pathname = usePathname()
+  const router = useNextRouter()
+  const view = parsePath(pathname ?? "/")
+
+  return {
+    view,
+    navigate: (next: View) => {
+      router.push(viewToPath(next))
+    },
+  }
 }

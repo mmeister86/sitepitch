@@ -1,4 +1,9 @@
+"use client"
+
 import {
+  ChevronUp,
+  LogOut,
+  Mail,
   LayoutDashboard,
   ScanSearch,
   Users,
@@ -6,6 +11,7 @@ import {
   Settings,
   Plus,
   Sparkles,
+  UserPlus,
 } from "lucide-react"
 
 import {
@@ -22,6 +28,14 @@ import {
 } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Logo } from "@/components/logo"
 import { useRouter, type View } from "@/lib/router"
 import { workspace, audits, leads, campaigns } from "@/lib/mock-data"
@@ -86,23 +100,6 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Einstellungen</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={view.name === "settings"}
-                  onClick={() => navigate({ name: "settings" })}
-                >
-                  <Settings />
-                  <span>Branding & Team</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter className="gap-3 p-3">
@@ -120,19 +117,67 @@ export function AppSidebar() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 px-1">
-          <div className="flex size-8 items-center justify-center rounded-full bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
-            {workspace.seats[0].initials}
-          </div>
-          <div className="flex min-w-0 flex-col leading-tight">
-            <span className="truncate text-xs font-medium text-sidebar-foreground">
-              {workspace.seats[0].name}
-            </span>
-            <span className="truncate text-[11px] text-sidebar-foreground/50">
-              {workspace.name}
-            </span>
-          </div>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+            >
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
+                {workspace.seats[0].initials}
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                <span className="truncate text-xs font-medium text-sidebar-foreground">
+                  {workspace.seats[0].name}
+                </span>
+                <span className="truncate text-[11px] text-sidebar-foreground/50">
+                  {workspace.name}
+                </span>
+              </div>
+              <ChevronUp className="size-3.5 shrink-0 text-sidebar-foreground/45" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            side="top"
+            align="start"
+            sideOffset={8}
+            className="w-64 p-2"
+          >
+            <DropdownMenuLabel className="px-2 py-2">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-9 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                  {workspace.seats[0].initials}
+                </div>
+                <div className="min-w-0 leading-tight">
+                  <p className="truncate text-sm font-medium">
+                    {workspace.seats[0].name}
+                  </p>
+                  <p className="truncate text-xs font-normal text-muted-foreground">
+                    {workspace.contactEmail}
+                  </p>
+                </div>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate({ name: "settings" })}>
+              <Settings />
+              Branding & Team
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate({ name: "settings" })}>
+              <UserPlus />
+              Team einladen
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate({ name: "campaigns" })}>
+              <Mail />
+              Vorlagen & Outreach
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled>
+              <LogOut />
+              Abmelden
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </SidebarFooter>
     </Sidebar>
   )
