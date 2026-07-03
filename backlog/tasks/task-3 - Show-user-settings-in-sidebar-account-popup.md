@@ -1,10 +1,10 @@
 ---
 id: TASK-3
 title: Show user settings in sidebar account popup
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-02 12:37'
-updated_date: '2026-07-02 12:38'
+updated_date: '2026-07-03 20:06'
 labels: []
 dependencies: []
 priority: medium

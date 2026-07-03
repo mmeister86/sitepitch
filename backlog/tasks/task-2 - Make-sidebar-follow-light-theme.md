@@ -1,10 +1,10 @@
 ---
 id: TASK-2
 title: Make sidebar follow light theme
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-02 12:30'
-updated_date: '2026-07-02 12:31'
+updated_date: '2026-07-03 20:06'
 labels: []
 dependencies: []
 priority: medium

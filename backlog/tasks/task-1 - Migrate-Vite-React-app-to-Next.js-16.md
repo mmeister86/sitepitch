@@ -1,10 +1,10 @@
 ---
 id: TASK-1
 title: Migrate Vite React app to Next.js 16
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-02 12:05'
-updated_date: '2026-07-02 12:14'
+updated_date: '2026-07-03 20:06'
 labels: []
 dependencies: []
 priority: high

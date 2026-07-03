@@ -10,7 +10,9 @@
     "start": "next start"
   },
   "dependencies": {
+    "@convex-dev/better-auth": "^0.12.5",
     "@hookform/resolvers": "^5.2.2",
+    "better-auth": "^1.6.23",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
