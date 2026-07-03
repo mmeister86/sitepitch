@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@/components/ui/sonner"
 import { Palette, Check, Mail, UserPlus, Sparkles, FileText, Plus, MessageSquare, Phone } from "lucide-react"
 
 import {

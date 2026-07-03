@@ -1,6 +1,6 @@
 import { useState } from "react"
 import type { ReactNode } from "react"
-import { toast } from "sonner"
+import { toast } from "@/components/ui/sonner"
 import { Globe, Sparkles, Loader2 } from "lucide-react"
 
 import {

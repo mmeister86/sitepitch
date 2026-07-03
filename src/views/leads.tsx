@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { toast } from "sonner"
 import {
   Search,
   Phone,
@@ -13,6 +12,7 @@ import {
   Users,
 } from "lucide-react"
 
+import { toast } from "@/components/ui/sonner"
 import {
   Card,
   CardContent,
