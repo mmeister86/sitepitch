@@ -1,5 +1,5 @@
-import { SettingsView } from "@/views/settings"
+import { redirect } from "next/navigation"
 
 export default function Page() {
-  return <SettingsView />
+  redirect("/app/settings")
 }

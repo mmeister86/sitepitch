@@ -12,6 +12,7 @@ import {
   Flame,
 } from "lucide-react"
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
+import { useQuery } from "convex/react"
 
 import {
   Card,
@@ -32,9 +33,12 @@ import {
 import { StatCard } from "@/components/stat-card"
 import { ScoreBadge, LeadStatusBadge } from "@/components/status-badges"
 import { useRouter } from "@/lib/router"
-import { audits, activities, workspace } from "@/lib/mock-data"
+import { audits, activities } from "@/lib/mock-data"
 import { formatRelative } from "@/lib/scores"
 import { cn } from "@/lib/utils"
+import { authClient } from "@/lib/auth-client"
+import { getFirstName, getUserDisplayName } from "@/lib/user-display"
+import { api } from "../../convex/_generated/api"
 
 const engagementData = [
   { week: "KW 22", views: 18, engaged: 6 },
@@ -72,8 +76,14 @@ const activityDot: Record<string, string> = {
 
 export function DashboardView() {
   const { navigate } = useRouter()
+  const data = useQuery(api.workspaces.getMyWorkspace)
+  const session = authClient.useSession()
   const recent = audits.slice(0, 5)
   const doneCount = checklist.filter((c) => c.done).length
+  const displayName = getUserDisplayName(
+    data?.user.name ?? session.data?.user?.name,
+    data?.user.email ?? session.data?.user?.email
+  )
 
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-6 p-4 md:p-6">
@@ -81,7 +91,7 @@ export function DashboardView() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">
-            Guten Morgen, {workspace.seats[0].name.split(" ")[0]}
+            Guten Morgen, {getFirstName(displayName)}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             8 Reports wurden diese Woche geöffnet — 3 Leads warten auf ein Follow-up.

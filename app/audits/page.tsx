@@ -1,5 +1,5 @@
-import { AuditsView } from "@/views/audits"
+import { redirect } from "next/navigation"
 
 export default function Page() {
-  return <AuditsView />
+  redirect("/app/audits")
 }

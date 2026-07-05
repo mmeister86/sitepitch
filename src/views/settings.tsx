@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useMutation, useQuery } from "convex/react"
 import { toast } from "@/components/ui/sonner"
-import { Palette, Check, Mail, UserPlus, Sparkles, FileText, Plus, MessageSquare, Phone } from "lucide-react"
+import { Palette, Check, Mail, Sparkles, Upload, X, ImageIcon } from "lucide-react"
 
 import {
   Card,
@@ -15,10 +16,10 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
+import { Spinner } from "@/components/ui/spinner"
 import {
   Select,
   SelectContent,
@@ -26,8 +27,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { workspace } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
+import { parseBrandingInput, type BrandingFieldErrors } from "@/lib/branding-validation"
+import { shouldHydrateBrandingForm } from "@/lib/branding-form-state"
+import { applyWorkspaceAccent } from "@/lib/workspace-accent"
+import { api } from "../../convex/_generated/api"
+import type { Id } from "../../convex/_generated/dataModel"
 
 const accents = [
   { name: "Indigo", value: "#5b5bd6" },
@@ -38,30 +43,176 @@ const accents = [
   { name: "Rosé", value: "#e11d48" },
 ]
 
-const roleLabel: Record<string, string> = {
-  owner: "Inhaber",
-  member: "Mitglied",
-  viewer: "Betrachter",
+function fieldErrorMessage(error: unknown): BrandingFieldErrors {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "data" in error &&
+    typeof error.data === "object" &&
+    error.data !== null &&
+    "fieldErrors" in error.data &&
+    typeof error.data.fieldErrors === "object" &&
+    error.data.fieldErrors !== null
+  ) {
+    return error.data.fieldErrors as BrandingFieldErrors
+  }
+  return {}
 }
 
-const channelMeta: Record<string, { label: string; icon: typeof Mail }> = {
-  email: { label: "E-Mail", icon: Mail },
-  linkedin: { label: "LinkedIn", icon: MessageSquare },
-  phone_note: { label: "Telefonnotiz", icon: Phone },
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null
+  return <p className="text-xs font-medium text-destructive">{message}</p>
 }
 
 export function SettingsView() {
-  const [name, setName] = useState(workspace.name)
-  const [website, setWebsite] = useState(workspace.website)
-  const [email, setEmail] = useState(workspace.contactEmail)
-  const [ctaText, setCtaText] = useState(workspace.ctaText)
-  const [ctaUrl, setCtaUrl] = useState(workspace.ctaUrl)
-  const [accent, setAccent] = useState(workspace.accentColor)
-  const [lang, setLang] = useState<"de" | "en">(workspace.language)
-  const [poweredBy, setPoweredBy] = useState(workspace.showPoweredBy)
+  const data = useQuery(api.workspaces.getMyWorkspace)
+  const updateBranding = useMutation(api.workspaces.updateBranding)
+  const generateLogoUploadUrl = useMutation(api.workspaces.generateLogoUploadUrl)
+  const clearLogo = useMutation(api.workspaces.clearLogo)
+  const [name, setName] = useState("")
+  const [website, setWebsite] = useState("")
+  const [email, setEmail] = useState("")
+  const [ctaText, setCtaText] = useState("")
+  const [ctaUrl, setCtaUrl] = useState("")
+  const [accent, setAccent] = useState("#5b5bd6")
+  const [lang, setLang] = useState<"de" | "en">("de")
+  const [logoStorageId, setLogoStorageId] = useState<string | null>(null)
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<BrandingFieldErrors>({})
+  const [isSaving, setIsSaving] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [isAccentPreviewing, setIsAccentPreviewing] = useState(false)
+  const hydratedVersion = useRef<number | null>(null)
 
-  const remaining = workspace.monthlyCredits - workspace.usedCredits
-  const pct = (workspace.usedCredits / workspace.monthlyCredits) * 100
+  useEffect(() => {
+    if (!data) return
+    if (!shouldHydrateBrandingForm(hydratedVersion.current, data.workspace.updatedAt)) return
+    hydratedVersion.current = data.workspace.updatedAt
+    setName(data.workspace.name)
+    setWebsite(data.workspace.website)
+    setEmail(data.workspace.contactEmail)
+    setCtaText(data.workspace.ctaText)
+    setCtaUrl(data.workspace.ctaUrl)
+    setAccent(data.workspace.accentColor)
+    setLang(data.workspace.reportLanguage)
+    setLogoStorageId(data.workspace.logoStorageId)
+    setLogoUrl(data.workspace.logoUrl)
+    setFieldErrors({})
+  }, [data])
+
+  useEffect(() => {
+    if (!data || !isAccentPreviewing) return
+    applyWorkspaceAccent(document.documentElement.style, accent)
+
+    return () => {
+      applyWorkspaceAccent(document.documentElement.style, data.workspace.accentColor)
+    }
+  }, [accent, data?.workspace.accentColor, isAccentPreviewing])
+
+  const clientErrors = useMemo(() => {
+    const parsed = parseBrandingInput({
+      name,
+      logoStorageId,
+      accentColor: accent,
+      website,
+      contactEmail: email,
+      ctaText,
+      ctaUrl,
+      reportLanguage: lang,
+    })
+    return parsed.ok ? {} : parsed.fieldErrors
+  }, [accent, ctaText, ctaUrl, email, lang, logoStorageId, name, website])
+
+  const visibleErrors = { ...clientErrors, ...fieldErrors }
+  const remaining = 3
+  const monthlyCredits = 3
+  const pct = 0
+
+  function resetForm() {
+    if (!data) return
+    setIsAccentPreviewing(false)
+    setName(data.workspace.name)
+    setWebsite(data.workspace.website)
+    setEmail(data.workspace.contactEmail)
+    setCtaText(data.workspace.ctaText)
+    setCtaUrl(data.workspace.ctaUrl)
+    setAccent(data.workspace.accentColor)
+    setLang(data.workspace.reportLanguage)
+    setLogoStorageId(data.workspace.logoStorageId)
+    setLogoUrl(data.workspace.logoUrl)
+    setFieldErrors({})
+  }
+
+  async function handleLogoUpload(file: File | null) {
+    if (!file) return
+    if (!file.type.startsWith("image/")) {
+      toast.error("Bitte lade eine Bilddatei hoch.")
+      return
+    }
+
+    setIsUploading(true)
+    try {
+      const uploadUrl = await generateLogoUploadUrl()
+      const response = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+      })
+      if (!response.ok) throw new Error("Upload failed")
+      const result = (await response.json()) as { storageId: string }
+      setLogoStorageId(result.storageId)
+      setLogoUrl(URL.createObjectURL(file))
+    } catch {
+      toast.error("Logo konnte nicht hochgeladen werden")
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  async function saveBranding() {
+    setIsSaving(true)
+    setFieldErrors({})
+    try {
+      await updateBranding({
+        name,
+        logoStorageId: logoStorageId as Id<"_storage"> | null,
+        accentColor: accent,
+        website,
+        contactEmail: email,
+        ctaText,
+        ctaUrl,
+        reportLanguage: lang,
+      })
+      toast.success("Branding gespeichert")
+    } catch (error) {
+      const errors = fieldErrorMessage(error)
+      setFieldErrors(errors)
+      toast.error("Branding konnte nicht gespeichert werden", {
+        description: Object.keys(errors).length > 0 ? "Bitte prüfe die markierten Felder." : undefined,
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function removeLogo() {
+    setLogoStorageId(null)
+    setLogoUrl(null)
+    try {
+      await clearLogo()
+      toast.success("Logo entfernt")
+    } catch {
+      toast.error("Logo konnte nicht entfernt werden")
+    }
+  }
+
+  if (data === undefined) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Spinner className="size-6 text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto w-full max-w-[900px] space-y-6 p-4 md:p-6">
@@ -85,10 +236,46 @@ export function SettingsView() {
             <div className="space-y-2">
               <Label htmlFor="ws-name">Studio-Name</Label>
               <Input id="ws-name" value={name} onChange={(e) => setName(e.target.value)} />
+              <FieldError message={visibleErrors.name} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="ws-web">Website</Label>
               <Input id="ws-web" value={website} onChange={(e) => setWebsite(e.target.value)} />
+              <FieldError message={visibleErrors.website} />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Logo</Label>
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
+              <div className="flex size-12 items-center justify-center overflow-hidden rounded-md bg-muted">
+                {logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logoUrl} alt="" className="h-full w-full object-contain" />
+                ) : (
+                  <ImageIcon className="size-5 text-muted-foreground" />
+                )}
+              </div>
+              <div className="flex flex-1 flex-wrap gap-2">
+                <Button variant="outline" size="sm" className="gap-2" asChild disabled={isUploading}>
+                  <label>
+                    {isUploading ? <Spinner className="size-4" /> : <Upload className="size-4" />}
+                    Logo hochladen
+                    <input
+                      className="sr-only"
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => void handleLogoUpload(event.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                </Button>
+                {logoUrl && (
+                  <Button variant="outline" size="sm" className="gap-2" onClick={removeLogo}>
+                    <X className="size-4" />
+                    Entfernen
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -100,11 +287,21 @@ export function SettingsView() {
             <div className="flex flex-wrap gap-2">
               {accents.map((a) => (
                 <button
+                  type="button"
                   key={a.value}
-                  onClick={() => setAccent(a.value)}
+                  onClick={() => {
+                    setIsAccentPreviewing(true)
+                    setAccent(a.value)
+                  }}
+                  aria-pressed={accent === a.value}
+                  style={
+                    accent === a.value
+                      ? { borderColor: a.value, backgroundColor: `${a.value}14` }
+                      : undefined
+                  }
                   className={cn(
                     "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
-                    accent === a.value ? "border-foreground/30 bg-muted" : "hover:bg-muted/60"
+                    accent !== a.value && "hover:bg-muted/60"
                   )}
                 >
                   <span className="size-4 rounded-full" style={{ backgroundColor: a.value }}>
@@ -122,14 +319,17 @@ export function SettingsView() {
             <div className="space-y-2">
               <Label htmlFor="cta-text">CTA-Text</Label>
               <Input id="cta-text" value={ctaText} onChange={(e) => setCtaText(e.target.value)} />
+              <FieldError message={visibleErrors.ctaText} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="cta-url">CTA-Link</Label>
               <Input id="cta-url" value={ctaUrl} onChange={(e) => setCtaUrl(e.target.value)} />
+              <FieldError message={visibleErrors.ctaUrl} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="ws-email">Kontakt-E-Mail</Label>
               <Input id="ws-email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <FieldError message={visibleErrors.contactEmail} />
             </div>
             <div className="space-y-2">
               <Label>Report-Sprache</Label>
@@ -142,77 +342,19 @@ export function SettingsView() {
                   <SelectItem value="en">English</SelectItem>
                 </SelectContent>
               </Select>
+              <FieldError message={visibleErrors.reportLanguage} />
             </div>
-          </div>
-
-          <div className="flex items-center justify-between rounded-lg border p-3">
-            <div className="space-y-0.5">
-              <Label className="text-sm">»Powered by SitePitch« anzeigen</Label>
-              <p className="text-xs text-muted-foreground">
-                Im Agency-Plan optional abschaltbar.
-              </p>
-            </div>
-            <Switch checked={poweredBy} onCheckedChange={setPoweredBy} />
           </div>
         </CardContent>
         <CardFooter className="justify-end gap-2">
-          <Button variant="outline" onClick={() => toast("Änderungen verworfen")}>
+          <Button variant="outline" onClick={resetForm}>
             Zurücksetzen
           </Button>
-          <Button onClick={() => toast.success("Branding gespeichert")}>Speichern</Button>
-        </CardFooter>
-      </Card>
-
-      {/* Templates */}
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="size-4 text-primary" />
-              Outreach-Templates
-            </CardTitle>
-            <CardDescription>
-              Wiederverwendbare Textbausteine für schnellere Ansprache.
-            </CardDescription>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => toast.success("Template erstellt")}
-          >
-            <Plus className="size-4" />
-            Neu
+          <Button onClick={saveBranding} disabled={isSaving}>
+            {isSaving && <Spinner className="mr-2 size-4" />}
+            Speichern
           </Button>
-        </CardHeader>
-        <CardContent className="p-2">
-          <div className="divide-y">
-            {workspace.templates.map((t) => {
-              const meta = channelMeta[t.channel]
-              const Icon = meta.icon
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => toast(`Template »${t.name}«`, { description: "Bearbeiten folgt im Post-MVP." })}
-                  className="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/60"
-                >
-                  <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Icon className="size-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium">{t.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {meta.label} · {t.usageCount}× genutzt
-                    </div>
-                  </div>
-                  <Badge variant="secondary" className="font-normal">
-                    {t.tone}
-                  </Badge>
-                </button>
-              )
-            })}
-          </div>
-        </CardContent>
+        </CardFooter>
       </Card>
 
       {/* Plan */}
@@ -225,17 +367,17 @@ export function SettingsView() {
           <div className="flex items-center gap-2">
             <Badge className="gap-1.5 border-0 bg-primary/12 font-medium text-primary">
               <Sparkles className="size-3" />
-              Agency-Plan
+              Free-Plan
             </Badge>
             <span className="text-sm text-muted-foreground">
-              {workspace.seats.length} Sitzplätze
+              1 Workspace-Inhaber
             </span>
           </div>
           <div>
             <div className="mb-1.5 flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Credits verbraucht</span>
               <span className="font-medium tabular-nums">
-                {workspace.usedCredits} / {workspace.monthlyCredits} · {remaining} übrig
+                0 / {monthlyCredits} · {remaining} übrig
               </span>
             </div>
             <Progress value={pct} className="h-2" />
@@ -253,40 +395,27 @@ export function SettingsView() {
 
       {/* Team */}
       <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardHeader>
           <div>
             <CardTitle>Team</CardTitle>
-            <CardDescription>{workspace.seats.length} Mitglieder</CardDescription>
+            <CardDescription>MVP unterstützt einen Workspace-Inhaber.</CardDescription>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => toast.success("Einladung versendet")}
-          >
-            <UserPlus className="size-4" />
-            Einladen
-          </Button>
         </CardHeader>
         <CardContent className="p-2">
-          <div className="divide-y">
-            {workspace.seats.map((s) => (
-              <div key={s.email} className="flex items-center gap-3 px-3 py-3">
-                <div className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                  {s.initials}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium">{s.name}</div>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Mail className="size-3" />
-                    {s.email}
-                  </div>
-                </div>
-                <Badge variant="secondary" className="font-normal capitalize">
-                  {roleLabel[s.role] ?? s.role}
-                </Badge>
+          <div className="flex items-center gap-3 px-3 py-3">
+            <div className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+              {(data.user.name ?? data.user.email).slice(0, 2).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium">{data.user.name ?? "Workspace-Inhaber"}</div>
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Mail className="size-3" />
+                {data.user.email}
               </div>
-            ))}
+            </div>
+            <Badge variant="secondary" className="font-normal">
+              Inhaber
+            </Badge>
           </div>
         </CardContent>
       </Card>

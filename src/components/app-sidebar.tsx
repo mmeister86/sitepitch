@@ -11,8 +11,9 @@ import {
   Settings,
   Plus,
   Sparkles,
-  UserPlus,
 } from "lucide-react"
+import { useQuery } from "convex/react"
+import { useRouter as useNextRouter } from "next/navigation"
 
 import {
   Sidebar,
@@ -38,7 +39,9 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Logo } from "@/components/logo"
 import { useRouter, type View } from "@/lib/router"
-import { workspace, audits, leads, campaigns } from "@/lib/mock-data"
+import { audits, leads, campaigns } from "@/lib/mock-data"
+import { authClient } from "@/lib/auth-client"
+import { api } from "../../convex/_generated/api"
 
 const nav: {
   label: string
@@ -54,12 +57,25 @@ const nav: {
 
 export function AppSidebar() {
   const { view, navigate } = useRouter()
-  const remaining = workspace.monthlyCredits - workspace.usedCredits
-  const pct = (workspace.usedCredits / workspace.monthlyCredits) * 100
+  const nextRouter = useNextRouter()
+  const data = useQuery(api.workspaces.getMyWorkspace)
+  const session = authClient.useSession()
+  const monthlyCredits = 3
+  const remaining = 3
+  const pct = 0
+  const displayName = data?.user.name ?? session.data?.user?.name ?? "Workspace-Inhaber"
+  const email = data?.user.email ?? session.data?.user?.email ?? ""
+  const workspaceName = data?.workspace.name ?? "SitePitch Workspace"
+  const initials = (displayName || email || "SP").slice(0, 2).toUpperCase()
 
   const isActive = (v: View) =>
     v.name === view.name ||
     (v.name === "audits" && view.name === "audit")
+
+  async function signOut() {
+    await authClient.signOut()
+    nextRouter.replace("/login")
+  }
 
   return (
     <Sidebar>
@@ -107,13 +123,13 @@ export function AppSidebar() {
           <div className="flex items-center justify-between text-xs">
             <span className="font-medium text-sidebar-foreground/70">Credits</span>
             <span className="font-semibold tabular-nums text-sidebar-foreground">
-              {remaining} / {workspace.monthlyCredits}
+              {remaining} / {monthlyCredits}
             </span>
           </div>
           <Progress value={pct} className="mt-2 h-1.5 bg-sidebar-border" />
           <div className="mt-2 flex items-center gap-1.5 text-[11px] text-sidebar-foreground/50">
             <Sparkles className="size-3" />
-            Agency-Plan · monatlich
+            Free-Plan · MVP
           </div>
         </div>
 
@@ -124,14 +140,14 @@ export function AppSidebar() {
               className="flex w-full items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             >
               <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
-                {workspace.seats[0].initials}
+                {initials}
               </div>
               <div className="flex min-w-0 flex-1 flex-col leading-tight">
                 <span className="truncate text-xs font-medium text-sidebar-foreground">
-                  {workspace.seats[0].name}
+                  {displayName}
                 </span>
                 <span className="truncate text-[11px] text-sidebar-foreground/50">
-                  {workspace.name}
+                  {workspaceName}
                 </span>
               </div>
               <ChevronUp className="size-3.5 shrink-0 text-sidebar-foreground/45" />
@@ -146,14 +162,14 @@ export function AppSidebar() {
             <DropdownMenuLabel className="px-2 py-2">
               <div className="flex items-center gap-2.5">
                 <div className="flex size-9 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                  {workspace.seats[0].initials}
+                  {initials}
                 </div>
                 <div className="min-w-0 leading-tight">
                   <p className="truncate text-sm font-medium">
-                    {workspace.seats[0].name}
+                    {displayName}
                   </p>
                   <p className="truncate text-xs font-normal text-muted-foreground">
-                    {workspace.contactEmail}
+                    {email}
                   </p>
                 </div>
               </div>
@@ -163,16 +179,12 @@ export function AppSidebar() {
               <Settings />
               Branding & Team
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate({ name: "settings" })}>
-              <UserPlus />
-              Team einladen
-            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate({ name: "campaigns" })}>
               <Mail />
               Vorlagen & Outreach
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled>
+            <DropdownMenuItem onClick={() => void signOut()}>
               <LogOut />
               Abmelden
             </DropdownMenuItem>

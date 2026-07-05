@@ -1,5 +1,5 @@
-import { CampaignsView } from "@/views/campaigns"
+import { redirect } from "next/navigation"
 
 export default function Page() {
-  return <CampaignsView />
+  redirect("/app/campaigns")
 }

@@ -1,8 +1,8 @@
 import type { Metadata } from "next"
 import type { ReactNode } from "react"
 
-import { AppShell } from "@/components/app-shell"
 import { AppProviders } from "@/components/app-providers"
+import { getToken } from "@/lib/auth-server"
 
 import "goey-toast/styles.css"
 import "../src/index.css"
@@ -12,13 +12,13 @@ export const metadata: Metadata = {
   description: "Audit- und Lead-Dashboard fuer Agenturen",
 }
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const token = await getToken()
+
   return (
     <html lang="de" suppressHydrationWarning>
       <body>
-        <AppProviders>
-          <AppShell>{children}</AppShell>
-        </AppProviders>
+        <AppProviders initialToken={token}>{children}</AppProviders>
       </body>
     </html>
   )

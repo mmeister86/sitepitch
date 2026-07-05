@@ -24,6 +24,7 @@ import {
 } from "lucide-react"
 import { toast } from "@/components/ui/sonner"
 import type { ReactNode } from "react"
+import { useQuery } from "convex/react"
 
 import {
   Card,
@@ -47,7 +48,7 @@ import { ScoreRing } from "@/components/score-ring"
 import { SeverityBadge, LeadStatusBadge, ScoreBadge } from "@/components/status-badges"
 import { CopyButton } from "@/components/copy-button"
 import { useRouter } from "@/lib/router"
-import { auditById, campaignById, workspace } from "@/lib/mock-data"
+import { auditById, campaignById } from "@/lib/mock-data"
 import {
   scoreColorVar,
   scoreTextClass,
@@ -55,7 +56,10 @@ import {
   formatRelative,
 } from "@/lib/scores"
 import { cn } from "@/lib/utils"
+import { authClient } from "@/lib/auth-client"
+import { getUserDisplayName, personalizeOutreachText } from "@/lib/user-display"
 import type { Audit, AuditHistoryEntry, CheckResult, LeadStatus } from "@/lib/types"
+import { api } from "../../convex/_generated/api"
 
 const runningSteps = [
   "URL validiert",
@@ -75,7 +79,18 @@ const checkIcon: Record<CheckResult["status"], ReactNode> = {
 
 export function AuditDetailView({ id }: { id: string }) {
   const { navigate } = useRouter()
+  const data = useQuery(api.workspaces.getMyWorkspace)
+  const session = authClient.useSession()
   const audit = auditById(id)
+  const displayName = getUserDisplayName(
+    data?.user.name ?? session.data?.user?.name,
+    data?.user.email ?? session.data?.user?.email
+  )
+  const branding = {
+    name: data?.workspace.name ?? "Workspace",
+    accentColor: data?.workspace.accentColor ?? "#5b5bd6",
+    ctaText: data?.workspace.ctaText ?? "",
+  }
 
   if (!audit) {
     return (
@@ -94,7 +109,9 @@ export function AuditDetailView({ id }: { id: string }) {
       <AuditHeader audit={audit} />
       {audit.status === "running" && <RunningState audit={audit} />}
       {audit.status === "failed" && <FailedState audit={audit} />}
-      {audit.status === "completed" && <CompletedReport audit={audit} />}
+      {audit.status === "completed" && (
+        <CompletedReport audit={audit} displayName={displayName} branding={branding} />
+      )}
     </div>
   )
 }
@@ -252,7 +269,15 @@ function FailedState({ audit }: { audit: Audit }) {
   )
 }
 
-function CompletedReport({ audit }: { audit: Audit }) {
+function CompletedReport({
+  audit,
+  displayName,
+  branding,
+}: {
+  audit: Audit
+  displayName: string
+  branding: { name: string; accentColor: string; ctaText: string }
+}) {
   const score = audit.overallScore!
   return (
     <>
@@ -326,13 +351,17 @@ function CompletedReport({ audit }: { audit: Audit }) {
         </TabsList>
 
         <TabsContent value="report" className="space-y-4">
-          <ReportTab audit={audit} />
+          <ReportTab audit={audit} branding={branding} />
         </TabsContent>
         <TabsContent value="findings" className="space-y-3">
           <FindingsTab audit={audit} />
         </TabsContent>
         <TabsContent value="outreach" className="space-y-4">
-          <OutreachTab audit={audit} />
+          <OutreachTab
+            audit={audit}
+            displayName={displayName}
+            workspaceName={branding.name}
+          />
         </TabsContent>
         <TabsContent value="checks">
           <ChecksTab audit={audit} />
@@ -433,7 +462,13 @@ function EngagementStat({
   )
 }
 
-function ReportTab({ audit }: { audit: Audit }) {
+function ReportTab({
+  audit,
+  branding,
+}: {
+  audit: Audit
+  branding: { name: string; accentColor: string; ctaText: string }
+}) {
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-2">
@@ -544,13 +579,13 @@ function ReportTab({ audit }: { audit: Audit }) {
           <CardContent className="flex items-center gap-3 py-4">
             <div
               className="flex size-9 items-center justify-center rounded-lg text-sm font-semibold text-white"
-              style={{ backgroundColor: workspace.accentColor }}
+              style={{ backgroundColor: branding.accentColor }}
             >
-              {workspace.name.charAt(0)}
+              {branding.name.charAt(0)}
             </div>
             <div className="text-xs">
-              <p className="font-medium text-foreground">Gebrandet für {workspace.name}</p>
-              <p className="text-muted-foreground">{workspace.ctaText}</p>
+              <p className="font-medium text-foreground">Gebrandet für {branding.name}</p>
+              <p className="text-muted-foreground">{branding.ctaText}</p>
             </div>
           </CardContent>
         </Card>
@@ -606,12 +641,21 @@ function Field({ label, value }: { label: string; value: string }) {
   )
 }
 
-function OutreachTab({ audit }: { audit: Audit }) {
+function OutreachTab({
+  audit,
+  displayName,
+  workspaceName,
+}: {
+  audit: Audit
+  displayName: string
+  workspaceName: string
+}) {
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-2">
         {audit.outreach.map((draft) => {
-          const full = draft.subject ? `Betreff: ${draft.subject}\n\n${draft.body}` : draft.body
+          const body = personalizeOutreachText(draft.body, displayName, workspaceName)
+          const full = draft.subject ? `Betreff: ${draft.subject}\n\n${body}` : body
           return (
             <Card key={draft.type}>
               <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
@@ -627,7 +671,7 @@ function OutreachTab({ audit }: { audit: Audit }) {
               </CardHeader>
               <CardContent>
                 <pre className="whitespace-pre-wrap rounded-lg bg-muted/50 p-4 font-sans text-sm leading-relaxed text-foreground/80">
-                  {draft.body}
+                  {body}
                 </pre>
               </CardContent>
             </Card>

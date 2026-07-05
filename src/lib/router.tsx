@@ -13,6 +13,7 @@ export type View =
 
 function parsePath(pathname: string): View {
   const parts = pathname.split("/").filter(Boolean)
+  if (parts[0] === "app") parts.shift()
   if (parts[0] === "audits" && parts[1]) {
     return { name: "audit", id: decodeURIComponent(parts[1]) }
   }
@@ -26,11 +27,11 @@ function parsePath(pathname: string): View {
 function viewToPath(view: View): string {
   switch (view.name) {
     case "dashboard":
-      return "/"
+      return "/app"
     case "audit":
-      return `/audits/${encodeURIComponent(view.id)}`
+      return `/app/audits/${encodeURIComponent(view.id)}`
     default:
-      return `/${view.name}`
+      return `/app/${view.name}`
   }
 }
 

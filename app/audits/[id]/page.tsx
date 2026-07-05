@@ -1,4 +1,4 @@
-import { AuditDetailView } from "@/views/audit-detail"
+import { redirect } from "next/navigation"
 
 export default async function Page({
   params,
@@ -7,5 +7,5 @@ export default async function Page({
 }) {
   const { id } = await params
 
-  return <AuditDetailView id={id} />
+  redirect(`/app/audits/${encodeURIComponent(id)}`)
 }
