@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "test:schema": "node --experimental-strip-types --test convex/schema.contract.test.ts",
     "typecheck": "tsc --noEmit",
     "start": "next start"
   },
