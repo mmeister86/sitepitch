@@ -9,6 +9,8 @@ import {
   ArrowRight,
   CheckCircle2,
   Sparkles,
+  TrendingUp,
+  Bell,
 } from "lucide-react"
 import { useQuery } from "convex/react"
 
@@ -244,6 +246,47 @@ export function DashboardView() {
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Engagement + Activity placeholders */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Report-Engagement</CardTitle>
+            <CardDescription>Views und Engagement über die Zeit</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex h-[220px] flex-col items-center justify-center gap-2 text-center">
+              <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+                <TrendingUp className="size-5 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium text-muted-foreground">Noch keine Daten</p>
+              <p className="max-w-xs text-xs text-muted-foreground/70">
+                Sobald du Reports freigibst und teilst, erscheinen hier Views,
+                erneute Öffnungen und CTA-Klicks im Zeitverlauf.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Aktivität</CardTitle>
+            <CardDescription>Was Prospects gerade tun</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex h-[220px] flex-col items-center justify-center gap-2 text-center">
+              <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+                <Bell className="size-5 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium text-muted-foreground">Noch keine Aktivität</p>
+              <p className="max-w-xs text-xs text-muted-foreground/70">
+                Report-Views, Outreach-Kopien und Statuswechsel erscheinen hier,
+                sobald der erste Prospect interagiert.
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
