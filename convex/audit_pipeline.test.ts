@@ -37,6 +37,7 @@ describe("audit pipeline helpers", () => {
         <head>
           <title>Example Studio</title>
           <meta name="description" content="Modern web design for local businesses">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
           <meta property="og:title" content="Example Studio">
         </head>
         <body>
@@ -44,6 +45,13 @@ describe("audit pipeline helpers", () => {
           <a href="/kontakt">Kontakt</a>
           <a href="/datenschutz">Datenschutz</a>
           <a href="/leistungen">Leistungen</a>
+          <a href="tel:+4930123456">+49 30 123456</a>
+          <img src="/logo.png" alt="Logo">
+          <img src="/hero.png">
+          <form action="/kontakt" method="post">
+            <input type="email" name="email">
+            <textarea name="message"></textarea>
+          </form>
           <a href="https://external.example">External</a>
         </body>
       </html>
@@ -55,6 +63,11 @@ describe("audit pipeline helpers", () => {
     assert.equal(signals.privacyLinkFound, true)
     assert.equal(signals.internalLinks.length, 3)
     assert.equal(signals.externalLinks.length, 1)
+    assert.equal(signals.phoneLinkFound, true)
+    assert.equal(signals.viewportMetaFound, true)
+    assert.equal(signals.contactFormFound, true)
+    assert.equal(signals.imageCount, 2)
+    assert.equal(signals.imagesMissingAltCount, 1)
 
     const pages = pickPriorityPages("https://example.com/", signals.internalLinks, 5)
     assert.equal(pages[0].kind, "primary")

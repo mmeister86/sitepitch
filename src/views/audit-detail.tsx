@@ -132,6 +132,16 @@ const liveAuditStages: Array<{
     description: "Die gesammelten Ergebnisse werden verdichtet und bewertet.",
   },
   {
+    status: "calculating_scores",
+    title: "Scores berechnen",
+    description: "Kategorie- und Gesamtscores werden deterministisch ermittelt.",
+  },
+  {
+    status: "generating_findings",
+    title: "Findings vorbereiten",
+    description: "Die strukturierten Befunde werden für den Report aufbereitet.",
+  },
+  {
     status: "completed",
     title: "Abgeschlossen",
     description: "Der Report ist fertig und kann geöffnet werden.",

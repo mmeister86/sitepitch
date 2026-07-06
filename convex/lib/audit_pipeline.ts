@@ -44,6 +44,11 @@ export type ExtractedPageSignals = {
   imprintLinkFound: boolean
   ctaCandidates: string[]
   extractedMarkdown: string
+  imageCount: number
+  imagesMissingAltCount: number
+  phoneLinkFound: boolean
+  contactFormFound: boolean
+  viewportMetaFound: boolean
 }
 
 const PAGE_PLAN: Record<AuditPipelineTier, AuditPipelinePlan> = {
@@ -125,12 +130,16 @@ export function extractSignalsFromHtml(html: string, pageUrl: string, siteOrigin
   const externalLinks = new Set<string>()
   const contactLinks = new Set<string>()
   const ctaCandidates = new Set<string>()
+  let phoneLinkFound = false
 
   for (const match of links) {
     const href = match[1]?.trim()
     const text = collapseWhitespace(stripTags(match[2] ?? ""))
     if (!href) {
       continue
+    }
+    if (/^tel:/i.test(href)) {
+      phoneLinkFound = true
     }
     const resolved = resolveUrl(page, href)
     if (!resolved) {
@@ -148,6 +157,10 @@ export function extractSignalsFromHtml(html: string, pageUrl: string, siteOrigin
       externalLinks.add(normalizeUrlForAudit(resolved.toString()))
     }
   }
+
+  const imageData = analyzeImages(stripped)
+  const viewportMetaFound = /<meta[^>]+name=["']viewport["'][^>]*>/i.test(stripped)
+  const contactFormFound = detectContactForm(stripped)
 
   return {
     title: cleanText(title),
@@ -170,6 +183,11 @@ export function extractSignalsFromHtml(html: string, pageUrl: string, siteOrigin
     imprintLinkFound: /impressum|imprint/i.test(stripped),
     ctaCandidates: Array.from(ctaCandidates),
     extractedMarkdown: extractReadableMarkdown(stripped, siteOrigin),
+    imageCount: imageData.imageCount,
+    imagesMissingAltCount: imageData.missingAltCount,
+    phoneLinkFound,
+    contactFormFound,
+    viewportMetaFound,
   }
 }
 
@@ -212,6 +230,11 @@ export function extractSignalsFromMarkdown(markdown: string, siteOrigin: string)
     imprintLinkFound: /impressum|imprint/i.test(markdown),
     ctaCandidates: unique(lines.filter((line) => isCtaLike(line))),
     extractedMarkdown: collapseWhitespace(markdown).slice(0, 20_000) + `\n\nSource: ${siteOrigin}`,
+    imageCount: 0,
+    imagesMissingAltCount: 0,
+    phoneLinkFound: /\(tel:/i.test(markdown),
+    contactFormFound: false,
+    viewportMetaFound: false,
   }
 }
 
@@ -394,6 +417,43 @@ function isContactLike(url: URL, text: string) {
 
 function isCtaLike(text: string) {
   return /jetzt|angebot|kostenlos|termin|kontakt|buch|anfrage|start/i.test(text)
+}
+
+function analyzeImages(html: string) {
+  const imageMatches = Array.from(html.matchAll(/<img\b[^>]*>/gi))
+  const imageCount = imageMatches.length
+  let missingAltCount = 0
+
+  for (const match of imageMatches) {
+    const tag = match[0]
+    const altMatch = tag.match(/alt=["']([^"']*)["']/i)
+    if (!altMatch) {
+      missingAltCount += 1
+      continue
+    }
+    const altText = altMatch[1]?.trim()
+    if (!altText) {
+      missingAltCount += 1
+    }
+  }
+
+  return { imageCount, missingAltCount }
+}
+
+function detectContactForm(html: string) {
+  const formMatches = Array.from(html.matchAll(/<form\b[^>]*>([\s\S]*?)<\/form>/gi))
+  for (const match of formMatches) {
+    const formHtml = match[0]
+    const looksLikeContact =
+      /<input[^>]+type=["']email["']/i.test(formHtml) ||
+      /<textarea/i.test(formHtml) ||
+      /<input[^>]+name=["']?(message|nachricht|comment|betreff)["']/i.test(formHtml) ||
+      /kontakt|contact|anfrage/i.test(formHtml)
+    if (looksLikeContact) {
+      return true
+    }
+  }
+  return false
 }
 
 function unique(values: string[]) {

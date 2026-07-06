@@ -164,3 +164,26 @@ const auditBusinessIndexes = (schema.tables.auditBusinessData as any).indexes.ma
   (index: { indexDescriptor: string }) => index.indexDescriptor,
 )
 assert.ok(auditBusinessIndexes.includes("by_auditId"))
+
+const auditChecksIndexes = (schema.tables.auditChecks as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(auditChecksIndexes.includes("by_auditId"))
+assert.ok(auditChecksIndexes.includes("by_auditId_and_category_and_key"))
+
+const auditScoresIndexes = (schema.tables.auditScores as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(auditScoresIndexes.includes("by_auditId"))
+assert.ok(auditScoresIndexes.includes("by_auditId_and_scoringVersion"))
+
+const auditRawDataFields = Object.keys((schema.tables.auditRawData as any).validator.fields)
+for (const field of [
+  "imageCount",
+  "imagesMissingAltCount",
+  "phoneLinkFound",
+  "contactFormFound",
+  "viewportMetaFound",
+]) {
+  assert.ok(auditRawDataFields.includes(field), `auditRawData should include ${field}`)
+}

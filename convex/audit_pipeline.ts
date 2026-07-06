@@ -941,6 +941,11 @@ export const processAuditPipeline = internalAction({
       imprintLinkFound: primarySignals.imprintLinkFound,
       ctaCandidates: primarySignals.ctaCandidates,
       extractedMarkdown: primarySignals.extractedMarkdown,
+      imageCount: primarySignals.imageCount,
+      imagesMissingAltCount: primarySignals.imagesMissingAltCount,
+      phoneLinkFound: primarySignals.phoneLinkFound,
+      contactFormFound: primarySignals.contactFormFound,
+      viewportMetaFound: primarySignals.viewportMetaFound,
     })
 
     const homeUrl = new URL(primaryFetch.finalUrl)
@@ -1110,11 +1115,44 @@ export const processAuditPipeline = internalAction({
       // no-op, optional provider failed or was unavailable
     }
 
-    await ctx.runMutation(internal.audit_state.finishAuditPipeline, {
+    console.log("[audit_pipeline] finishing pipeline", {
+      auditId: claim.auditId,
+      leaseToken: claim.leaseToken,
+    })
+
+    const finishResult = await ctx.runMutation(internal.audit_state.finishAuditPipeline, {
       auditId: claim.auditId,
       leaseToken: claim.leaseToken,
       statusMessage: "Deterministische Checks werden vorbereitet",
     })
+
+    console.log("[audit_pipeline] finish result", {
+      auditId: claim.auditId,
+      finishResult,
+    })
+
+    if (finishResult) {
+      console.log("[audit_pipeline] scheduling deterministic scoring", {
+        auditId: claim.auditId,
+      })
+      try {
+        await ctx.scheduler.runAfter(0, internal.audit_scoring.processDeterministicScoring, {
+          auditId: claim.auditId,
+        })
+        console.log("[audit_pipeline] scoring scheduled successfully", {
+          auditId: claim.auditId,
+        })
+      } catch (error) {
+        console.error("[audit_pipeline] failed to schedule scoring", {
+          auditId: claim.auditId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    } else {
+      console.warn("[audit_pipeline] finishAuditPipeline returned null, not scheduling scoring", {
+        auditId: claim.auditId,
+      })
+    }
 
     return null
   },

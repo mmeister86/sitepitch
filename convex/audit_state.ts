@@ -334,6 +334,11 @@ export const upsertAuditRawData = internalMutation({
     imprintLinkFound: v.optional(v.boolean()),
     ctaCandidates: v.optional(v.array(v.string())),
     extractedMarkdown: v.optional(v.string()),
+    imageCount: v.optional(v.number()),
+    imagesMissingAltCount: v.optional(v.number()),
+    phoneLinkFound: v.optional(v.boolean()),
+    contactFormFound: v.optional(v.boolean()),
+    viewportMetaFound: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -368,6 +373,11 @@ export const upsertAuditRawData = internalMutation({
       imprintLinkFound: args.imprintLinkFound,
       ctaCandidates: args.ctaCandidates,
       extractedMarkdown: args.extractedMarkdown,
+      imageCount: args.imageCount,
+      imagesMissingAltCount: args.imagesMissingAltCount,
+      phoneLinkFound: args.phoneLinkFound,
+      contactFormFound: args.contactFormFound,
+      viewportMetaFound: args.viewportMetaFound,
       createdAt: now(),
     }
 

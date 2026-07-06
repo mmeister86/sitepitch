@@ -208,6 +208,11 @@ export default defineSchema({
     imprintLinkFound: v.optional(v.boolean()),
     ctaCandidates: v.optional(v.array(v.string())),
     extractedMarkdown: v.optional(v.string()),
+    imageCount: v.optional(v.number()),
+    imagesMissingAltCount: v.optional(v.number()),
+    phoneLinkFound: v.optional(v.boolean()),
+    contactFormFound: v.optional(v.boolean()),
+    viewportMetaFound: v.optional(v.boolean()),
     createdAt: v.number(),
   })
     .index("by_workspaceId", ["workspaceId"])
@@ -265,6 +270,7 @@ export default defineSchema({
     .index("by_workspaceId", ["workspaceId"])
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
     .index("by_auditId", ["auditId"])
+    .index("by_auditId_and_category_and_key", ["auditId", "category", "key"])
     .index("by_workspaceId_and_category", ["workspaceId", "category"])
     .index("by_workspaceId_and_category_and_key", ["workspaceId", "category", "key"]),
 
@@ -283,7 +289,8 @@ export default defineSchema({
   })
     .index("by_workspaceId", ["workspaceId"])
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
-    .index("by_auditId", ["auditId"]),
+    .index("by_auditId", ["auditId"])
+    .index("by_auditId_and_scoringVersion", ["auditId", "scoringVersion"]),
 
   auditFindings: defineTable({
     workspaceId: v.id("workspaces"),
