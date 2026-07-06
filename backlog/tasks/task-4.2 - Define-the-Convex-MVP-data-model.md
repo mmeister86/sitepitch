@@ -1,10 +1,10 @@
 ---
 id: TASK-4.2
 title: Define the Convex MVP data model
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-03 20:02'
-updated_date: '2026-07-05 20:08'
+updated_date: '2026-07-05 20:22'
 labels:
   - mvp
   - convex
