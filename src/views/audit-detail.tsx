@@ -56,6 +56,7 @@ import {
 } from "@/components/status-badges"
 import { CopyButton } from "@/components/copy-button"
 import { AuditReport } from "@/components/audit-report"
+import { OutreachWorkflows } from "@/components/outreach-workflows"
 import { useRouter } from "@/lib/router"
 import { auditById, campaignById } from "@/lib/mock-data"
 import {
@@ -386,14 +387,6 @@ function LiveFailedReport({
   )
 }
 
-const outreachTypeLabels: Record<string, string> = {
-  email: "E-Mail",
-  linkedin: "LinkedIn / Kontaktformular",
-  contact_form: "Kontaktformular",
-  phone_note: "Telefonnotiz",
-  follow_up: "Follow-up",
-}
-
 function LiveCompletedReport({
   report,
   navigate,
@@ -402,6 +395,7 @@ function LiveCompletedReport({
   navigate: ReturnType<typeof useRouter>["navigate"]
 }) {
   const setPublic = useMutation(api.reports.setPublicReportEnabled)
+  const recordCopy = useMutation(api.reports.recordReportCopyEvent)
   const shareUrl = buildShareUrl(report.publicSlug)
   const hasOutreach = report.outreachDrafts.length > 0
   const hasChecks = report.checks.length > 0
@@ -415,6 +409,14 @@ function LiveCompletedReport({
       )
     } catch {
       toast.error("Freigabe konnte nicht geändert werden")
+    }
+  }
+
+  const recordPublicLinkCopy = async () => {
+    try {
+      await recordCopy({ auditId: report.auditId, kind: "public_link" })
+    } catch {
+      /* analytics only */
     }
   }
 
@@ -451,7 +453,7 @@ function LiveCompletedReport({
           </Button>
           {report.isPublic ? (
             <>
-              <CopyButton text={shareUrl} label="Link kopieren" toastMessage="Report-Link kopiert" />
+              <CopyButton text={shareUrl} label="Link kopieren" toastMessage="Report-Link kopiert" onCopied={recordPublicLinkCopy} />
               <Button variant="outline" className="gap-2" asChild>
                 <a href={`/r/${report.publicSlug}`} target="_blank" rel="noreferrer">
                   <ExternalLink className="size-4" />
@@ -547,35 +549,14 @@ function LiveCompletedReport({
         </TabsContent>
 
         {hasOutreach && (
-          <TabsContent value="outreach" className="space-y-4">
-            {report.outreachDrafts.map((draft) => {
-              const body = draft.body
-              const full = draft.subject ? `Betreff: ${draft.subject}\n\n${body}` : body
-              return (
-                <Card key={draft.type}>
-                  <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
-                    <CardTitle className="text-base">
-                      {outreachTypeLabels[draft.type] ?? draft.type}
-                    </CardTitle>
-                    <CopyButton
-                      text={full}
-                      label="Kopieren"
-                      toastMessage={`${outreachTypeLabels[draft.type] ?? draft.type}-Text kopiert`}
-                    />
-                  </CardHeader>
-                  {draft.subject && (
-                    <CardContent className="pb-0 pt-0">
-                      <p className="text-sm font-medium text-foreground/70">{draft.subject}</p>
-                    </CardContent>
-                  )}
-                  <CardContent>
-                    <pre className="whitespace-pre-wrap rounded-lg bg-muted/50 p-4 font-sans text-sm leading-relaxed text-foreground/80">
-                      {body}
-                    </pre>
-                  </CardContent>
-                </Card>
-              )
-            })}
+          <TabsContent value="outreach">
+            <OutreachWorkflows
+              auditId={report.auditId}
+              outreachDrafts={report.outreachDrafts}
+              shareUrl={shareUrl}
+              isPublic={report.isPublic}
+              onEnablePublic={report.isPublic ? undefined : () => togglePublic(true)}
+            />
           </TabsContent>
         )}
 

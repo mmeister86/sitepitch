@@ -12,6 +12,7 @@ interface CopyButtonProps {
   className?: string
   variant?: "default" | "outline" | "secondary" | "ghost"
   size?: "default" | "sm" | "icon"
+  onCopied?: () => void | Promise<void>
 }
 
 export function CopyButton({
@@ -21,6 +22,7 @@ export function CopyButton({
   className,
   variant = "outline",
   size = "sm",
+  onCopied,
 }: CopyButtonProps) {
   const [copied, setCopied] = useState(false)
 
@@ -33,6 +35,13 @@ export function CopyButton({
     setCopied(true)
     toast.success(toastMessage)
     setTimeout(() => setCopied(false), 1600)
+    if (onCopied) {
+      try {
+        await onCopied()
+      } catch {
+        /* analytics failures must never block the copy feedback */
+      }
+    }
   }
 
   return (
