@@ -124,9 +124,9 @@ export function SettingsView() {
   }, [accent, ctaText, ctaUrl, email, lang, logoStorageId, name, website])
 
   const visibleErrors = { ...clientErrors, ...fieldErrors }
-  const remaining = 3
-  const monthlyCredits = 3
-  const pct = 0
+  const remaining = data?.credits.remaining ?? 0
+  const monthlyCredits = data?.credits.total ?? 0
+  const pct = monthlyCredits > 0 ? ((data?.credits.used ?? 0) / monthlyCredits) * 100 : 0
 
   function resetForm() {
     if (!data) return
@@ -377,7 +377,7 @@ export function SettingsView() {
             <div className="mb-1.5 flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Credits verbraucht</span>
               <span className="font-medium tabular-nums">
-                0 / {monthlyCredits} · {remaining} übrig
+                {data?.credits.used ?? 0} / {monthlyCredits} · {remaining} übrig
               </span>
             </div>
             <Progress value={pct} className="h-2" />

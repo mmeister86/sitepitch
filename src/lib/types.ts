@@ -8,10 +8,24 @@ export type LeadStatus =
   | "lost"
 
 export type AuditStatus =
+  | "draft"
   | "queued"
+  | "validating_url"
+  | "fetching_html"
+  | "extracting_content"
+  | "taking_screenshots"
+  | "running_performance_checks"
+  | "fetching_business_data"
+  | "running_deterministic_checks"
+  | "calculating_scores"
+  | "generating_findings"
+  | "generating_outreach"
   | "running"
   | "completed"
   | "failed"
+  | "cancelled"
+
+export type AuditType = "standard" | "local" | "quick"
 
 export type OutreachStatus = "not_started" | "copied" | "sent"
 

@@ -38,6 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Logo } from "@/components/logo"
+import { NewAuditDialog } from "@/components/new-audit-dialog"
 import { useRouter, type View } from "@/lib/router"
 import { audits, leads, campaigns } from "@/lib/mock-data"
 import { authClient } from "@/lib/auth-client"
@@ -60,9 +61,9 @@ export function AppSidebar() {
   const nextRouter = useNextRouter()
   const data = useQuery(api.workspaces.getMyWorkspace)
   const session = authClient.useSession()
-  const monthlyCredits = 3
-  const remaining = 3
-  const pct = 0
+  const monthlyCredits = data?.credits.total ?? 0
+  const remaining = data?.credits.remaining ?? 0
+  const pct = monthlyCredits > 0 ? ((monthlyCredits - remaining) / monthlyCredits) * 100 : 0
   const displayName = data?.user.name ?? session.data?.user?.name ?? "Workspace-Inhaber"
   const email = data?.user.email ?? session.data?.user?.email ?? ""
   const workspaceName = data?.workspace.name ?? "SitePitch Workspace"
@@ -83,13 +84,14 @@ export function AppSidebar() {
         <div className="px-1 py-1.5">
           <Logo />
         </div>
-        <Button
-          className="mt-1 w-full justify-start gap-2 bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90"
-          onClick={() => navigate({ name: "audits" })}
-        >
-          <Plus className="size-4" />
-          Neuer Audit
-        </Button>
+        <NewAuditDialog
+          trigger={
+            <Button className="mt-1 w-full justify-start gap-2 bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90">
+              <Plus className="size-4" />
+              Neuer Audit
+            </Button>
+          }
+        />
       </SidebarHeader>
 
       <SidebarContent className="px-1">

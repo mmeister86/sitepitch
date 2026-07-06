@@ -21,9 +21,22 @@ export function LeadStatusBadge({ status }: { status: LeadStatus }) {
 
 export function AuditStatusBadge({ status }: { status: AuditStatus }) {
   const meta = auditStatusMeta[status]
+  const pulsingStatuses: AuditStatus[] = [
+    "validating_url",
+    "fetching_html",
+    "extracting_content",
+    "taking_screenshots",
+    "running_performance_checks",
+    "fetching_business_data",
+    "running_deterministic_checks",
+    "calculating_scores",
+    "generating_findings",
+    "generating_outreach",
+    "running",
+  ]
   return (
     <Badge className={cn("border-0 font-medium", meta.badge)}>
-      {status === "running" && (
+      {pulsingStatuses.includes(status) && (
         <span className="mr-1 size-1.5 animate-pulse rounded-full bg-current" />
       )}
       {meta.label}

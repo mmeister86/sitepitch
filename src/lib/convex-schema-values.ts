@@ -25,6 +25,12 @@ export const subscriptionStatusValidator = v.union(
   v.literal("expired"),
 )
 
+export const auditTypeValidator = v.union(
+  v.literal("standard"),
+  v.literal("local"),
+  v.literal("quick"),
+)
+
 export const creditLedgerTypeValidator = v.union(
   v.literal("grant"),
   v.literal("reserve"),
@@ -175,4 +181,3 @@ export const auditAgentRunStatusValidator = v.union(
   v.literal("completed"),
   v.literal("failed"),
 )
-

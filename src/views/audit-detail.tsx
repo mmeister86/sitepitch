@@ -45,7 +45,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ScoreRing } from "@/components/score-ring"
-import { SeverityBadge, LeadStatusBadge, ScoreBadge } from "@/components/status-badges"
+import {
+  SeverityBadge,
+  LeadStatusBadge,
+  ScoreBadge,
+  AuditStatusBadge,
+} from "@/components/status-badges"
 import { CopyButton } from "@/components/copy-button"
 import { useRouter } from "@/lib/router"
 import { auditById, campaignById } from "@/lib/mock-data"
@@ -60,6 +65,8 @@ import { authClient } from "@/lib/auth-client"
 import { getUserDisplayName, personalizeOutreachText } from "@/lib/user-display"
 import type { Audit, AuditHistoryEntry, CheckResult, LeadStatus } from "@/lib/types"
 import { api } from "../../convex/_generated/api"
+import type { Doc, Id } from "../../convex/_generated/dataModel"
+import { Spinner } from "@/components/ui/spinner"
 
 const runningSteps = [
   "URL validiert",
@@ -77,11 +84,56 @@ const checkIcon: Record<CheckResult["status"], ReactNode> = {
   not_applicable: <MinusCircle className="size-4 text-muted-foreground" />,
 }
 
+type LiveAudit = Doc<"audits">
+
+const liveAuditStages: Array<{
+  status: LiveAudit["status"]
+  title: string
+  description: string
+}> = [
+  {
+    status: "queued",
+    title: "In Warteschlange",
+    description: "Der Audit wartet auf den Start durch die Pipeline.",
+  },
+  {
+    status: "validating_url",
+    title: "URL prüfen",
+    description: "URL wird normalisiert und gegen private Ziele geprüft.",
+  },
+  {
+    status: "fetching_html",
+    title: "HTML laden",
+    description: "Der Zielserver wird angefragt und die erste Antwort geprüft.",
+  },
+  {
+    status: "extracting_content",
+    title: "Inhalte extrahieren",
+    description: "Die relevanten Inhalte werden aus dem Seitenquelltext gelesen.",
+  },
+  {
+    status: "taking_screenshots",
+    title: "Screenshots",
+    description: "Desktop- und Mobile-Ansichten werden vorbereitet.",
+  },
+  {
+    status: "running_performance_checks",
+    title: "Performance",
+    description: "Die technischen Leistungswerte werden erfasst.",
+  },
+  {
+    status: "completed",
+    title: "Abgeschlossen",
+    description: "Der Report ist fertig und kann geöffnet werden.",
+  },
+]
+
 export function AuditDetailView({ id }: { id: string }) {
   const { navigate } = useRouter()
   const data = useQuery(api.workspaces.getMyWorkspace)
   const session = authClient.useSession()
-  const audit = auditById(id)
+  const isMockAudit = id.startsWith("aud_")
+  const audit = isMockAudit ? auditById(id) : null
   const displayName = getUserDisplayName(
     data?.user.name ?? session.data?.user?.name,
     data?.user.email ?? session.data?.user?.email
@@ -90,6 +142,10 @@ export function AuditDetailView({ id }: { id: string }) {
     name: data?.workspace.name ?? "Workspace",
     accentColor: data?.workspace.accentColor ?? "#5b5bd6",
     ctaText: data?.workspace.ctaText ?? "",
+  }
+
+  if (!isMockAudit) {
+    return <LiveAuditDetail id={id} />
   }
 
   if (!audit) {
@@ -112,6 +168,160 @@ export function AuditDetailView({ id }: { id: string }) {
       {audit.status === "completed" && (
         <CompletedReport audit={audit} displayName={displayName} branding={branding} />
       )}
+    </div>
+  )
+}
+
+function LiveAuditDetail({ id }: { id: string }) {
+  const { navigate } = useRouter()
+  const audit = useQuery(api.audits.getById, { auditId: id as Id<"audits"> })
+
+  if (audit === undefined) {
+    return (
+      <div className="mx-auto flex min-h-[40vh] items-center justify-center">
+        <Spinner className="size-6 text-primary" />
+      </div>
+    )
+  }
+
+  if (!audit) {
+    return (
+      <div className="mx-auto max-w-md p-10 text-center">
+        <p className="text-sm text-muted-foreground">Audit nicht gefunden.</p>
+        <Button variant="outline" className="mt-4 gap-2" onClick={() => navigate({ name: "audits" })}>
+          <ArrowLeft className="size-4" />
+          Zurück zur Inbox
+        </Button>
+      </div>
+    )
+  }
+
+  const stageIndex = liveAuditStages.findIndex((stage) => stage.status === audit.status)
+  const progress =
+    stageIndex < 0
+      ? audit.status === "failed"
+        ? 100
+        : 0
+      : Math.min(100, ((stageIndex + 1) / liveAuditStages.length) * 100)
+  const currentStage = liveAuditStages[stageIndex >= 0 ? stageIndex : 0]
+  const shareUrl = `https://trysitepitch.com/r/${audit.publicSlug}`
+
+  return (
+    <div className="mx-auto w-full max-w-[960px] space-y-5 p-4 md:p-6">
+      <button
+        onClick={() => navigate({ name: "audits" })}
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" />
+        Audit-Inbox
+      </button>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle className="flex flex-wrap items-center gap-2">
+                <span>{audit.domain}</span>
+                <AuditStatusBadge status={audit.status} />
+              </CardTitle>
+              <CardDescription className="mt-1 break-all">
+                {audit.normalizedUrl}
+              </CardDescription>
+            </div>
+            <Button variant="outline" className="gap-2" asChild>
+              <a href={audit.normalizedUrl} target="_blank" rel="noreferrer">
+                <ExternalLink className="size-4" />
+                Website öffnen
+              </a>
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border bg-muted/40 p-3">
+              <div className="text-xs text-muted-foreground">Audit-Typ</div>
+              <div className="mt-1 text-sm font-medium capitalize">{audit.auditType}</div>
+            </div>
+            <div className="rounded-lg border bg-muted/40 p-3">
+              <div className="text-xs text-muted-foreground">Report-Sprache</div>
+              <div className="mt-1 text-sm font-medium">{audit.reportLanguage === "de" ? "Deutsch" : "English"}</div>
+            </div>
+            <div className="rounded-lg border bg-muted/40 p-3">
+              <div className="text-xs text-muted-foreground">Freigabe-Link</div>
+              <div className="mt-1 truncate text-sm font-medium">{shareUrl}</div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">
+                {currentStage ? currentStage.title : "Audit läuft"}
+              </span>
+              <span className="font-medium tabular-nums">{Math.round(progress)}%</span>
+            </div>
+            <Progress value={progress} className="h-2" />
+            {audit.statusMessage && (
+              <p className="text-sm text-muted-foreground">{audit.statusMessage}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            {liveAuditStages.map((stage, index) => {
+              const done = index < stageIndex
+              const active = index === stageIndex
+              return (
+                <div
+                  key={stage.status}
+                  className={cn(
+                    "flex items-start gap-3 rounded-lg border p-3",
+                    done ? "bg-score-strong/5" : active ? "bg-primary/5" : "bg-background",
+                  )}
+                >
+                  <div className="mt-0.5">
+                    {done ? (
+                      <CircleCheck className="size-5 text-score-strong" />
+                    ) : active ? (
+                      <Loader2 className="size-5 animate-spin text-primary" />
+                    ) : (
+                      <MinusCircle className="size-5 text-muted-foreground/30" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">{stage.title}</div>
+                    <div className="text-xs text-muted-foreground">{stage.description}</div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {audit.errorMessage && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+              {audit.errorMessage}
+            </div>
+          )}
+
+          {audit.status === "failed" ? (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+              <h3 className="font-semibold">Audit fehlgeschlagen</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Der Start oder die Verarbeitung ist fehlgeschlagen. Es wurde kein Credit verbraucht.
+              </p>
+            </div>
+          ) : audit.status === "completed" ? (
+            <div className="rounded-lg border border-score-strong/20 bg-score-strong/5 p-4">
+              <h3 className="font-semibold">Audit abgeschlossen</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Der technische Start ist fertig. Die vollständigen Report-Daten werden mit Task 4.4 ergänzt.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
+              Der Status aktualisiert sich live, sobald die nächsten Verarbeitungsschritte anlaufen.
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
