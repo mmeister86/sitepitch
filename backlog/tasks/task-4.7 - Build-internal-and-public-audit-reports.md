@@ -4,7 +4,7 @@ title: Build internal and public audit reports
 status: Done
 assignee: []
 created_date: '2026-07-03 20:03'
-updated_date: '2026-07-06 22:20'
+updated_date: '2026-07-06 22:55'
 labels:
   - mvp
   - report
@@ -63,4 +63,11 @@ Built the full report experience with a shared presentational component, authent
 **Print CSS:** `@media print` in `src/index.css` hides `.no-print` elements, forces white background, removes card shadows, preserves colors (`print-color-adjust: exact`), and prevents page breaks inside finding cards.
 
 **Tests:** 12 new Convex tests in `convex/reports.test.ts` covering public query sanitisation (JSON scan for `_id`/`workspaceId`/`storageId`/`salesAngle`/`idempotencyKey`), disabled/running guards, internal report auth + ownership, toggle mutation access control, and view tracking. Verified with `pnpm typecheck`, `pnpm test` (72 passing across 8 files), and `pnpm test:schema`.
+
+**Mock-data removal across all app views:**
+- `listMyAudits` query added to `convex/audits.ts`: fetches workspace audits ordered by createdAt with score, lead info, view count, and outreach flag.
+- Audit inbox (`/app/audits`): replaced mock-data table with `useQuery(api.audits.listMyAudits)`, real status filters (running/completed/failed), domain search, and audit deletion with `deleteAudit` cascade mutation + AlertDialog confirmation.
+- Sidebar badge: real audit count from `listMyAudits.total` (Convex React caches the shared subscription).
+- Dashboard (`/app`): real KPIs (audit count, completed, views, credits), dynamic activation checklist, recent audits from live data. Engagement chart and activity feed kept as branded placeholders.
+- Leads (`/app/leads`) and Campaigns (`/app/campaigns`): mock data replaced with empty states explaining features are planned (tasks 4.11 / 5.2).
 <!-- SECTION:NOTES:END -->
