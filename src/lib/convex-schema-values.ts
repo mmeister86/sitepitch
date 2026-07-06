@@ -148,6 +148,7 @@ export const usageEventTypeValidator = v.union(
   v.literal("lead_search_started"),
   v.literal("report_viewed"),
   v.literal("outreach_copied"),
+  v.literal("public_link_copied"),
   v.literal("pdf_exported"),
   v.literal("credits_consumed"),
   v.literal("upgrade_clicked"),

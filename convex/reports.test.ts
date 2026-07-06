@@ -39,6 +39,7 @@ function seedCompletedReport(
     status?: string
     slug?: string
     tokenIdentifier?: string
+    withOutreach?: boolean
   },
 ): Promise<SeedIds> {
   const token = overrides?.tokenIdentifier ?? "report-test-token"
@@ -125,6 +126,29 @@ function seedCompletedReport(
       sortOrder: 0,
       createdAt: now,
     })
+
+    if (overrides?.withOutreach) {
+      await ctx.db.insert("outreachDrafts", {
+        workspaceId,
+        auditId,
+        type: "email",
+        subject: "Kurzer Website-Audit zu acme.com",
+        subjectLines: [
+          "Kurzer Website-Audit zu acme.com",
+          "Ihre Website im Check",
+          "Kurze Idee für acme.com",
+        ],
+        body: "Hallo, ich habe mir acme.com angesehen …",
+        createdAt: now,
+      })
+      await ctx.db.insert("outreachDrafts", {
+        workspaceId,
+        auditId,
+        type: "phone_note",
+        body: "Kurznotiz für den Anruf: Conversion-CTA fehlt.",
+        createdAt: now,
+      })
+    }
 
     return { userId, workspaceId, auditId }
   })
@@ -389,5 +413,157 @@ describe("recordPublicReportView", () => {
         .collect(),
     )
     assert.equal(views.length, 0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// recordReportCopyEvent
+// ---------------------------------------------------------------------------
+
+describe("recordReportCopyEvent", () => {
+  test("writes an outreach_copied event with draftType metadata for the owner", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t, {
+      withOutreach: true,
+    })
+
+    const result = await t
+      .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+      .mutation(api.reports.recordReportCopyEvent, {
+        auditId,
+        kind: "outreach" as const,
+        draftType: "email" as const,
+        edited: true,
+        includedReportLink: true,
+      })
+
+    assert.equal(result.recorded, true)
+
+    const events = await t.query((ctx) =>
+      ctx.db
+        .query("usageEvents")
+        .withIndex("by_workspaceId_and_auditId", (q) =>
+          q.eq("workspaceId", workspaceId).eq("auditId", auditId),
+        )
+        .collect(),
+    )
+    const copyEvent = events.find((e) => e.event === "outreach_copied")
+    assert.ok(copyEvent)
+    assert.equal(copyEvent!.metadata?.draftType, "email")
+    assert.equal(copyEvent!.metadata?.edited, true)
+    assert.equal(copyEvent!.metadata?.includedReportLink, true)
+  })
+
+  test("writes a public_link_copied event for a public report", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t, {
+      isPublic: true,
+    })
+
+    const result = await t
+      .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+      .mutation(api.reports.recordReportCopyEvent, {
+        auditId,
+        kind: "public_link" as const,
+      })
+
+    assert.equal(result.recorded, true)
+
+    const events = await t.query((ctx) =>
+      ctx.db
+        .query("usageEvents")
+        .withIndex("by_workspaceId_and_auditId", (q) =>
+          q.eq("workspaceId", workspaceId).eq("auditId", auditId),
+        )
+        .collect(),
+    )
+    const linkEvent = events.find((e) => e.event === "public_link_copied")
+    assert.ok(linkEvent)
+  })
+
+  test("rejects public_link_copied for a non-public report", async () => {
+    const t = createTest()
+    const { auditId } = await seedCompletedReport(t, {
+      isPublic: false,
+    })
+
+    await assert.rejects(
+      () =>
+        t
+          .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+          .mutation(api.reports.recordReportCopyEvent, {
+            auditId,
+            kind: "public_link" as const,
+          }),
+      /REPORT_NOT_PUBLIC|not public/i,
+    )
+  })
+
+  test("rejects outreach copy without a draftType", async () => {
+    const t = createTest()
+    const { auditId } = await seedCompletedReport(t, {
+      withOutreach: true,
+    })
+
+    await assert.rejects(
+      () =>
+        t
+          .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+          .mutation(api.reports.recordReportCopyEvent, {
+            auditId,
+            kind: "outreach" as const,
+          }),
+      /draftType|DRAFT_TYPE/i,
+    )
+  })
+
+  test("rejects unauthenticated requests", async () => {
+    const t = createTest()
+    const { auditId } = await seedCompletedReport(t, { withOutreach: true })
+
+    await assert.rejects(
+      () =>
+        t.mutation(api.reports.recordReportCopyEvent, {
+          auditId,
+          kind: "outreach" as const,
+          draftType: "email" as const,
+        }),
+      /UNAUTHENTICATED/i,
+    )
+  })
+
+  test("rejects access from a different workspace owner", async () => {
+    const t = createTest()
+    const { auditId } = await seedCompletedReport(t, { withOutreach: true })
+
+    // Seed a second user who is authenticated but owns a different workspace
+    await t.mutation(async (ctx) => {
+      const now = Date.now()
+      const otherUserId = await ctx.db.insert("users", {
+        tokenIdentifier: "other-token",
+        betterAuthUserId: "other-better-auth",
+        email: "other@example.com",
+        createdAt: now,
+      })
+      await ctx.db.insert("workspaces", {
+        name: "Other Studio",
+        ownerUserId: otherUserId,
+        reportLanguage: "de",
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+
+    await assert.rejects(
+      () =>
+        t
+          .withIdentity({ tokenIdentifier: "other-token", email: "other@example.com" })
+          .mutation(api.reports.recordReportCopyEvent, {
+            auditId,
+            kind: "outreach" as const,
+            draftType: "email" as const,
+          }),
+      /FORBIDDEN/i,
+    )
   })
 })

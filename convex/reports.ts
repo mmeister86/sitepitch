@@ -4,6 +4,7 @@ import { mutation, query, type QueryCtx } from "./_generated/server"
 import type { Doc, Id } from "./_generated/dataModel"
 import { CATEGORY_WEIGHTS } from "./lib/audit_scoring"
 import { DEFAULT_WORKSPACE_ACCENT, findAppUser, getWorkspaceByOwner } from "./lib/workspace"
+import { outreachDraftTypeValidator } from "../src/lib/convex-schema-values.ts"
 
 // ---------------------------------------------------------------------------
 // Category metadata
@@ -503,6 +504,83 @@ export const recordPublicReportView = mutation({
       metadata: { source: "public_report" },
       createdAt: now,
     })
+
+    return { recorded: true }
+  },
+})
+
+// ---------------------------------------------------------------------------
+// Authenticated: recordReportCopyEvent
+// ---------------------------------------------------------------------------
+
+export const recordReportCopyEvent = mutation({
+  args: {
+    auditId: v.id("audits"),
+    kind: v.union(v.literal("outreach"), v.literal("public_link")),
+    draftType: v.optional(outreachDraftTypeValidator),
+    edited: v.optional(v.boolean()),
+    includedReportLink: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) {
+      throw new ConvexError({ code: "UNAUTHENTICATED", message: "Not authenticated" })
+    }
+
+    const user = await findAppUser(ctx, identity.tokenIdentifier)
+    if (!user) {
+      throw new ConvexError({ code: "UNAUTHENTICATED", message: "Not authenticated" })
+    }
+
+    const audit = await ctx.db.get(args.auditId)
+    if (!audit) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Audit not found" })
+    }
+
+    const workspace = await getWorkspaceByOwner(ctx, user._id)
+    if (!workspace || audit.workspaceId !== workspace._id) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Workspace access denied" })
+    }
+
+    const now = Date.now()
+
+    if (args.kind === "outreach") {
+      if (!args.draftType) {
+        throw new ConvexError({
+          code: "DRAFT_TYPE_REQUIRED",
+          message: "draftType is required for outreach copy events",
+        })
+      }
+
+      await ctx.db.insert("usageEvents", {
+        workspaceId: workspace._id,
+        userId: user._id,
+        auditId: audit._id,
+        event: "outreach_copied",
+        metadata: {
+          draftType: args.draftType,
+          edited: args.edited ?? false,
+          includedReportLink: args.includedReportLink ?? false,
+        },
+        createdAt: now,
+      })
+    } else {
+      if (!audit.isPublic) {
+        throw new ConvexError({
+          code: "REPORT_NOT_PUBLIC",
+          message: "Report link can only be copied for public reports",
+        })
+      }
+
+      await ctx.db.insert("usageEvents", {
+        workspaceId: workspace._id,
+        userId: user._id,
+        auditId: audit._id,
+        event: "public_link_copied",
+        metadata: { source: "internal_report" },
+        createdAt: now,
+      })
+    }
 
     return { recorded: true }
   },

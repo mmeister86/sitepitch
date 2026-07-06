@@ -168,6 +168,7 @@ export interface Activity {
   type:
     | "report_viewed"
     | "outreach_copied"
+    | "public_link_copied"
     | "audit_completed"
     | "status_changed"
     | "follow_up_scheduled"
