@@ -70,3 +70,34 @@ export function safeParseAgentOutput(raw: unknown):
   const path = first?.path.length ? first.path.join(".") : "root"
   return { ok: false, error: `${first?.code ?? "invalid"} at ${path}: ${first?.message ?? "validation failed"}` }
 }
+
+export const outreachDraftGenerationSchema = z.object({
+  type: z.enum(["email", "linkedin", "contact_form", "phone_note", "follow_up"]),
+  subject: z.string().min(1).max(160).nullable(),
+  subjectLines: z.array(z.string().min(1).max(160)).max(5).nullable(),
+  body: z.string().min(1).max(2000),
+})
+
+export const auditAgentGenerationSchema = z.object({
+  findings: z.array(auditFindingOutputSchema).min(1).max(20),
+  summary: auditSummaryOutputSchema,
+  outreach: z.array(outreachDraftGenerationSchema).min(3),
+  subjectLines: z.array(z.string().min(1).max(160)).min(1).max(5),
+})
+
+export type AuditAgentGenerationOutput = z.infer<typeof auditAgentGenerationSchema>
+
+export function generationToStorage(generation: AuditAgentGenerationOutput): AuditAgentOutput {
+  return {
+    findings: generation.findings,
+    summary: generation.summary,
+    outreach: generation.outreach.map((draft) => ({
+      type: draft.type,
+      subject: draft.subject ?? undefined,
+      subjectLines: draft.subjectLines ?? undefined,
+      body: draft.body,
+    })),
+    subjectLines: generation.subjectLines,
+  }
+}
+

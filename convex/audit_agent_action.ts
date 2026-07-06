@@ -7,7 +7,7 @@ import { internal } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
 import type { AuditAgentContext, AuditAgentContextCheck } from "./audit_agent"
 import type { AuditAgentOutput } from "./lib/audit_agent_schemas"
-import { auditAgentOutputSchema, safeParseAgentOutput } from "./lib/audit_agent_schemas"
+import { auditAgentGenerationSchema, generationToStorage, safeParseAgentOutput } from "./lib/audit_agent_schemas"
 import { buildEvidenceRefs, validateFindingEvidence } from "./lib/audit_agent_evidence"
 import { reviewClaimSafety } from "./lib/audit_agent_claim_safety"
 import {
@@ -31,6 +31,37 @@ const SKILL_VERSIONS = {
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 const DEFAULT_MODEL = "openai/gpt-4.1-mini"
 const MAX_RETRIES = 1
+
+function describeError(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return String(error)
+  }
+  const parts: string[] = [error.message]
+  const anyErr = error as Error & {
+    responseBody?: unknown
+    responseStatus?: number
+    url?: string
+    value?: unknown
+    data?: unknown
+    isRetryable?: boolean
+  }
+  if (anyErr.responseStatus !== undefined) {
+    parts.push(`status=${anyErr.responseStatus}`)
+  }
+  if (typeof anyErr.responseBody === "string") {
+    parts.push(`body=${anyErr.responseBody.slice(0, 400)}`)
+  } else if (anyErr.responseBody !== undefined) {
+    try {
+      parts.push(`body=${JSON.stringify(anyErr.responseBody).slice(0, 400)}`)
+    } catch {
+      // ignore non-serializable body
+    }
+  }
+  if (anyErr.url) {
+    parts.push(`url=${anyErr.url}`)
+  }
+  return parts.join(" | ")
+}
 
 interface LlmRunResult {
   output: AuditAgentOutput
@@ -119,7 +150,7 @@ async function runLlmGeneration(
 
   const result = await generateObject({
     model: openrouter(model),
-    schema: auditAgentOutputSchema,
+    schema: auditAgentGenerationSchema,
     schemaName: "AuditAgentOutput",
     schemaDescription: "Validated audit findings, summary, and outreach drafts.",
     system,
@@ -129,7 +160,7 @@ async function runLlmGeneration(
   })
 
   return {
-    output: result.object as AuditAgentOutput,
+    output: generationToStorage(result.object),
     provider: "other",
     model,
     tokensIn: result.usage.inputTokens,
@@ -229,13 +260,14 @@ export const processAuditAgentOutputs = internalAction({
 
         chosen = { ...llmResult, output: parsed.data }
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
+        const detail = describeError(error)
+        console.error("[audit_agent] LLM call failed", { auditId: args.auditId, attempt, detail })
         await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
           auditAgentRunId: runId,
           status: "failed",
-          errorMessage: message.slice(0, 500),
+          errorMessage: detail.slice(0, 500),
         })
-        lastError = message
+        lastError = detail
       }
     }
 
