@@ -105,8 +105,11 @@ export const severityMeta: Record<
 }
 
 export function formatRelative(iso: string): string {
-  const then = new Date(iso).getTime()
-  const diff = Date.now() - then
+  return formatRelativeTs(new Date(iso).getTime())
+}
+
+export function formatRelativeTs(ts: number): string {
+  const diff = Date.now() - ts
   const mins = Math.round(diff / 60000)
   if (mins < 1) return "gerade eben"
   if (mins < 60) return `vor ${mins} Min.`

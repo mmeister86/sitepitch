@@ -12,6 +12,7 @@ import {
 } from "./lib/audit_url"
 import { reserveWorkspaceCredit } from "./lib/credits"
 import type { CreditSnapshot } from "./lib/credits"
+import { findAppUser, getWorkspaceByOwner } from "./lib/workspace"
 
 type WorkspaceContext = {
   userId: Id<"users">
@@ -45,6 +46,70 @@ export const getById = query({
   args: { auditId: v.id("audits") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.auditId)
+  },
+})
+
+export const listMyAudits = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+
+    const user = await findAppUser(ctx, identity.tokenIdentifier)
+    if (!user) return null
+
+    const workspace = await getWorkspaceByOwner(ctx, user._id)
+    if (!workspace) return null
+
+    const audits = await ctx.db
+      .query("audits")
+      .withIndex("by_workspaceId_and_createdAt", (q) =>
+        q.eq("workspaceId", workspace._id),
+      )
+      .order("desc")
+      .take(50)
+
+    const items = await Promise.all(
+      audits.map(async (audit) => {
+        const scoreDoc = await ctx.db
+          .query("auditScores")
+          .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+          .unique()
+
+        const lead = audit.leadId ? await ctx.db.get(audit.leadId) : null
+
+        const views = await ctx.db
+          .query("reportViews")
+          .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+          .take(100)
+
+        const outreach = await ctx.db
+          .query("outreachDrafts")
+          .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+          .take(1)
+
+        return {
+          _id: audit._id,
+          domain: audit.domain,
+          normalizedUrl: audit.normalizedUrl,
+          status: audit.status,
+          auditType: audit.auditType,
+          overallScore: audit.overallScore ?? scoreDoc?.overallScore ?? null,
+          isPublic: audit.isPublic,
+          publicSlug: audit.publicSlug,
+          reportLanguage: audit.reportLanguage,
+          createdAt: audit.createdAt,
+          completedAt: audit.completedAt ?? null,
+          businessName: lead?.businessName ?? null,
+          city: lead?.city ?? null,
+          category: lead?.category ?? null,
+          viewCount: views.length,
+          hasOutreach: outreach.length > 0,
+        }
+      }),
+    )
+
+    return { items, total: audits.length }
   },
 })
 
