@@ -330,6 +330,7 @@ export default defineSchema({
     auditId: v.id("audits"),
     type: outreachDraftTypeValidator,
     subject: v.optional(v.string()),
+    subjectLines: v.optional(v.array(v.string())),
     body: v.string(),
     createdAt: v.number(),
   })

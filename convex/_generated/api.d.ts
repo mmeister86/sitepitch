@@ -8,12 +8,18 @@
  * @module
  */
 
+import type * as audit_agent from "../audit_agent.js";
+import type * as audit_agent_action from "../audit_agent_action.js";
 import type * as audit_pipeline from "../audit_pipeline.js";
 import type * as audit_scoring from "../audit_scoring.js";
 import type * as audit_state from "../audit_state.js";
 import type * as audits from "../audits.js";
 import type * as auth from "../auth.js";
 import type * as http from "../http.js";
+import type * as lib_audit_agent_claim_safety from "../lib/audit_agent_claim_safety.js";
+import type * as lib_audit_agent_evidence from "../lib/audit_agent_evidence.js";
+import type * as lib_audit_agent_fallback from "../lib/audit_agent_fallback.js";
+import type * as lib_audit_agent_schemas from "../lib/audit_agent_schemas.js";
 import type * as lib_audit_pipeline from "../lib/audit_pipeline.js";
 import type * as lib_audit_rate_limit from "../lib/audit_rate_limit.js";
 import type * as lib_audit_scoring from "../lib/audit_scoring.js";
@@ -29,12 +35,18 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  audit_agent: typeof audit_agent;
+  audit_agent_action: typeof audit_agent_action;
   audit_pipeline: typeof audit_pipeline;
   audit_scoring: typeof audit_scoring;
   audit_state: typeof audit_state;
   audits: typeof audits;
   auth: typeof auth;
   http: typeof http;
+  "lib/audit_agent_claim_safety": typeof lib_audit_agent_claim_safety;
+  "lib/audit_agent_evidence": typeof lib_audit_agent_evidence;
+  "lib/audit_agent_fallback": typeof lib_audit_agent_fallback;
+  "lib/audit_agent_schemas": typeof lib_audit_agent_schemas;
   "lib/audit_pipeline": typeof lib_audit_pipeline;
   "lib/audit_rate_limit": typeof lib_audit_rate_limit;
   "lib/audit_scoring": typeof lib_audit_scoring;

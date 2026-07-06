@@ -14,6 +14,8 @@ const modules = import.meta.glob([
   "./audit_pipeline.ts",
   "./audit_scoring.ts",
   "./audit_state.ts",
+  "./audit_agent.ts",
+  "./audit_agent_action.ts",
   "./http.ts",
   "./workspaces.ts",
   "./lib/*.ts",

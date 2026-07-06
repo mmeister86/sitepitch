@@ -27,6 +27,8 @@ import type { DataModel } from "./dataModel.js";
 type Env = {
   readonly BETTER_AUTH_SECRET: string;
   readonly BETTER_AUTH_URL: string;
+  readonly EVE_AGENT_MODEL: string | undefined;
+  readonly EVE_AGENT_URL: string | undefined;
   readonly GOOGLE_PLACES_API_KEY: string | undefined;
   readonly JINA_API_KEY: string | undefined;
   readonly LOCAL_BUSINESS_DATA_API_KEY: string | undefined;

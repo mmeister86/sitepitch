@@ -3,6 +3,7 @@ import { v } from "convex/values"
 import type { Doc } from "./_generated/dataModel"
 import type { MutationCtx } from "./_generated/server"
 import { internalMutation, internalQuery } from "./_generated/server"
+import { internal } from "./_generated/api"
 import {
   evaluateChecks,
   summarizeCategoryScores,
@@ -285,6 +286,18 @@ export const processDeterministicScoring = internalMutation({
       checkCount: checks.length,
       durationMs: finishedAt - current,
     })
+
+    try {
+      await ctx.scheduler.runAfter(0, internal.audit_agent_action.processAuditAgentOutputs, {
+        auditId: args.auditId,
+      })
+      console.log("[audit_scoring] scheduled audit agent run", { auditId: args.auditId })
+    } catch (error) {
+      console.error("[audit_scoring] failed to schedule audit agent run", {
+        auditId: args.auditId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
 
     return {
       auditId: args.auditId,

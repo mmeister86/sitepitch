@@ -15,6 +15,8 @@ const app = defineApp({
     GOOGLE_PLACES_API_KEY: v.optional(v.string()),
     OPENROUTER_API_KEY: v.optional(v.string()),
     SITE_URL: v.optional(v.string()),
+    EVE_AGENT_URL: v.optional(v.string()),
+    EVE_AGENT_MODEL: v.optional(v.string()),
   },
 })
 
