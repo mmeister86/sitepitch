@@ -40,7 +40,6 @@ import {
 import { Logo } from "@/components/logo"
 import { NewAuditDialog } from "@/components/new-audit-dialog"
 import { useRouter, type View } from "@/lib/router"
-import { audits, leads, campaigns } from "@/lib/mock-data"
 import { authClient } from "@/lib/auth-client"
 import { api } from "../../convex/_generated/api"
 
@@ -48,18 +47,19 @@ const nav: {
   label: string
   view: View
   icon: typeof LayoutDashboard
-  badge?: number
 }[] = [
   { label: "Dashboard", view: { name: "dashboard" }, icon: LayoutDashboard },
-  { label: "Audits", view: { name: "audits" }, icon: ScanSearch, badge: audits.length },
-  { label: "Leads", view: { name: "leads" }, icon: Users, badge: leads.length },
-  { label: "Kampagnen", view: { name: "campaigns" }, icon: Megaphone, badge: campaigns.length },
+  { label: "Audits", view: { name: "audits" }, icon: ScanSearch },
+  { label: "Leads", view: { name: "leads" }, icon: Users },
+  { label: "Kampagnen", view: { name: "campaigns" }, icon: Megaphone },
 ]
 
 export function AppSidebar() {
   const { view, navigate } = useRouter()
   const nextRouter = useNextRouter()
   const data = useQuery(api.workspaces.getMyWorkspace)
+  const auditsData = useQuery(api.audits.listMyAudits, {})
+  const auditCount = auditsData?.total ?? 0
   const session = authClient.useSession()
   const monthlyCredits = data?.credits.total ?? 0
   const remaining = data?.credits.remaining ?? 0
@@ -99,22 +99,25 @@ export function AppSidebar() {
           <SidebarGroupLabel>Workspace</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {nav.map((item) => (
-                <SidebarMenuItem key={item.label}>
-                  <SidebarMenuButton
-                    isActive={isActive(item.view)}
-                    onClick={() => navigate(item.view)}
-                  >
-                    <item.icon />
-                    <span>{item.label}</span>
-                    {item.badge !== undefined && (
-                      <span className="ml-auto rounded-md bg-sidebar-accent px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-sidebar-foreground/60">
-                        {item.badge}
-                      </span>
-                    )}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {nav.map((item) => {
+                const badge = item.view.name === "audits" ? auditCount : undefined
+                return (
+                  <SidebarMenuItem key={item.label}>
+                    <SidebarMenuButton
+                      isActive={isActive(item.view)}
+                      onClick={() => navigate(item.view)}
+                    >
+                      <item.icon />
+                      <span>{item.label}</span>
+                      {badge !== undefined && (
+                        <span className="ml-auto rounded-md bg-sidebar-accent px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-sidebar-foreground/60">
+                          {badge}
+                        </span>
+                      )}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
