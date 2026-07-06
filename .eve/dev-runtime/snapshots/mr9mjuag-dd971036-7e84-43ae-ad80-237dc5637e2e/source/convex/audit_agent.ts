@@ -1,0 +1,445 @@
+import { ConvexError, v } from "convex/values"
+
+import type { Doc, Id } from "./_generated/dataModel"
+import { internalMutation, internalQuery } from "./_generated/server"
+import type { CheckCategory, CheckInput } from "./lib/audit_scoring"
+import { auditAgentOutputSchema, type AuditAgentOutput } from "./lib/audit_agent_schemas"
+
+export interface AuditAgentContextCheck {
+  category: CheckCategory
+  key: string
+  label: string
+  status: CheckInput["status"]
+  evidence?: string
+  source?: string
+  weight?: number
+}
+
+export interface AuditAgentContext {
+  auditId: string
+  workspaceId: string
+  domain: string
+  normalizedUrl: string
+  reportLanguage: "de" | "en"
+  publicSlug: string
+  isPublic: boolean
+  overallScore: number
+  workspace: {
+    name: string
+    website?: string
+    contactEmail?: string
+    ctaText?: string
+    ctaUrl?: string
+  }
+  categoryScores: {
+    conversion: number
+    seo: number
+    local_seo: number
+    performance: number
+    mobile: number
+    trust: number
+  }
+  scoringVersion: string
+  checks: AuditAgentContextCheck[]
+  signals: {
+    title?: string
+    metaDescription?: string
+    h1Texts?: string[]
+    ctaCandidates?: string[]
+    phoneNumbers?: string[]
+    contactLinks?: string[]
+    schemaTypes?: string[]
+    phoneLinkFound?: boolean
+    contactFormFound?: boolean
+    viewportMetaFound?: boolean
+    imagesMissingAltCount?: number
+    privacyLinkFound?: boolean
+    imprintLinkFound?: boolean
+  }
+  performance: {
+    mobile?: { performanceScore?: number; lcp?: number; cls?: number; fcp?: number }
+    desktop?: { performanceScore?: number; lcp?: number }
+  }
+  business?: {
+    name?: string
+    city?: string
+    phone?: string
+    rating?: number
+    reviewCount?: number
+  }
+}
+
+export const getAuditAgentContext = internalQuery({
+  args: { auditId: v.id("audits") },
+  handler: async (ctx, args): Promise<AuditAgentContext | null> => {
+    const audit = await ctx.db.get(args.auditId)
+    if (!audit) {
+      return null
+    }
+
+    const workspace = await ctx.db.get(audit.workspaceId)
+    if (!workspace) {
+      return null
+    }
+
+    const score = await ctx.db
+      .query("auditScores")
+      .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+      .unique()
+
+    const checksDocs = await ctx.db
+      .query("auditChecks")
+      .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+      .collect()
+
+    const rawData = await ctx.db
+      .query("auditRawData")
+      .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+      .unique()
+
+    const performanceRows = await ctx.db
+      .query("auditPerformance")
+      .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+      .collect()
+
+    const business = await ctx.db
+      .query("auditBusinessData")
+      .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+      .unique()
+
+    const mobile = performanceRows.find((row) => row.strategy === "mobile")
+    const desktop = performanceRows.find((row) => row.strategy === "desktop")
+
+    const checks: AuditAgentContextCheck[] = checksDocs.map((check: Doc<"auditChecks">) => ({
+      category: check.category as CheckCategory,
+      key: check.key,
+      label: check.label,
+      status: check.status as CheckInput["status"],
+      evidence: check.evidence,
+      source: check.source,
+      weight: check.weight,
+    }))
+
+    return {
+      auditId: audit._id,
+      workspaceId: audit.workspaceId,
+      domain: audit.domain,
+      normalizedUrl: audit.normalizedUrl,
+      reportLanguage: audit.reportLanguage,
+      publicSlug: audit.publicSlug,
+      isPublic: audit.isPublic,
+      overallScore: audit.overallScore ?? score?.overallScore ?? 50,
+      workspace: {
+        name: workspace.name,
+        website: workspace.website,
+        contactEmail: workspace.contactEmail,
+        ctaText: workspace.ctaText,
+        ctaUrl: workspace.ctaUrl,
+      },
+      categoryScores: score
+        ? {
+            conversion: score.conversionScore,
+            seo: score.seoBasicsScore,
+            local_seo: score.localSeoScore,
+            performance: score.performanceScore,
+            mobile: score.mobileUxScore,
+            trust: score.trustScore,
+          }
+        : {
+            conversion: 50,
+            seo: 50,
+            local_seo: 50,
+            performance: 50,
+            mobile: 50,
+            trust: 50,
+          },
+      scoringVersion: score?.scoringVersion ?? "unknown",
+      checks,
+      signals: {
+        title: rawData?.title,
+        metaDescription: rawData?.metaDescription,
+        h1Texts: rawData?.h1Texts,
+        ctaCandidates: rawData?.ctaCandidates,
+        phoneNumbers: rawData?.phoneNumbers,
+        contactLinks: rawData?.contactLinks,
+        schemaTypes: rawData?.schemaTypes,
+        phoneLinkFound: rawData?.phoneLinkFound,
+        contactFormFound: rawData?.contactFormFound,
+        viewportMetaFound: rawData?.viewportMetaFound,
+        imagesMissingAltCount: rawData?.imagesMissingAltCount,
+        privacyLinkFound: rawData?.privacyLinkFound,
+        imprintLinkFound: rawData?.imprintLinkFound,
+      },
+      performance: {
+        mobile: mobile
+          ? {
+              performanceScore: mobile.performanceScore,
+              lcp: mobile.lcp,
+              cls: mobile.cls,
+              fcp: mobile.fcp,
+            }
+          : undefined,
+        desktop: desktop
+          ? {
+              performanceScore: desktop.performanceScore,
+              lcp: desktop.lcp,
+            }
+          : undefined,
+      },
+      business: business
+        ? {
+            name: business.name,
+            city: business.city,
+            phone: business.phone,
+            rating: business.rating,
+            reviewCount: business.reviewCount,
+          }
+        : undefined,
+    }
+  },
+})
+
+function now() {
+  return Date.now()
+}
+
+export const startAuditAgentRun = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    auditId: v.id("audits"),
+    provider: v.union(v.literal("openai"), v.literal("anthropic"), v.literal("other")),
+    model: v.string(),
+    purpose: v.union(v.literal("findings"), v.literal("summary"), v.literal("outreach"), v.literal("qa")),
+    skillVersions: v.optional(v.record(v.string(), v.string())),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("auditAgentRuns", {
+      workspaceId: args.workspaceId,
+      auditId: args.auditId,
+      provider: args.provider,
+      model: args.model,
+      purpose: args.purpose,
+      status: "started",
+      skillVersions: args.skillVersions,
+      startedAt: now(),
+      createdAt: now(),
+    })
+  },
+})
+
+export const finishAuditAgentRun = internalMutation({
+  args: {
+    auditAgentRunId: v.id("auditAgentRuns"),
+    status: v.union(v.literal("completed"), v.literal("failed")),
+    tokensIn: v.optional(v.number()),
+    tokensOut: v.optional(v.number()),
+    errorMessage: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.auditAgentRunId, {
+      status: args.status,
+      tokensIn: args.tokensIn,
+      tokensOut: args.tokensOut,
+      errorMessage: args.errorMessage,
+      completedAt: now(),
+    })
+  },
+})
+
+export const saveAuditAgentOutput = internalMutation({
+  args: {
+    auditId: v.id("audits"),
+    output: v.any(),
+    reportLink: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const audit = await ctx.db.get(args.auditId)
+    if (!audit) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Audit not found" })
+    }
+
+    const parseResult = auditAgentOutputSchema.safeParse(args.output)
+    if (!parseResult.success) {
+      throw new ConvexError({
+        code: "INVALID_AGENT_OUTPUT",
+        message: "Agent output failed schema validation",
+      })
+    }
+    const output = parseResult.data
+
+    const workspaceId = audit.workspaceId
+    const current = now()
+
+    const existingFindings = await ctx.db
+      .query("auditFindings")
+      .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+      .collect()
+    for (const row of existingFindings) {
+      await ctx.db.delete(row._id)
+    }
+
+    for (let i = 0; i < output.findings.length; i++) {
+      const finding = output.findings[i]
+      await ctx.db.insert("auditFindings", {
+        workspaceId,
+        auditId: args.auditId,
+        category: finding.category,
+        severity: finding.severity,
+        title: finding.title,
+        evidence: finding.evidence,
+        explanation: finding.explanation,
+        recommendation: finding.recommendation,
+        salesAngle: finding.salesAngle,
+        sortOrder: i,
+        createdAt: current,
+      })
+    }
+
+    const existingSummary = await ctx.db
+      .query("auditSummaries")
+      .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+      .unique()
+    const summaryPayload = {
+      workspaceId,
+      auditId: args.auditId,
+      shortSummary: output.summary.shortSummary,
+      strengths: output.summary.strengths,
+      weaknesses: output.summary.weaknesses,
+      topOpportunities: output.summary.topOpportunities,
+      nextSteps: output.summary.nextSteps,
+      createdAt: current,
+    }
+    if (existingSummary) {
+      await ctx.db.patch(existingSummary._id, summaryPayload)
+    } else {
+      await ctx.db.insert("auditSummaries", summaryPayload)
+    }
+
+    const existingDrafts = await ctx.db
+      .query("outreachDrafts")
+      .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+      .collect()
+    for (const row of existingDrafts) {
+      await ctx.db.delete(row._id)
+    }
+
+    for (const draft of output.outreach) {
+      await ctx.db.insert("outreachDrafts", {
+        workspaceId,
+        auditId: args.auditId,
+        type: draft.type,
+        subject: draft.subject,
+        subjectLines: draft.type === "email" ? output.subjectLines : undefined,
+        body: draft.body,
+        createdAt: current,
+      })
+    }
+
+    return {
+      findingsCount: output.findings.length,
+      outreachCount: output.outreach.length,
+      reportLink: args.reportLink,
+    }
+  },
+})
+
+export const completeAuditFromAgent = internalMutation({
+  args: {
+    auditId: v.id("audits"),
+  },
+  handler: async (ctx, args) => {
+    const audit = await ctx.db.get(args.auditId)
+    if (!audit) {
+      return null
+    }
+    if (audit.status === "completed" || audit.status === "failed" || audit.status === "cancelled") {
+      return null
+    }
+
+    const current = now()
+    await ctx.db.patch(args.auditId, {
+      status: "completed",
+      statusMessage: "Audit abgeschlossen",
+      completedAt: current,
+      updatedAt: current,
+    })
+
+    const existingCompletedEvent = await ctx.db
+      .query("usageEvents")
+      .withIndex("by_workspaceId_and_auditId", (q) =>
+        q.eq("workspaceId", audit.workspaceId).eq("auditId", args.auditId),
+      )
+      .filter((q) => q.eq(q.field("event"), "audit_completed"))
+      .first()
+
+    if (!existingCompletedEvent) {
+      await ctx.db.insert("usageEvents", {
+        workspaceId: audit.workspaceId,
+        auditId: args.auditId,
+        event: "audit_completed",
+        idempotencyKey: `audit_completed:${args.auditId}`,
+        createdAt: current,
+      })
+    }
+
+    return { auditId: args.auditId, completedAt: current }
+  },
+})
+
+export const setAuditAgentStage = internalMutation({
+  args: {
+    auditId: v.id("audits"),
+    status: v.union(
+      v.literal("generating_findings"),
+      v.literal("generating_outreach"),
+      v.literal("completed"),
+    ),
+    statusMessage: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const audit = await ctx.db.get(args.auditId)
+    if (!audit) {
+      return null
+    }
+    if (audit.status === "completed" || audit.status === "failed" || audit.status === "cancelled") {
+      return null
+    }
+    await ctx.db.patch(args.auditId, {
+      status: args.status,
+      statusMessage: args.statusMessage,
+      updatedAt: now(),
+    })
+    return { auditId: args.auditId, status: args.status }
+  },
+})
+
+export const markAuditAgentFailed = internalMutation({
+  args: {
+    auditId: v.id("audits"),
+    errorCode: v.string(),
+    errorMessage: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const audit = await ctx.db.get(args.auditId)
+    if (!audit) {
+      return null
+    }
+    if (audit.status === "completed" || audit.status === "cancelled") {
+      return null
+    }
+
+    const current = now()
+    await ctx.db.patch(args.auditId, {
+      status: "failed",
+      statusMessage: args.errorMessage,
+      failedAt: current,
+      errorCode: args.errorCode,
+      errorMessage: args.errorMessage,
+      updatedAt: current,
+    })
+
+    return { auditId: args.auditId }
+  },
+})
+
+export type SavedAgentRun = { auditAgentRunId: Id<"auditAgentRuns"> }

@@ -1,0 +1,7 @@
+{
+  "appRoot": "/Users/matthias/Documents/Code/Web/sitepitch",
+  "kind": "eve-dev-runtime-artifacts-pointer",
+  "runtimeAppRoot": "/Users/matthias/Documents/Code/Web/sitepitch/.eve/dev-runtime/snapshots/mr9mnado-42c9be3e-69d6-4383-b268-1857b16bae2b/source",
+  "snapshotRoot": "/Users/matthias/Documents/Code/Web/sitepitch/.eve/dev-runtime/snapshots/mr9mnado-42c9be3e-69d6-4383-b268-1857b16bae2b",
+  "version": 2
+}

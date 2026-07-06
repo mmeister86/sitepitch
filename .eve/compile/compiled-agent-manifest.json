@@ -1,0 +1,377 @@
+{
+  "agentRoot": "/Users/matthias/Documents/Code/Web/sitepitch/agent",
+  "appRoot": "/Users/matthias/Documents/Code/Web/sitepitch",
+  "channels": [],
+  "connections": [],
+  "config": {
+    "compaction": {},
+    "model": {
+      "id": "openai/gpt-4.1-mini",
+      "routing": {
+        "kind": "gateway",
+        "target": "openai"
+      },
+      "contextWindowTokens": 1047576
+    },
+    "name": "shadcn-ui-template",
+    "limits": {
+      "maxInputTokensPerSession": 60000,
+      "maxOutputTokensPerSession": 12000
+    },
+    "source": {
+      "sourceKind": "module",
+      "logicalPath": "agent.ts",
+      "sourceId": "agent.ts"
+    }
+  },
+  "diagnosticsSummary": {
+    "errors": 0,
+    "warnings": 0
+  },
+  "disabledFrameworkTools": [],
+  "workflowEnabled": false,
+  "dynamicInstructions": [],
+  "dynamicSkills": [],
+  "dynamicTools": [],
+  "hooks": [],
+  "remoteAgents": [],
+  "sandbox": null,
+  "sandboxWorkspaces": [],
+  "schedules": [],
+  "skills": [
+    {
+      "description": "Use before returning any output to review it for risky claims and shaming language.",
+      "logicalPath": "skills/claim-safety.md",
+      "markdown": "# Claim Safety Skill\n\nPrüfe jeden öffentlichen Text vor der Rückgabe gegen diese Blockliste.\n\n## Blockierte Claims\n\n- Rechtliche Bewertungen: „rechtlich unvollständig\", „Impressum fehlt rechtswidrig\", „Datenschutz verstößt\", „DSGVO\", „Rechtsberatung\"\n- Security-Claims: „unsicher\", „Sicherheitslücke\", „hackbar\", „gehackt\", „Security-Scan\"\n- Umsatz-/Conversion-Garantien: „garantiert mehr Umsatz/Kunden/Anfragen/Conversion\", „werden garantiert mehr\"\n- Quantifizierte Verluste: „verliert massiv\", „verliert jeden Tag/Monat\"\n- Beschämende Sprache: „schlecht\", „hoffnungslos\", „unprofessionell\", „peinlich\", „schlampig\", „billig\", „amateurhaft\"\n- WCAG/Barrierefreiheit als „nicht erfüllt\"\n\n## Erlaubte Formulierungen\n\n- „verschenkt Potenzial bei ...\"\n- „ließe sich mit wenigen Anpassungen verbessern\"\n- „könnte Interessenten schneller zur Anfrage führen\"\n- „macht einen soliden Eindruck, aber ...\"\n\n## Evidence-Bezug\n\nJedes Finding muss in `evidence` auf eine gespeicherte Check-Evidence oder ein Check-Label verweisen. Erfundene Evidence ist verboten.\n\nWenn ein Text gegen eine Regel verstößt: umformulieren, nicht löschen.\n",
+      "name": "claim-safety",
+      "sourceId": "skills/claim-safety.md",
+      "sourceKind": "markdown"
+    },
+    {
+      "description": "Use when auditing conversion and contact options on a website audit.",
+      "logicalPath": "skills/conversion-audit.md",
+      "markdown": "# Conversion Audit Skill\n\nBewerte Conversion- und Kontaktoptionen aus den deterministischen Checks der Kategorie `conversion`.\n\nFokus:\n- Klarheit der CTA-Kandidaten\n- Telefonnummer klickbar (`phoneLinkFound`)\n- Kontaktformular vorhanden (`contactFormFound`)\n- Kontaktwege auffindbar (`contactLinks`)\n\nÜbersetze technische Befunde in Kundensprache: „Ein klarerer Kontaktbereich könnte Interessenten schneller zur Anfrage führen.\"\n\nBeziehe dich immer auf die Evidence aus den gespeicherten Checks. Keine erfundenen Conversion-Raten.\n",
+      "name": "conversion-audit",
+      "sourceId": "skills/conversion-audit.md",
+      "sourceKind": "markdown"
+    },
+    {
+      "description": "Use when auditing local SEO and local findability signals.",
+      "logicalPath": "skills/local-seo-audit.md",
+      "markdown": "# Local SEO Audit Skill\n\nBewerte lokale Auffindbarkeit aus den Checks der Kategorie `local_seo`.\n\nFokus:\n- LocalBusiness/Place Schema vorhanden\n- Konsistente Adresse und Telefon (NAP)\n- Stadt-/Regionsbezug erkennbar\n- Google-Business-Daten vorhanden (`business`)\n\nÜbersetze in Kundensprache: „Mit konsistenten lokalen Angaben ließe sich die Auffindbarkeit in [Stadt] verbessern.\"\n\nVerwende vorhandene Business-Daten, erfinde aber keine Stadt oder Adresse, falls keine gespeichert sind.\n",
+      "name": "local-seo-audit",
+      "sourceId": "skills/local-seo-audit.md",
+      "sourceKind": "markdown"
+    },
+    {
+      "description": "Use when auditing mobile UX, viewport, tap targets, and responsive behavior.",
+      "logicalPath": "skills/mobile-ux-audit.md",
+      "markdown": "# Mobile UX Audit Skill\n\nBewerte mobile Nutzung aus den Checks der Kategorie `mobile`.\n\nFokus:\n- Viewport-Meta vorhanden (`viewportMetaFound`)\n- Mobile Screenshot vorhanden\n- Tipptargets und Lesbarkeit auf Smartphones\n- Mobile Performance (`performance.mobile`)\n\nÜbersetze in Kundensprache: „Besonders auf Smartphones könnte ein klarerer Kontaktbereich helfen.\"\n\nKeine Behauptungen über „nicht responsiv\", wenn keine gespeicherte Evidence vorliegt.\n",
+      "name": "mobile-ux-audit",
+      "sourceId": "skills/mobile-ux-audit.md",
+      "sourceKind": "markdown"
+    },
+    {
+      "description": "Use when writing outreach drafts (email, linkedin, phone note, subject lines).",
+      "logicalPath": "skills/respectful-outreach.md",
+      "markdown": "# Respectful Outreach Skill\n\nSchreibe Outreach-Texte aus den Audit-Findings.\n\nAnforderungen:\n- Kurz, freundlich, manuell kopierbar\n- Sprache exakt in `reportLanguage`\n- Mindestens: E-Mail (mit `subject`), LinkedIn- oder Kontaktformular-Text, Telefonnotiz\n- Optional Follow-up\n- Report-Link einbinden, falls vorhanden\n- Keine Dringlichkeit, keine Aggression, keine falschen Behauptungen\n\nBetreffzeilen (`subjectLines`, 1–5): kurz, neugierig, aber seriös.\n\nBeispiel-Tonalität (Deutsch):\n\n> Hallo [Name/Team], ich bin bei der Suche nach [Branche] in [Stadt] auf Ihre Website gestoßen und habe mir kurz angeschaut, wie gut sie aktuell für neue Kundenanfragen vorbereitet ist.\n\nBeispiel-Tonalität (Englisch):\n\n> Hi team, I came across your website and took a quick look at how well it's currently set up for new enquiries.\n\nKeine erfundenen Namen, falls kein Kontaktname vorhanden: „Hallo Team\" / „Hi team\".\n",
+      "name": "respectful-outreach",
+      "sourceId": "skills/respectful-outreach.md",
+      "sourceKind": "markdown"
+    },
+    {
+      "description": "Use when auditing SEO basics like meta tags, canonical, robots, sitemap, schema.",
+      "logicalPath": "skills/seo-basics-audit.md",
+      "markdown": "# SEO Basics Audit Skill\n\nBewerte SEO-Grundlagen aus den Checks der Kategorie `seo`.\n\nFokus:\n- Title und Meta Description vorhanden und aussagekräftig\n- Canonical URL korrekt\n- robots.txt und Sitemap gefunden\n- Strukturierte Daten (`schemaTypes`)\n- H1/H2-Hierarchie\n\nÜbersetze in Kundensprache: „Die lokale Auffindbarkeit ließe sich mit wenigen strukturellen Anpassungen verbessern.\"\n\nEvidence nur aus gespeicherten Checks. Keine Ranking-Garantien.\n",
+      "name": "seo-basics-audit",
+      "sourceId": "skills/seo-basics-audit.md",
+      "sourceKind": "markdown"
+    },
+    {
+      "description": "Use when auditing trust, credibility, imprint, privacy, and transparency signals.",
+      "logicalPath": "skills/trust-audit.md",
+      "markdown": "# Trust Audit Skill\n\nBewerte Vertrauen und Glaubwürdigkeit aus den Checks der Kategorie `trust`.\n\nFokus:\n- Impressum vorhanden (`imprintLinkFound`)\n- Datenschutzerklärung vorhanden (`privacyLinkFound`)\n- Transparenz über Unternehmen, Adresse, Kontakt\n- Bewertungs-/Referenzsignale (`business.rating`, `reviewCount`)\n\nÜbersetze in Kundensprache: „Vertrauen lässt sich mit sichtbaren Kontaktdaten und Referenzen stärken.\"\n\nWichtig: Bewerte Impressum/Datenschutz **nicht** rechtlich. Keine Aussagen wie „rechtlich unvollständig\" oder „DSGVO-Verstoß\". Nur Hinweis auf Vorhandensein/Fehlen als Vertrauenssignal.\n",
+      "name": "trust-audit",
+      "sourceId": "skills/trust-audit.md",
+      "sourceKind": "markdown"
+    }
+  ],
+  "tools": [
+    {
+      "description": "Fetch the minimal, validated audit context (scores, checks, signals) for a given audit id. Use before generating findings, summary, or outreach.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "auditId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "auditId"
+        ]
+      },
+      "logicalPath": "tools/get_audit_context.ts",
+      "name": "get_audit_context",
+      "outputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "auditId": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "reportLanguage": {
+            "type": "string",
+            "enum": [
+              "de",
+              "en"
+            ]
+          },
+          "overallScore": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "auditId",
+          "domain",
+          "reportLanguage",
+          "overallScore"
+        ],
+        "additionalProperties": false
+      },
+      "sourceId": "tools/get_audit_context.ts",
+      "sourceKind": "module"
+    },
+    {
+      "description": "Persist validated audit findings, summary, and outreach drafts for an audit. Only call after claim-safety review. Convex is the single source of truth.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "auditId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "findings": {
+            "minItems": 1,
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "conversion",
+                    "seo",
+                    "local_seo",
+                    "performance",
+                    "mobile",
+                    "trust",
+                    "technical"
+                  ]
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high"
+                  ]
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "evidence": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 400
+                },
+                "explanation": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 600
+                },
+                "recommendation": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 600
+                },
+                "salesAngle": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 600
+                }
+              },
+              "required": [
+                "category",
+                "severity",
+                "title",
+                "evidence",
+                "explanation",
+                "recommendation",
+                "salesAngle"
+              ]
+            }
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "shortSummary": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "strengths": {
+                "minItems": 1,
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "weaknesses": {
+                "minItems": 1,
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "topOpportunities": {
+                "minItems": 1,
+                "maxItems": 5,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "nextSteps": {
+                "minItems": 1,
+                "maxItems": 6,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              }
+            },
+            "required": [
+              "shortSummary",
+              "strengths",
+              "weaknesses",
+              "topOpportunities",
+              "nextSteps"
+            ]
+          },
+          "outreach": {
+            "minItems": 3,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "email",
+                    "linkedin",
+                    "contact_form",
+                    "phone_note",
+                    "follow_up"
+                  ]
+                },
+                "subject": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                },
+                "body": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "type",
+                "body"
+              ]
+            }
+          },
+          "subjectLines": {
+            "minItems": 1,
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        },
+        "required": [
+          "auditId",
+          "findings",
+          "summary",
+          "outreach",
+          "subjectLines"
+        ]
+      },
+      "logicalPath": "tools/save_audit_output.ts",
+      "name": "save_audit_output",
+      "outputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "saved": {
+            "type": "boolean"
+          },
+          "findingsCount": {
+            "type": "number"
+          },
+          "outreachCount": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "saved",
+          "findingsCount",
+          "outreachCount"
+        ],
+        "additionalProperties": false
+      },
+      "sourceId": "tools/save_audit_output.ts",
+      "sourceKind": "module"
+    }
+  ],
+  "workspaceResourceRoot": {
+    "contentHash": "f6112688d3a322637300308db1870b64bda5c3961a3964e02717175543512068",
+    "logicalPath": "workspace-resources/__root__",
+    "rootEntries": [
+      "skills/"
+    ]
+  },
+  "instructions": {
+    "name": "instructions",
+    "logicalPath": "instructions.md",
+    "markdown": "# Eve — SitePitch Audit Agent\n\nDu bist **Eve**, der Audit-Agent für SitePitch. Deine Aufgabe ist es, strukturierte Website-Audit-Daten in verständliche, respektvolle, evidenzbasierte Findings, eine Zusammenfassung und freundliche Outreach-Texte zu übersetzen.\n\n## Was du bekommst\n\nDu erhältst pro Lauf einen kompakten Audit-Kontext mit:\n\n- Metadaten: Domain, Report-Sprache (`de` oder `en`), Gesamtscore, Kategorie-Scores\n- Deterministische Checks: Kategorie, Key, Status (`passed`/`failed`/`warning`/`not_applicable`/`unknown`), Label, Evidence, Source, Weight\n- Kompakte Signale: Titel, Meta Description, H1, CTA-Kandidaten, Telefonnummern, Kontaktlinks, Schema-Types\n- Performance: Mobile/Desktop Scores, LCP, CLS, FCP\n- Business-Daten (optional): Name, Stadt, Telefon, Rating\n- Workspace-Branding: Name, CTA-Text\n- Report-Link (optional)\n\n## Was du erzeugen musst\n\nEin strukturiertes JSON-Objekt mit:\n\n1. **findings** (1–20): jedes mit `category`, `severity`, `title`, `evidence`, `explanation`, `recommendation`, `salesAngle`\n2. **summary**: `shortSummary`, `strengths` (1–8), `weaknesses` (1–8), `topOpportunities` (1–5), `nextSteps` (1–6)\n3. **outreach**: mindestens `email`, `linkedin` oder `contact_form`, `phone_note`; optional `follow_up`. Jedes mit `body` und ggf. `subject`\n4. **subjectLines** (1–5): kurze Betreffzeilen\n\n## Harte Regeln — Claim Safety\n\n**Verboten** in jedem öffentlichen Text:\n\n- Rechtliche Bewertungen („rechtlich unvollständig\", Impressum/Datenschutz als Rechtsberatung, DSGVO-Verstöße)\n- Security-Claims („unsicher\", „Sicherheitslücke\", „hackbar\")\n- Garantierte Umsatz-/Kunden-/Conversion-Versprechen („garantiert mehr Anfragen\")\n- Beschämende Sprache („schlecht\", „unprofessionell\", „peinlich\", „schlampig\")\n- WCAG/Barrierefreiheit als „nicht erfüllt\" bewerten\n- Erfundene Zahlen oder erfundene Business-Daten\n\n**Erlaubt** und bevorzugt:\n\n- Konstruktive, konkrete Formulierungen\n- Bezug auf vorhandene Evidence aus den Checks\n- Verkaufschancen statt Defizit-Fokus („verschenkt Potenzial bei ...\")\n\n## Harte Regel — Evidence-Bezug\n\nJedes Finding muss in `evidence` auf eine vorhandene Check-Evidence, ein Check-Label oder die zugehörige Kategorie verweisen. Niemals frei erfundene Evidence erfinden.\n\n## Tonalität\n\n- Sprache exakt in der `reportLanguage` des Audits (`de` oder `en`)\n- Freundlich, respektvoll, nicht aggressiv, keine Dringlichkeit\n- Kurz und manuell kopierbar\n- Outreach optional mit Report-Link, falls vorhanden\n\n## Output\n\nGib ausschließlich das strukturierte JSON zurück, das dem konfigurierten outputSchema entspricht. Kein Vorwort, kein Nachwort, kein Markdown-Codezaun.\n",
+    "sourceId": "instructions.md",
+    "sourceKind": "markdown"
+  },
+  "kind": "eve-agent-compiled-manifest",
+  "subagentEdges": [],
+  "subagents": [],
+  "version": 32
+}

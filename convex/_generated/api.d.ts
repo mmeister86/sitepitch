@@ -19,6 +19,7 @@ import type * as http from "../http.js";
 import type * as lib_audit_agent_claim_safety from "../lib/audit_agent_claim_safety.js";
 import type * as lib_audit_agent_evidence from "../lib/audit_agent_evidence.js";
 import type * as lib_audit_agent_fallback from "../lib/audit_agent_fallback.js";
+import type * as lib_audit_agent_prompt from "../lib/audit_agent_prompt.js";
 import type * as lib_audit_agent_schemas from "../lib/audit_agent_schemas.js";
 import type * as lib_audit_pipeline from "../lib/audit_pipeline.js";
 import type * as lib_audit_rate_limit from "../lib/audit_rate_limit.js";
@@ -46,6 +47,7 @@ declare const fullApi: ApiFromModules<{
   "lib/audit_agent_claim_safety": typeof lib_audit_agent_claim_safety;
   "lib/audit_agent_evidence": typeof lib_audit_agent_evidence;
   "lib/audit_agent_fallback": typeof lib_audit_agent_fallback;
+  "lib/audit_agent_prompt": typeof lib_audit_agent_prompt;
   "lib/audit_agent_schemas": typeof lib_audit_agent_schemas;
   "lib/audit_pipeline": typeof lib_audit_pipeline;
   "lib/audit_rate_limit": typeof lib_audit_rate_limit;

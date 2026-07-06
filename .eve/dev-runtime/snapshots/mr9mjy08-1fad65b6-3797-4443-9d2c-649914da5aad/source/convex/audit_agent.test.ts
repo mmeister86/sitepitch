@@ -1,0 +1,153 @@
+import assert from "node:assert/strict"
+
+import { describe, test } from "vitest"
+
+import {
+  auditAgentOutputSchema,
+  safeParseAgentOutput,
+  type AuditAgentOutput,
+} from "./lib/audit_agent_schemas"
+import { reviewClaimSafety } from "./lib/audit_agent_claim_safety"
+import { buildEvidenceRefs, validateFindingEvidence } from "./lib/audit_agent_evidence"
+import type { CheckInput } from "./lib/audit_scoring"
+
+function baseOutput(): AuditAgentOutput {
+  return {
+    findings: [
+      {
+        category: "conversion",
+        severity: "medium",
+        title: "Kontaktbereich optimieren",
+        evidence: "Kontakt: clear_cta",
+        explanation: "Der Kontaktbereich lässt sich verbessern.",
+        recommendation: "Klareren CTA setzen.",
+        salesAngle: "Mehr Anfragen aus bestehendem Traffic.",
+      },
+    ],
+    summary: {
+      shortSummary: "Die Website macht einen soliden Eindruck, verschenkt aber Potenzial.",
+      strengths: ["Grundstruktur ist vorhanden."],
+      weaknesses: ["Kontakt lässt sich verbessern."],
+      topOpportunities: ["Kontaktbereich optimieren."],
+      nextSteps: ["CTA prüfen."],
+    },
+    outreach: [
+      { type: "email", subject: "Kurzer Audit", body: "Hallo Team, kurzer Audit." },
+      { type: "linkedin", body: "Hallo, kurzer Audit." },
+      { type: "phone_note", body: "Anruf-Notiz: Audit erstellt." },
+    ],
+    subjectLines: ["Kurzer Website-Audit"],
+  }
+}
+
+describe("audit agent schema", () => {
+  test("accepts a well-formed output", () => {
+    const result = auditAgentOutputSchema.safeParse(baseOutput())
+    assert.ok(result.success)
+  })
+
+  test("rejects output without required email/phone outreach", () => {
+    const output = baseOutput()
+    output.outreach = [{ type: "linkedin", body: "x" }]
+    const result = auditAgentOutputSchema.safeParse(output)
+    assert.ok(!result.success)
+  })
+
+  test("rejects findings with empty title", () => {
+    const output = baseOutput()
+    output.findings[0].title = ""
+    const result = safeParseAgentOutput(output)
+    assert.ok(!result.ok)
+  })
+
+  test("rejects summary with empty strengths", () => {
+    const output = baseOutput()
+    output.summary.strengths = []
+    const result = safeParseAgentOutput(output)
+    assert.ok(!result.ok)
+  })
+
+  test("rejects subjectLines with empty strings", () => {
+    const output = baseOutput()
+    output.subjectLines = [""]
+    const result = safeParseAgentOutput(output)
+    assert.ok(!result.ok)
+  })
+
+  test("caps findings at 20", () => {
+    const output = baseOutput()
+    output.findings = Array.from({ length: 21 }, () => ({ ...baseOutput().findings[0] }))
+    const result = safeParseAgentOutput(output)
+    assert.ok(!result.ok)
+  })
+})
+
+describe("claim safety", () => {
+  test("passes for safe output", () => {
+    const result = reviewClaimSafety(baseOutput())
+    assert.ok(result.ok, JSON.stringify(result.issues))
+  })
+
+  test("blocks legal claims", () => {
+    const output = baseOutput()
+    output.findings[0].recommendation = "Impressum fehlt rechtswidrig."
+    const result = reviewClaimSafety(output)
+    assert.ok(!result.ok)
+    assert.match(result.issues[0].path, /recommendation/)
+  })
+
+  test("blocks security claims", () => {
+    const output = baseOutput()
+    output.summary.shortSummary = "Die Website ist unsicher."
+    const result = reviewClaimSafety(output)
+    assert.ok(!result.ok)
+  })
+
+  test("blocks revenue guarantees", () => {
+    const output = baseOutput()
+    output.findings[0].salesAngle = "Garantiert mehr Umsatz."
+    const result = reviewClaimSafety(output)
+    assert.ok(!result.ok)
+  })
+
+  test("blocks shaming language", () => {
+    const output = baseOutput()
+    output.summary.weaknesses[0] = "Die Website ist peinlich."
+    const result = reviewClaimSafety(output)
+    assert.ok(!result.ok)
+  })
+
+  test("scans outreach subjects and bodies", () => {
+    const output = baseOutput()
+    output.outreach[0].body = "Sie verlieren massiv Kunden."
+    const result = reviewClaimSafety(output)
+    assert.ok(!result.ok)
+  })
+})
+
+describe("evidence validation", () => {
+  const checks: CheckInput[] = [
+    { category: "conversion", key: "clear_cta", label: "Klarer CTA", status: "failed", evidence: "Kein CTA gefunden", weight: 1.5 },
+    { category: "seo", key: "meta_description", label: "Meta Description", status: "warning", evidence: "Meta Description fehlt" },
+  ]
+
+  test("accepts findings referencing stored label or evidence", () => {
+    const refs = buildEvidenceRefs(checks)
+    const findings = [
+      { title: "CTA", evidence: "Klarer CTA fehlt", category: "conversion" },
+      { title: "Meta", evidence: "Meta Description", category: "seo" },
+    ]
+    const issues = validateFindingEvidence(findings, refs)
+    assert.equal(issues.length, 0)
+  })
+
+  test("rejects findings with no stored evidence reference", () => {
+    const refs = buildEvidenceRefs(checks)
+    const findings = [
+      { title: "Erfunden", evidence: "Irgendein erfundener Wert 42%", category: "conversion" },
+    ]
+    const issues = validateFindingEvidence(findings, refs)
+    assert.equal(issues.length, 1)
+    assert.equal(issues[0].findingIndex, 0)
+  })
+})

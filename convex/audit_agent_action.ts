@@ -7,7 +7,7 @@ import { internal } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
 import type { AuditAgentContext, AuditAgentContextCheck } from "./audit_agent"
 import type { AuditAgentOutput } from "./lib/audit_agent_schemas"
-import { safeParseAgentOutput } from "./lib/audit_agent_schemas"
+import { auditAgentOutputSchema, safeParseAgentOutput } from "./lib/audit_agent_schemas"
 import { buildEvidenceRefs, validateFindingEvidence } from "./lib/audit_agent_evidence"
 import { reviewClaimSafety } from "./lib/audit_agent_claim_safety"
 import {
@@ -15,6 +15,7 @@ import {
   FALLBACK_MODEL,
   FALLBACK_PROVIDER,
 } from "./lib/audit_agent_fallback"
+import { buildSystemPrompt, buildUserPrompt } from "./lib/audit_agent_prompt"
 import type { CheckInput, CategoryScores } from "./lib/audit_scoring"
 
 const SKILL_VERSIONS = {
@@ -27,9 +28,11 @@ const SKILL_VERSIONS = {
   "claim-safety": "2026.07.1",
 }
 
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+const DEFAULT_MODEL = "openai/gpt-4.1-mini"
 const MAX_RETRIES = 1
 
-interface EveRunResult {
+interface LlmRunResult {
   output: AuditAgentOutput
   provider: "openai" | "anthropic" | "other"
   model: string
@@ -69,9 +72,10 @@ function buildFallbackContext(agentContext: AuditAgentContext, reportLink: strin
   }
 }
 
-function validateOutputSafety(output: AuditAgentOutput, evidenceRefs: ReturnType<typeof buildEvidenceRefs>):
-  | { ok: true }
-  | { ok: false; reason: string } {
+function validateOutputSafety(
+  output: AuditAgentOutput,
+  evidenceRefs: ReturnType<typeof buildEvidenceRefs>,
+): { ok: true } | { ok: false; reason: string } {
   const evidenceIssues = validateFindingEvidence(output.findings, evidenceRefs)
   if (evidenceIssues.length > 0) {
     return {
@@ -91,50 +95,45 @@ function validateOutputSafety(output: AuditAgentOutput, evidenceRefs: ReturnType
   return { ok: true }
 }
 
-async function runEveAgent(agentContext: AuditAgentContext, reportLink: string | undefined): Promise<EveRunResult | null> {
-  const eveUrl = env.EVE_AGENT_URL
-  if (!eveUrl) {
-    return null
+async function runLlmGeneration(
+  agentContext: AuditAgentContext,
+  reportLink: string | undefined,
+): Promise<LlmRunResult> {
+  const apiKey = env.OPENROUTER_API_KEY
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY not configured")
   }
 
-  const { Client } = await import("eve/client")
-  const client = new Client({ host: eveUrl })
-  const session = client.session()
+  const { createOpenAI } = await import("@ai-sdk/openai")
+  const { generateObject } = await import("ai")
 
-  const payload = {
-    audit: {
-      domain: agentContext.domain,
-      reportLanguage: agentContext.reportLanguage,
-      overallScore: agentContext.overallScore,
-      categoryScores: agentContext.categoryScores,
-    },
-    checks: agentContext.checks,
-    signals: agentContext.signals,
-    performance: agentContext.performance,
-    business: agentContext.business,
-    workspace: {
-      name: agentContext.workspace.name,
-      ctaText: agentContext.workspace.ctaText,
-    },
-    reportLink,
-  }
-
-  const message = `Generate audit findings, summary, and outreach drafts for this website audit. Return strictly structured output matching the configured schema.\n\n${JSON.stringify(payload)}`
-
-  const response = await session.send<AuditAgentOutput>({
-    message,
-    outputSchema: (await import("./lib/audit_agent_schemas")).auditAgentOutputSchema,
+  const openrouter = createOpenAI({
+    baseURL: OPENROUTER_BASE_URL,
+    apiKey,
+    name: "openrouter",
   })
 
-  const result = await response.result()
-  if (!result.data) {
-    throw new Error("Eve returned no structured data")
-  }
+  const model = env.OPENROUTER_MODEL ?? DEFAULT_MODEL
+  const system = buildSystemPrompt(agentContext.reportLanguage)
+  const prompt = buildUserPrompt(agentContext, reportLink)
+
+  const result = await generateObject({
+    model: openrouter(model),
+    schema: auditAgentOutputSchema,
+    schemaName: "AuditAgentOutput",
+    schemaDescription: "Validated audit findings, summary, and outreach drafts.",
+    system,
+    prompt,
+    temperature: 0.4,
+    maxRetries: 0,
+  })
 
   return {
-    output: result.data,
+    output: result.object as AuditAgentOutput,
     provider: "other",
-    model: env.EVE_AGENT_MODEL ?? "eve-default",
+    model,
+    tokensIn: result.usage.inputTokens,
+    tokensOut: result.usage.outputTokens,
     usedFallback: false,
   }
 }
@@ -183,7 +182,7 @@ export const processAuditAgentOutputs = internalAction({
       })),
     )
 
-    let chosen: EveRunResult | null = null
+    let chosen: LlmRunResult | null = null
     let lastError: string | undefined
 
     for (let attempt = 0; attempt <= MAX_RETRIES && !chosen; attempt++) {
@@ -191,24 +190,15 @@ export const processAuditAgentOutputs = internalAction({
         workspaceId: agentContext.workspaceId as Id<"workspaces">,
         auditId: args.auditId,
         provider: "other",
-        model: env.EVE_AGENT_MODEL ?? "eve-default",
+        model: env.OPENROUTER_MODEL ?? DEFAULT_MODEL,
         purpose: "findings",
         skillVersions: SKILL_VERSIONS,
       })
 
       try {
-        const eveResult = await runEveAgent(agentContext, reportLink)
-        if (!eveResult) {
-          await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
-            auditAgentRunId: runId,
-            status: "failed",
-            errorMessage: "EVE_AGENT_URL not configured",
-          })
-          lastError = "Eve agent not configured"
-          break
-        }
+        const llmResult = await runLlmGeneration(agentContext, reportLink)
 
-        const parsed = safeParseAgentOutput(eveResult.output)
+        const parsed = safeParseAgentOutput(llmResult.output)
         if (!parsed.ok) {
           await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
             auditAgentRunId: runId,
@@ -233,11 +223,11 @@ export const processAuditAgentOutputs = internalAction({
         await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
           auditAgentRunId: runId,
           status: "completed",
-          tokensIn: eveResult.tokensIn,
-          tokensOut: eveResult.tokensOut,
+          tokensIn: llmResult.tokensIn,
+          tokensOut: llmResult.tokensOut,
         })
 
-        chosen = { ...eveResult, output: parsed.data }
+        chosen = { ...llmResult, output: parsed.data }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
@@ -263,11 +253,6 @@ export const processAuditAgentOutputs = internalAction({
       const fallbackOutput = generateDeterministicAgentOutput(
         buildFallbackContext(agentContext, reportLink),
       )
-
-      const fallbackSafety = validateOutputSafety(fallbackOutput, evidenceRefs)
-      if (!fallbackSafety.ok) {
-        console.error("[audit_agent] fallback failed safety", { auditId: args.auditId, reason: fallbackSafety.reason })
-      }
 
       await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
         auditAgentRunId: fallbackRunId,

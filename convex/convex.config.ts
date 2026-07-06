@@ -14,6 +14,7 @@ const app = defineApp({
     LOCAL_BUSINESS_DATA_API_KEY: v.optional(v.string()),
     GOOGLE_PLACES_API_KEY: v.optional(v.string()),
     OPENROUTER_API_KEY: v.optional(v.string()),
+    OPENROUTER_MODEL: v.optional(v.string()),
     SITE_URL: v.optional(v.string()),
     EVE_AGENT_URL: v.optional(v.string()),
     EVE_AGENT_MODEL: v.optional(v.string()),

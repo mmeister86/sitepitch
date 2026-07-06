@@ -33,6 +33,7 @@ type Env = {
   readonly JINA_API_KEY: string | undefined;
   readonly LOCAL_BUSINESS_DATA_API_KEY: string | undefined;
   readonly OPENROUTER_API_KEY: string | undefined;
+  readonly OPENROUTER_MODEL: string | undefined;
   readonly PAGESPEED_API_KEY: string | undefined;
   readonly PAGESPEED_TIMEOUT_MS: string | undefined;
   readonly SCREENSHOTONE_API_KEY: string | undefined;
