@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Search, Eye, ArrowRight, Plus, Globe, Lock, Copy } from "lucide-react"
-import { useQuery } from "convex/react"
+import { Search, Eye, ArrowRight, Plus, Globe, Lock, Copy, Trash2 } from "lucide-react"
+import { useMutation, useQuery } from "convex/react"
 
 import {
   Card,
@@ -20,14 +20,26 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   ScoreBadge,
   AuditStatusBadge,
 } from "@/components/status-badges"
 import { NewAuditDialog } from "@/components/new-audit-dialog"
 import { useRouter } from "@/lib/router"
 import { formatRelativeTs } from "@/lib/scores"
+import { toast } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 import { api } from "../../convex/_generated/api"
+import type { Id } from "../../convex/_generated/dataModel"
 import { Spinner } from "@/components/ui/spinner"
 
 type AuditFilter = "all" | "running" | "completed" | "failed"
@@ -52,8 +64,10 @@ export function AuditsView() {
   const { navigate } = useRouter()
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState<AuditFilter>("all")
+  const [deleteTarget, setDeleteTarget] = useState<{ id: Id<"audits">; domain: string } | null>(null)
 
   const data = useQuery(api.audits.listMyAudits, {})
+  const deleteAudit = useMutation(api.audits.deleteAudit)
 
   const items = data?.items ?? []
 
@@ -80,6 +94,18 @@ export function AuditsView() {
   }
 
   const totalCount = data?.total ?? 0
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      await deleteAudit({ auditId: deleteTarget.id })
+      toast.success("Audit gelöscht", { description: deleteTarget.domain })
+    } catch {
+      toast.error("Audit konnte nicht gelöscht werden")
+    } finally {
+      setDeleteTarget(null)
+    }
+  }
 
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-5 p-4 md:p-6">
@@ -144,6 +170,7 @@ export function AuditsView() {
                 <TableHead className="hidden sm:table-cell text-right pr-6">
                   Erstellt
                 </TableHead>
+                <TableHead className="w-[48px] pr-6" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -208,6 +235,19 @@ export function AuditsView() {
                   <TableCell className="hidden sm:table-cell pr-6 text-right text-xs text-muted-foreground">
                     {formatRelativeTs(a.createdAt)}
                   </TableCell>
+                  <TableCell className="pr-6 text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-muted-foreground hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDeleteTarget({ id: a._id, domain: a.domain })
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -252,6 +292,29 @@ export function AuditsView() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Audit löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Der Audit für <span className="font-medium text-foreground">{deleteTarget?.domain}</span> wird
+              inklusive aller Findings, Outreach-Texte und Views dauerhaft entfernt.
+              Credit-Buchungen bleiben aus Abrechnungsgründen erhalten.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={confirmDelete}
+            >
+              <Trash2 className="size-4" />
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

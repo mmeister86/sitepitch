@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values"
 
-import { action, internalMutation, internalQuery, query } from "./_generated/server"
+import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server"
 import type { Id, Doc } from "./_generated/dataModel"
 import { api, internal } from "./_generated/api"
 import { auditRateLimiter } from "./lib/audit_rate_limit"
@@ -289,5 +289,85 @@ export const startAudit = action({
       reportLanguage: args.reportLanguage,
       idempotencyKey: args.idempotencyKey,
     })
+  },
+})
+
+export const deleteAudit = mutation({
+  args: { auditId: v.id("audits") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) {
+      throw new ConvexError({ code: "UNAUTHENTICATED", message: "Not authenticated" })
+    }
+
+    const user = await findAppUser(ctx, identity.tokenIdentifier)
+    if (!user) {
+      throw new ConvexError({ code: "UNAUTHENTICATED", message: "Not authenticated" })
+    }
+
+    const audit = await ctx.db.get(args.auditId)
+    if (!audit) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Audit not found" })
+    }
+
+    const workspace = await getWorkspaceByOwner(ctx, user._id)
+    if (!workspace || audit.workspaceId !== workspace._id) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Workspace access denied" })
+    }
+
+    const relatedTables = [
+      "auditScores",
+      "auditSummaries",
+      "auditFindings",
+      "auditChecks",
+      "auditAssets",
+      "auditPerformance",
+      "auditRawData",
+      "auditPages",
+      "auditBusinessData",
+      "outreachDrafts",
+      "reportViews",
+      "providerCalls",
+      "auditPipelineStates",
+      "auditAgentRuns",
+    ] as const
+
+    let deleted = 0
+    for (const table of relatedTables) {
+      const rows = await ctx.db
+        .query(table)
+        .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+        .take(500)
+      for (const row of rows) {
+        await ctx.db.delete(row._id)
+        deleted++
+      }
+    }
+
+    const usageEvents = await ctx.db
+      .query("usageEvents")
+      .withIndex("by_workspaceId_and_auditId", (q) =>
+        q.eq("workspaceId", workspace._id).eq("auditId", args.auditId),
+      )
+      .take(500)
+    for (const row of usageEvents) {
+      await ctx.db.delete(row._id)
+      deleted++
+    }
+
+    const linkedLeads = await ctx.db
+      .query("leads")
+      .withIndex("by_workspaceId_and_auditId", (q) =>
+        q.eq("workspaceId", workspace._id).eq("auditId", args.auditId),
+      )
+      .take(10)
+    for (const lead of linkedLeads) {
+      await ctx.db.patch(lead._id, { auditId: undefined, updatedAt: Date.now() })
+    }
+
+    await ctx.db.delete(args.auditId)
+    deleted++
+
+    return { deleted }
   },
 })
