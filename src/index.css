@@ -144,3 +144,32 @@
     -webkit-font-smoothing: antialiased;
   }
 }
+
+/*
+  Print / PDF styles
+  Ensures audit reports produce clean printed output.
+*/
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  .report-document [data-slot="card"] {
+    box-shadow: none !important;
+    border: 1px solid oklch(0.88 0.008 272) !important;
+    break-inside: avoid;
+  }
+
+  .report-document a {
+    text-decoration: none !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
