@@ -7,6 +7,13 @@ const app = defineApp({
   env: {
     BETTER_AUTH_SECRET: v.string(),
     BETTER_AUTH_URL: v.string(),
+    JINA_API_KEY: v.optional(v.string()),
+    SCREENSHOTONE_API_KEY: v.optional(v.string()),
+    PAGESPEED_API_KEY: v.optional(v.string()),
+    PAGESPEED_TIMEOUT_MS: v.optional(v.string()),
+    LOCAL_BUSINESS_DATA_API_KEY: v.optional(v.string()),
+    GOOGLE_PLACES_API_KEY: v.optional(v.string()),
+    OPENROUTER_API_KEY: v.optional(v.string()),
     SITE_URL: v.optional(v.string()),
   },
 })

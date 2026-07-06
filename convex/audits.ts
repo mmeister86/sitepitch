@@ -112,6 +112,15 @@ export const createQueuedAudit = internalMutation({
       updatedAt: now,
     })
 
+    await ctx.db.insert("auditPipelineStates", {
+      workspaceId: args.workspaceId,
+      auditId,
+      status: "queued",
+      phase: "queued",
+      attemptCount: 0,
+      updatedAt: now,
+    })
+
     await reserveWorkspaceCredit(ctx, args.workspaceId, args.userId, auditId, args.idempotencyKey)
 
     await ctx.db.insert("usageEvents", {
@@ -127,6 +136,10 @@ export const createQueuedAudit = internalMutation({
         reportLanguage: args.reportLanguage,
       },
       createdAt: now,
+    })
+
+    await ctx.scheduler.runAfter(0, internal.audit_pipeline.processAuditPipeline, {
+      auditId,
     })
 
     return {

@@ -3,8 +3,11 @@ import assert from "node:assert/strict"
 import schema from "./schema.ts"
 import {
   auditStatusValidator,
+  auditPipelineStatusValidator,
   auditTypeValidator,
   creditLedgerTypeValidator,
+  providerCallProviderValidator,
+  providerCallStatusValidator,
   reportLanguageValidator,
   workspaceMemberRoleValidator,
 } from "../src/lib/convex-schema-values.ts"
@@ -14,9 +17,12 @@ const tableNames = Object.keys(schema.tables).sort()
 assert.deepEqual(tableNames, [
   "auditAgentRuns",
   "auditAssets",
+  "auditBusinessData",
   "auditChecks",
   "auditFindings",
+  "auditPages",
   "auditPerformance",
+  "auditPipelineStates",
   "auditRawData",
   "auditScores",
   "auditSummaries",
@@ -25,7 +31,7 @@ assert.deepEqual(tableNames, [
   "creditLedger",
   "leads",
   "outreachDrafts",
-  "providerCosts",
+  "providerCalls",
   "reportViews",
   "subscriptions",
   "usageEvents",
@@ -70,10 +76,33 @@ assert.deepEqual(getValidatorValues(auditStatusValidator), [
   { type: "literal", value: "failed" },
   { type: "literal", value: "cancelled" },
 ])
+assert.deepEqual(getValidatorValues(auditPipelineStatusValidator), [
+  { type: "literal", value: "queued" },
+  { type: "literal", value: "running" },
+  { type: "literal", value: "completed" },
+  { type: "literal", value: "failed" },
+])
 assert.deepEqual(getValidatorValues(auditTypeValidator), [
   { type: "literal", value: "standard" },
   { type: "literal", value: "local" },
   { type: "literal", value: "quick" },
+])
+assert.deepEqual(getValidatorValues(providerCallProviderValidator), [
+  { type: "literal", value: "direct_html" },
+  { type: "literal", value: "jina" },
+  { type: "literal", value: "screenshotone" },
+  { type: "literal", value: "pagespeed" },
+  { type: "literal", value: "local_business_data" },
+  { type: "literal", value: "google_places" },
+  { type: "literal", value: "openai" },
+  { type: "literal", value: "anthropic" },
+  { type: "literal", value: "other" },
+])
+assert.deepEqual(getValidatorValues(providerCallStatusValidator), [
+  { type: "literal", value: "queued" },
+  { type: "literal", value: "started" },
+  { type: "literal", value: "completed" },
+  { type: "literal", value: "failed" },
 ])
 
 const auditsTable = schema.tables.audits as any
@@ -92,6 +121,11 @@ const creditLedgerIndexes = (schema.tables.creditLedger as any).indexes.map(
 assert.ok(creditLedgerIndexes.includes("by_workspaceId_and_auditId"))
 assert.ok(creditLedgerIndexes.includes("by_workspaceId_and_subscriptionId"))
 
+const auditAssetsIndexes = (schema.tables.auditAssets as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(auditAssetsIndexes.includes("by_auditId_and_type"))
+
 const usageEventsTable = schema.tables.usageEvents
 assert.ok(
   (usageEventsTable as any).indexes.some(
@@ -103,3 +137,30 @@ assert.ok(
     (index: { indexDescriptor: string }) => index.indexDescriptor === "by_workspaceId_and_createdAt",
   ),
 )
+
+const pipelineIndexes = (schema.tables.auditPipelineStates as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(pipelineIndexes.includes("by_auditId"))
+assert.ok(pipelineIndexes.includes("by_workspaceId_and_status"))
+
+const providerCallsIndexes = (schema.tables.providerCalls as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(providerCallsIndexes.includes("by_workspaceId_and_auditId"))
+assert.ok(providerCallsIndexes.includes("by_auditId"))
+
+const auditPagesIndexes = (schema.tables.auditPages as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(auditPagesIndexes.includes("by_auditId_and_pageIndex"))
+
+const auditPerformanceIndexes = (schema.tables.auditPerformance as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(auditPerformanceIndexes.includes("by_auditId_and_strategy"))
+
+const auditBusinessIndexes = (schema.tables.auditBusinessData as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(auditBusinessIndexes.includes("by_auditId"))

@@ -27,6 +27,13 @@ import type { DataModel } from "./dataModel.js";
 type Env = {
   readonly BETTER_AUTH_SECRET: string;
   readonly BETTER_AUTH_URL: string;
+  readonly GOOGLE_PLACES_API_KEY: string | undefined;
+  readonly JINA_API_KEY: string | undefined;
+  readonly LOCAL_BUSINESS_DATA_API_KEY: string | undefined;
+  readonly OPENROUTER_API_KEY: string | undefined;
+  readonly PAGESPEED_API_KEY: string | undefined;
+  readonly PAGESPEED_TIMEOUT_MS: string | undefined;
+  readonly SCREENSHOTONE_API_KEY: string | undefined;
   readonly SITE_URL: string | undefined;
 };
 

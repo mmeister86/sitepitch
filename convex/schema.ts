@@ -12,13 +12,14 @@ import {
   auditFindingCategoryValidator,
   auditFindingSeverityValidator,
   auditPerformanceStrategyValidator,
+  auditPipelineStatusValidator,
   auditStatusValidator,
   auditTypeValidator,
   creditLedgerTypeValidator,
   leadSourceProviderValidator,
   leadStatusValidator,
-  providerCostProviderValidator,
-  providerCostStatusValidator,
+  providerCallProviderValidator,
+  providerCallStatusValidator,
   outreachDraftTypeValidator,
   reportLanguageValidator,
   subscriptionPlanValidator,
@@ -185,8 +186,13 @@ export default defineSchema({
     auditId: v.id("audits"),
     httpStatus: v.optional(v.number()),
     finalUrl: v.optional(v.string()),
+    sourceProvider: v.optional(v.string()),
+    sourceUrl: v.optional(v.string()),
     title: v.optional(v.string()),
     metaDescription: v.optional(v.string()),
+    openGraphTitle: v.optional(v.string()),
+    openGraphDescription: v.optional(v.string()),
+    openGraphImage: v.optional(v.string()),
     h1Texts: v.optional(v.array(v.string())),
     h2Texts: v.optional(v.array(v.string())),
     canonicalUrl: v.optional(v.string()),
@@ -196,11 +202,12 @@ export default defineSchema({
     phoneNumbers: v.optional(v.array(v.string())),
     emailAddresses: v.optional(v.array(v.string())),
     contactLinks: v.optional(v.array(v.string())),
+    internalLinks: v.optional(v.array(v.string())),
+    externalLinks: v.optional(v.array(v.string())),
     privacyLinkFound: v.optional(v.boolean()),
     imprintLinkFound: v.optional(v.boolean()),
     ctaCandidates: v.optional(v.array(v.string())),
     extractedMarkdown: v.optional(v.string()),
-    providerPayloadRefs: v.optional(v.array(v.string())),
     createdAt: v.number(),
   })
     .index("by_workspaceId", ["workspaceId"])
@@ -220,6 +227,7 @@ export default defineSchema({
     .index("by_workspaceId", ["workspaceId"])
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
     .index("by_auditId", ["auditId"])
+    .index("by_auditId_and_type", ["auditId", "type"])
     .index("by_workspaceId_and_type", ["workspaceId", "type"]),
 
   auditPerformance: defineTable({
@@ -234,12 +242,12 @@ export default defineSchema({
     cls: v.optional(v.number()),
     fcp: v.optional(v.number()),
     speedIndex: v.optional(v.number()),
-    rawProviderRef: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_workspaceId", ["workspaceId"])
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
     .index("by_auditId", ["auditId"])
+    .index("by_auditId_and_strategy", ["auditId", "strategy"])
     .index("by_workspaceId_and_strategy", ["workspaceId", "strategy"]),
 
   auditChecks: defineTable({
@@ -350,20 +358,38 @@ export default defineSchema({
     .index("by_workspaceId_and_event", ["workspaceId", "event"])
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"]),
 
-  providerCosts: defineTable({
+  auditPipelineStates: defineTable({
+    workspaceId: v.id("workspaces"),
+    auditId: v.id("audits"),
+    status: auditPipelineStatusValidator,
+    phase: v.string(),
+    leaseToken: v.optional(v.string()),
+    leaseExpiresAt: v.optional(v.number()),
+    attemptCount: v.number(),
+    startedAt: v.optional(v.number()),
+    finishedAt: v.optional(v.number()),
+    lastErrorMessage: v.optional(v.string()),
+    lastErrorCode: v.optional(v.string()),
+    updatedAt: v.number(),
+  })
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
+    .index("by_auditId", ["auditId"])
+    .index("by_workspaceId_and_status", ["workspaceId", "status"]),
+
+  providerCalls: defineTable({
     workspaceId: v.id("workspaces"),
     auditId: v.optional(v.id("audits")),
-    provider: providerCostProviderValidator,
+    provider: providerCallProviderValidator,
     operation: v.string(),
-    status: providerCostStatusValidator,
-    estimatedCostUsd: v.optional(v.number()),
-    actualCostUsd: v.optional(v.number()),
-    tokensIn: v.optional(v.number()),
-    tokensOut: v.optional(v.number()),
-    requestCount: v.optional(v.number()),
+    status: providerCallStatusValidator,
+    attempt: v.number(),
+    requestEvidence: v.optional(v.string()),
     latencyMs: v.optional(v.number()),
     retryCount: v.optional(v.number()),
     errorMessage: v.optional(v.string()),
+    errorCode: v.optional(v.string()),
+    responseStatus: v.optional(v.number()),
     startedAt: v.number(),
     completedAt: v.optional(v.number()),
     createdAt: v.number(),
@@ -373,6 +399,51 @@ export default defineSchema({
     .index("by_auditId", ["auditId"])
     .index("by_workspaceId_and_provider", ["workspaceId", "provider"])
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"]),
+
+  auditPages: defineTable({
+    workspaceId: v.id("workspaces"),
+    auditId: v.id("audits"),
+    pageIndex: v.number(),
+    kind: v.string(),
+    url: v.string(),
+    normalizedUrl: v.string(),
+    httpStatus: v.optional(v.number()),
+    finalUrl: v.optional(v.string()),
+    title: v.optional(v.string()),
+    metaDescription: v.optional(v.string()),
+    sourceProvider: v.optional(v.string()),
+    sourceUrl: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
+    .index("by_auditId", ["auditId"])
+    .index("by_auditId_and_pageIndex", ["auditId", "pageIndex"]),
+
+  auditBusinessData: defineTable({
+    workspaceId: v.id("workspaces"),
+    auditId: v.id("audits"),
+    sourceProvider: v.string(),
+    sourceId: v.optional(v.string()),
+    query: v.optional(v.string()),
+    name: v.optional(v.string()),
+    websiteUrl: v.optional(v.string()),
+    normalizedWebsiteUrl: v.optional(v.string()),
+    address: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    city: v.optional(v.string()),
+    country: v.optional(v.string()),
+    categories: v.optional(v.array(v.string())),
+    rating: v.optional(v.number()),
+    reviewCount: v.optional(v.number()),
+    latitude: v.optional(v.number()),
+    longitude: v.optional(v.number()),
+    provenance: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
+    .index("by_auditId", ["auditId"]),
 
   auditAgentRuns: defineTable({
     workspaceId: v.id("workspaces"),

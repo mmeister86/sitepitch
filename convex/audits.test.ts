@@ -26,6 +26,20 @@ vi.mock("./lib/audit_rate_limit", () => ({
   },
 }))
 
+vi.mock("./audit_pipeline.ts", async () => {
+  const { internalAction } = await import("./_generated/server")
+  const { v } = await import("convex/values")
+
+  return {
+    processAuditPipeline: internalAction({
+      args: {
+        auditId: v.id("audits"),
+      },
+      handler: async () => null,
+    }),
+  }
+})
+
 vi.mock("./workspaces.ts", async () => {
   const { mutation, query } = await import("./_generated/server")
   const {
@@ -144,6 +158,8 @@ vi.mock("./workspaces.ts", async () => {
 const modules = import.meta.glob([
   "./auth.ts",
   "./audits.ts",
+  "./audit_pipeline.ts",
+  "./audit_state.ts",
   "./http.ts",
   "./workspaces.ts",
   "./lib/*.ts",
@@ -262,12 +278,24 @@ describe("audit start flow", () => {
       assert.equal(audit.domain, "example.com")
     }
 
+    const pipelineState = await t.query((ctx) =>
+      ctx.db
+        .query("auditPipelineStates")
+        .withIndex("by_auditId", (q) => q.eq("auditId", result.auditId))
+        .unique(),
+    )
+    assert.ok(pipelineState)
+    if (pipelineState) {
+      assert.equal(pipelineState.status, "queued")
+      assert.equal(pipelineState.phase, "queued")
+    }
+
     const workspace = await t.query(api.workspaces.getMyWorkspace, {})
     assert.ok(workspace)
-    assert.equal(workspace.credits.total, 3)
+    assert.equal(workspace.credits.total, 20)
     assert.equal(workspace.credits.used, 0)
     assert.equal(workspace.credits.reserved, 1)
-    assert.equal(workspace.credits.remaining, 2)
+    assert.equal(workspace.credits.remaining, 19)
   })
 
   test("rejects invalid URLs without touching rate limits or credits", async () => {

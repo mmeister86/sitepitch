@@ -77,6 +77,13 @@ export const auditStatusValidator = v.union(
   v.literal("cancelled"),
 )
 
+export const auditPipelineStatusValidator = v.union(
+  v.literal("queued"),
+  v.literal("running"),
+  v.literal("completed"),
+  v.literal("failed"),
+)
+
 export const auditCheckCategoryValidator = v.union(
   v.literal("technical"),
   v.literal("seo"),
@@ -146,17 +153,19 @@ export const usageEventTypeValidator = v.union(
   v.literal("upgrade_clicked"),
 )
 
-export const providerCostProviderValidator = v.union(
+export const providerCallProviderValidator = v.union(
+  v.literal("direct_html"),
   v.literal("jina"),
   v.literal("screenshotone"),
   v.literal("pagespeed"),
+  v.literal("local_business_data"),
+  v.literal("google_places"),
   v.literal("openai"),
   v.literal("anthropic"),
-  v.literal("rapidapi"),
   v.literal("other"),
 )
 
-export const providerCostStatusValidator = v.union(
+export const providerCallStatusValidator = v.union(
   v.literal("queued"),
   v.literal("started"),
   v.literal("completed"),

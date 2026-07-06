@@ -3,7 +3,7 @@ import { ConvexError } from "convex/values"
 import type { Id } from "../_generated/dataModel"
 import type { MutationCtx, QueryCtx } from "../_generated/server"
 
-export const STARTER_MONTHLY_CREDITS = 3
+export const STARTER_MONTHLY_CREDITS = 20
 
 export type CreditSnapshot = {
   total: number
@@ -59,7 +59,29 @@ export async function ensureWorkspaceCreditBalance(
     .unique()
 
   if (existing) {
-    return existing
+    const snapshot = toSnapshot(existing)
+    if (snapshot.total >= STARTER_MONTHLY_CREDITS) {
+      return existing
+    }
+
+    const now = Date.now()
+    const topUpAmount = STARTER_MONTHLY_CREDITS - snapshot.total
+    await ctx.db.patch(existing._id, {
+      extraCredits: existing.extraCredits + topUpAmount,
+      updatedAt: now,
+    })
+
+    await ctx.db.insert("creditLedger", {
+      workspaceId,
+      type: "grant",
+      amount: topUpAmount,
+      balanceScope: "extra",
+      reason: "starter_credits_topup",
+      createdByUserId,
+      createdAt: now,
+    })
+
+    return await ctx.db.get(existing._id)
   }
 
   const now = Date.now()
@@ -124,4 +146,39 @@ export async function reserveWorkspaceCredit(
   })
 
   return { ...snapshot, reserved: snapshot.reserved + 1, remaining: snapshot.remaining - 1 }
+}
+
+export async function releaseWorkspaceCreditReservation(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  auditId: Id<"audits">,
+  idempotencyKey?: string,
+  reason = "audit_failed",
+) {
+  const balance = await getWorkspaceCreditBalance(ctx, workspaceId)
+  if (!balance || balance.reservedCredits <= 0) {
+    return getWorkspaceCreditSnapshot(balance)
+  }
+
+  const now = Date.now()
+  await ctx.db.patch(balance._id, {
+    reservedCredits: Math.max(0, balance.reservedCredits - 1),
+    updatedAt: now,
+  })
+
+  await ctx.db.insert("creditLedger", {
+    workspaceId,
+    auditId,
+    type: "refund",
+    amount: 1,
+    balanceScope: "mixed",
+    idempotencyKey,
+    reason,
+    createdAt: now,
+  })
+
+  return getWorkspaceCreditSnapshot({
+    ...balance,
+    reservedCredits: Math.max(0, balance.reservedCredits - 1),
+  })
 }

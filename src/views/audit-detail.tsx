@@ -122,6 +122,16 @@ const liveAuditStages: Array<{
     description: "Die technischen Leistungswerte werden erfasst.",
   },
   {
+    status: "fetching_business_data",
+    title: "Firmendaten prüfen",
+    description: "Lokale Firmendaten oder Google Places werden abgeglichen.",
+  },
+  {
+    status: "running_deterministic_checks",
+    title: "Checks zusammenführen",
+    description: "Die gesammelten Ergebnisse werden verdichtet und bewertet.",
+  },
+  {
     status: "completed",
     title: "Abgeschlossen",
     description: "Der Report ist fertig und kann geöffnet werden.",
