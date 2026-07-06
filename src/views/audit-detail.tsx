@@ -21,10 +21,13 @@ import {
   Smartphone,
   TrendingUp,
   ArrowUpRight,
+  Printer,
+  Link2,
+  Link2Off,
 } from "lucide-react"
 import { toast } from "@/components/ui/sonner"
 import type { ReactNode } from "react"
-import { useQuery } from "convex/react"
+import { useMutation, useQuery } from "convex/react"
 
 import {
   Card,
@@ -52,6 +55,7 @@ import {
   AuditStatusBadge,
 } from "@/components/status-badges"
 import { CopyButton } from "@/components/copy-button"
+import { AuditReport } from "@/components/audit-report"
 import { useRouter } from "@/lib/router"
 import { auditById, campaignById } from "@/lib/mock-data"
 import {
@@ -63,7 +67,7 @@ import {
 import { cn } from "@/lib/utils"
 import { authClient } from "@/lib/auth-client"
 import { getUserDisplayName, personalizeOutreachText } from "@/lib/user-display"
-import type { Audit, AuditHistoryEntry, CheckResult, LeadStatus } from "@/lib/types"
+import type { Audit, AuditHistoryEntry, CheckResult, LeadStatus, FindingSeverity } from "@/lib/types"
 import { api } from "../../convex/_generated/api"
 import type { Doc, Id } from "../../convex/_generated/dataModel"
 import { Spinner } from "@/components/ui/spinner"
@@ -194,9 +198,11 @@ export function AuditDetailView({ id }: { id: string }) {
 
 function LiveAuditDetail({ id }: { id: string }) {
   const { navigate } = useRouter()
-  const audit = useQuery(api.audits.getById, { auditId: id as Id<"audits"> })
+  const report = useQuery(api.reports.getInternalReportById, {
+    auditId: id as Id<"audits">,
+  })
 
-  if (audit === undefined) {
+  if (report === undefined) {
     return (
       <div className="mx-auto flex min-h-[40vh] items-center justify-center">
         <Spinner className="size-6 text-primary" />
@@ -204,7 +210,7 @@ function LiveAuditDetail({ id }: { id: string }) {
     )
   }
 
-  if (!audit) {
+  if (report === null) {
     return (
       <div className="mx-auto max-w-md p-10 text-center">
         <p className="text-sm text-muted-foreground">Audit nicht gefunden.</p>
@@ -216,15 +222,35 @@ function LiveAuditDetail({ id }: { id: string }) {
     )
   }
 
-  const stageIndex = liveAuditStages.findIndex((stage) => stage.status === audit.status)
+  if (report.status === "completed") {
+    return <LiveCompletedReport report={report} navigate={navigate} />
+  }
+
+  if (report.status === "failed") {
+    return <LiveFailedReport report={report} navigate={navigate} />
+  }
+
+  return <LiveProgressReport report={report} navigate={navigate} />
+}
+
+const shareBaseUrl =
+  typeof window !== "undefined" ? window.location.origin : "https://trysitepitch.com"
+
+function buildShareUrl(slug: string): string {
+  return `${shareBaseUrl}/r/${slug}`
+}
+
+function LiveProgressReport({
+  report,
+  navigate,
+}: {
+  report: NonNullable<ReturnType<typeof useQuery<typeof api.reports.getInternalReportById>>>
+  navigate: ReturnType<typeof useRouter>["navigate"]
+}) {
+  const stageIndex = liveAuditStages.findIndex((stage) => stage.status === report.status)
   const progress =
-    stageIndex < 0
-      ? audit.status === "failed"
-        ? 100
-        : 0
-      : Math.min(100, ((stageIndex + 1) / liveAuditStages.length) * 100)
+    stageIndex < 0 ? 0 : Math.min(100, ((stageIndex + 1) / liveAuditStages.length) * 100)
   const currentStage = liveAuditStages[stageIndex >= 0 ? stageIndex : 0]
-  const shareUrl = `https://trysitepitch.com/r/${audit.publicSlug}`
 
   return (
     <div className="mx-auto w-full max-w-[960px] space-y-5 p-4 md:p-6">
@@ -241,15 +267,15 @@ function LiveAuditDetail({ id }: { id: string }) {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <CardTitle className="flex flex-wrap items-center gap-2">
-                <span>{audit.domain}</span>
-                <AuditStatusBadge status={audit.status} />
+                <span>{report.domain}</span>
+                <AuditStatusBadge status={report.status} />
               </CardTitle>
               <CardDescription className="mt-1 break-all">
-                {audit.normalizedUrl}
+                {report.normalizedUrl}
               </CardDescription>
             </div>
             <Button variant="outline" className="gap-2" asChild>
-              <a href={audit.normalizedUrl} target="_blank" rel="noreferrer">
+              <a href={report.normalizedUrl} target="_blank" rel="noreferrer">
                 <ExternalLink className="size-4" />
                 Website öffnen
               </a>
@@ -260,15 +286,19 @@ function LiveAuditDetail({ id }: { id: string }) {
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-lg border bg-muted/40 p-3">
               <div className="text-xs text-muted-foreground">Audit-Typ</div>
-              <div className="mt-1 text-sm font-medium capitalize">{audit.auditType}</div>
+              <div className="mt-1 text-sm font-medium capitalize">{report.auditType}</div>
             </div>
             <div className="rounded-lg border bg-muted/40 p-3">
               <div className="text-xs text-muted-foreground">Report-Sprache</div>
-              <div className="mt-1 text-sm font-medium">{audit.reportLanguage === "de" ? "Deutsch" : "English"}</div>
+              <div className="mt-1 text-sm font-medium">
+                {report.reportLanguage === "de" ? "Deutsch" : "English"}
+              </div>
             </div>
             <div className="rounded-lg border bg-muted/40 p-3">
-              <div className="text-xs text-muted-foreground">Freigabe-Link</div>
-              <div className="mt-1 truncate text-sm font-medium">{shareUrl}</div>
+              <div className="text-xs text-muted-foreground">Status</div>
+              <div className="mt-1 text-sm font-medium">
+                {currentStage ? currentStage.title : report.status}
+              </div>
             </div>
           </div>
 
@@ -280,8 +310,8 @@ function LiveAuditDetail({ id }: { id: string }) {
               <span className="font-medium tabular-nums">{Math.round(progress)}%</span>
             </div>
             <Progress value={progress} className="h-2" />
-            {audit.statusMessage && (
-              <p className="text-sm text-muted-foreground">{audit.statusMessage}</p>
+            {report.statusMessage && (
+              <p className="text-sm text-muted-foreground">{report.statusMessage}</p>
             )}
           </div>
 
@@ -314,34 +344,270 @@ function LiveAuditDetail({ id }: { id: string }) {
               )
             })}
           </div>
-
-          {audit.errorMessage && (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-              {audit.errorMessage}
-            </div>
-          )}
-
-          {audit.status === "failed" ? (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-              <h3 className="font-semibold">Audit fehlgeschlagen</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Der Start oder die Verarbeitung ist fehlgeschlagen. Es wurde kein Credit verbraucht.
-              </p>
-            </div>
-          ) : audit.status === "completed" ? (
-            <div className="rounded-lg border border-score-strong/20 bg-score-strong/5 p-4">
-              <h3 className="font-semibold">Audit abgeschlossen</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Der technische Start ist fertig. Die vollständigen Report-Daten werden mit Task 4.4 ergänzt.
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
-              Der Status aktualisiert sich live, sobald die nächsten Verarbeitungsschritte anlaufen.
-            </div>
-          )}
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+function LiveFailedReport({
+  report,
+  navigate,
+}: {
+  report: NonNullable<ReturnType<typeof useQuery<typeof api.reports.getInternalReportById>>>
+  navigate: ReturnType<typeof useRouter>["navigate"]
+}) {
+  return (
+    <div className="mx-auto w-full max-w-[640px] space-y-5 p-4 md:p-6">
+      <button
+        onClick={() => navigate({ name: "audits" })}
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" />
+        Audit-Inbox
+      </button>
+      <Card className="border-score-critical/30 bg-score-critical/5">
+        <CardContent className="flex flex-col items-start gap-4 py-8 sm:flex-row sm:items-center">
+          <span className="flex size-12 items-center justify-center rounded-full bg-score-critical/15">
+            <TriangleAlert className="size-6 text-score-critical" />
+          </span>
+          <div className="flex-1">
+            <h3 className="font-semibold">Audit fehlgeschlagen</h3>
+            <p className="mt-1 break-all text-sm text-muted-foreground">
+              {report.errorMessage ?? report.statusMessage ?? "Unbekannter Fehler."}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Es wurde kein Credit verbraucht.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+const outreachTypeLabels: Record<string, string> = {
+  email: "E-Mail",
+  linkedin: "LinkedIn / Kontaktformular",
+  contact_form: "Kontaktformular",
+  phone_note: "Telefonnotiz",
+  follow_up: "Follow-up",
+}
+
+function LiveCompletedReport({
+  report,
+  navigate,
+}: {
+  report: NonNullable<ReturnType<typeof useQuery<typeof api.reports.getInternalReportById>>>
+  navigate: ReturnType<typeof useRouter>["navigate"]
+}) {
+  const setPublic = useMutation(api.reports.setPublicReportEnabled)
+  const shareUrl = buildShareUrl(report.publicSlug)
+  const hasOutreach = report.outreachDrafts.length > 0
+  const hasChecks = report.checks.length > 0
+
+  const togglePublic = async (enabled: boolean) => {
+    try {
+      await setPublic({ auditId: report.auditId, enabled })
+      toast.success(
+        enabled ? "Report freigegeben" : "Report deaktiviert",
+        { description: enabled ? shareUrl : undefined },
+      )
+    } catch {
+      toast.error("Freigabe konnte nicht geändert werden")
+    }
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-[1200px] space-y-5 p-4 md:p-6">
+      {/* Back button */}
+      <button
+        onClick={() => navigate({ name: "audits" })}
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground no-print"
+      >
+        <ArrowLeft className="size-4" />
+        Audit-Inbox
+      </button>
+
+      {/* Header with controls */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-2xl font-semibold tracking-tight">{report.domain}</h2>
+            <AuditStatusBadge status={report.status} />
+          </div>
+          <p className="mt-1 break-all text-sm text-muted-foreground">{report.normalizedUrl}</p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2 no-print">
+          <Button variant="outline" className="gap-2" asChild>
+            <a href={report.normalizedUrl} target="_blank" rel="noreferrer">
+              <ExternalLink className="size-4" />
+              Website
+            </a>
+          </Button>
+          <Button variant="outline" className="gap-2" onClick={() => window.print()}>
+            <Printer className="size-4" />
+            Drucken
+          </Button>
+          {report.isPublic ? (
+            <>
+              <CopyButton text={shareUrl} label="Link kopieren" toastMessage="Report-Link kopiert" />
+              <Button variant="outline" className="gap-2" asChild>
+                <a href={`/r/${report.publicSlug}`} target="_blank" rel="noreferrer">
+                  <ExternalLink className="size-4" />
+                  Öffnen
+                </a>
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => togglePublic(false)}
+              >
+                <Link2Off className="size-4" />
+                Deaktivieren
+              </Button>
+            </>
+          ) : (
+            <Button className="gap-2" onClick={() => togglePublic(true)}>
+              <Link2 className="size-4" />
+              Report freigeben
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Warnings */}
+      {report.warnings.length > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-score-weak/30 bg-score-weak/5 p-3 text-sm text-muted-foreground no-print">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0 text-score-weak" />
+          <div>
+            <span className="font-medium text-foreground">Unvollständige Daten:</span>{" "}
+            {report.warnings.join(", ")}
+          </div>
+        </div>
+      )}
+
+      {/* Engagement strip */}
+      <Card className="py-0 no-print">
+        <CardContent className="grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-border p-0 sm:grid-cols-3">
+          <EngagementStat icon={<Eye className="size-4" />} label="Report Views" value={report.viewCount} />
+          <EngagementStat icon={<CircleCheck className="size-4" />} label="Öffentlich" value={report.isPublic ? "Ja" : "Nein"} />
+          <EngagementStat icon={<ShieldCheck className="size-4" />} label="Findings" value={report.findings.length} />
+        </CardContent>
+      </Card>
+
+      {/* Tabs */}
+      <Tabs defaultValue="report" className="w-full">
+        <TabsList className="no-print">
+          <TabsTrigger value="report">Report</TabsTrigger>
+          <TabsTrigger value="findings">
+            Findings
+            <Badge className="ml-1.5 h-5 min-w-5 border-0 bg-muted px-1 text-muted-foreground">
+              {report.findings.length}
+            </Badge>
+          </TabsTrigger>
+          {hasOutreach && <TabsTrigger value="outreach">Outreach</TabsTrigger>}
+          {hasChecks && <TabsTrigger value="checks">Checks</TabsTrigger>}
+        </TabsList>
+
+        <TabsContent value="report">
+          <AuditReport report={report} variant="internal" />
+        </TabsContent>
+
+        <TabsContent value="findings" className="space-y-3">
+          {report.findings.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                Keine Findings verfügbar.
+              </CardContent>
+            </Card>
+          ) : (
+            report.findings.map((f) => (
+              <Card key={f.sortOrder}>
+                <CardContent className="space-y-3 py-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="font-semibold">{f.title}</h3>
+                    <SeverityBadge severity={f.severity as FindingSeverity} />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Evidenz" value={f.evidence} />
+                    <Field label="Erklärung" value={f.explanation} />
+                    <Field label="Empfehlung" value={f.recommendation} />
+                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-primary">
+                        Sales-Angle
+                      </p>
+                      <p className="mt-1 text-sm text-foreground/80">{f.salesAngle}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+
+        {hasOutreach && (
+          <TabsContent value="outreach" className="space-y-4">
+            {report.outreachDrafts.map((draft) => {
+              const body = draft.body
+              const full = draft.subject ? `Betreff: ${draft.subject}\n\n${body}` : body
+              return (
+                <Card key={draft.type}>
+                  <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
+                    <CardTitle className="text-base">
+                      {outreachTypeLabels[draft.type] ?? draft.type}
+                    </CardTitle>
+                    <CopyButton
+                      text={full}
+                      label="Kopieren"
+                      toastMessage={`${outreachTypeLabels[draft.type] ?? draft.type}-Text kopiert`}
+                    />
+                  </CardHeader>
+                  {draft.subject && (
+                    <CardContent className="pb-0 pt-0">
+                      <p className="text-sm font-medium text-foreground/70">{draft.subject}</p>
+                    </CardContent>
+                  )}
+                  <CardContent>
+                    <pre className="whitespace-pre-wrap rounded-lg bg-muted/50 p-4 font-sans text-sm leading-relaxed text-foreground/80">
+                      {body}
+                    </pre>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </TabsContent>
+        )}
+
+        {hasChecks && (
+          <TabsContent value="checks">
+            <Card className="py-0">
+              <CardHeader className="border-b py-4">
+                <CardTitle className="text-base">Deterministische Checks</CardTitle>
+                <CardDescription>
+                  {report.checks.filter((c) => c.status === "passed").length} von{" "}
+                  {report.checks.length} bestanden
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ul className="divide-y">
+                  {report.checks.map((c) => (
+                    <li key={`${c.category}-${c.key}`} className="flex items-center gap-3 px-6 py-3">
+                      {checkIcon[c.status as keyof typeof checkIcon] ?? (
+                        <MinusCircle className="size-4 text-muted-foreground" />
+                      )}
+                      <span className="flex-1 text-sm">{c.label}</span>
+                      <Badge className="border-0 bg-muted text-xs font-normal text-muted-foreground">
+                        {c.category}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
   )
 }

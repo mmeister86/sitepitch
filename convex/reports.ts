@@ -348,6 +348,7 @@ export const getInternalReportById = query({
       categoryScores,
       summary: buildSummary(summary),
       findings: buildFindings(findings),
+      nextSteps: summary?.nextSteps ?? [],
       checks: buildChecks(checks),
       outreachDrafts: buildOutreach(outreach),
       performance: buildPerformance(performanceRows),
