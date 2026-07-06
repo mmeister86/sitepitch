@@ -8,8 +8,13 @@
  * @module
  */
 
+import type * as audits from "../audits.js";
 import type * as auth from "../auth.js";
 import type * as http from "../http.js";
+import type * as lib_audit_rate_limit from "../lib/audit_rate_limit.js";
+import type * as lib_audit_url from "../lib/audit_url.js";
+import type * as lib_credits from "../lib/credits.js";
+import type * as lib_workspace from "../lib/workspace.js";
 import type * as workspaces from "../workspaces.js";
 
 import type {
@@ -19,8 +24,13 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  audits: typeof audits;
   auth: typeof auth;
   http: typeof http;
+  "lib/audit_rate_limit": typeof lib_audit_rate_limit;
+  "lib/audit_url": typeof lib_audit_url;
+  "lib/credits": typeof lib_credits;
+  "lib/workspace": typeof lib_workspace;
   workspaces: typeof workspaces;
 }>;
 
@@ -52,4 +62,5 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   betterAuth: import("@convex-dev/better-auth/_generated/component.js").ComponentApi<"betterAuth">;
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
 };

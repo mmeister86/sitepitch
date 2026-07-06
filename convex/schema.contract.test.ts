@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 import schema from "./schema.ts"
 import {
   auditStatusValidator,
+  auditTypeValidator,
   creditLedgerTypeValidator,
   reportLanguageValidator,
   workspaceMemberRoleValidator,
@@ -69,6 +70,11 @@ assert.deepEqual(getValidatorValues(auditStatusValidator), [
   { type: "literal", value: "failed" },
   { type: "literal", value: "cancelled" },
 ])
+assert.deepEqual(getValidatorValues(auditTypeValidator), [
+  { type: "literal", value: "standard" },
+  { type: "literal", value: "local" },
+  { type: "literal", value: "quick" },
+])
 
 const auditsTable = schema.tables.audits as any
 const auditsIndexes = (auditsTable.indexes as Array<{ indexDescriptor: string; fields: string[] }>).map(
@@ -78,6 +84,7 @@ const auditsIndexes = (auditsTable.indexes as Array<{ indexDescriptor: string; f
 assert.ok(auditsIndexes.some(([name, fields]) => name === "by_publicSlug" && fields[0] === "publicSlug"))
 assert.ok(auditsIndexes.some(([name, fields]) => name === "by_workspaceId_and_status" && fields.join(",") === "workspaceId,status"))
 assert.ok(auditsIndexes.some(([name, fields]) => name === "by_workspaceId_and_createdAt" && fields.join(",") === "workspaceId,createdAt"))
+assert.ok(auditsIndexes.some(([name, fields]) => name === "by_workspaceId_and_idempotencyKey" && fields.join(",") === "workspaceId,idempotencyKey"))
 
 const creditLedgerIndexes = (schema.tables.creditLedger as any).indexes.map(
   (index: { indexDescriptor: string }) => index.indexDescriptor,

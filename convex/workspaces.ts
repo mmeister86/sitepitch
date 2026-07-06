@@ -1,120 +1,21 @@
 import { ConvexError, v } from "convex/values"
 
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server"
+import { internalQuery, mutation, query } from "./_generated/server"
 import type { Id } from "./_generated/dataModel"
-import { authComponent } from "./auth"
 import { parseBrandingInput } from "../src/lib/branding-validation"
-
-const DEFAULT_ACCENT = "#5b5bd6"
-const DEFAULT_CTA_TEXT = "Kostenloses Erstgespräch buchen"
-
-type AuthenticatedUser = {
-  userId: Id<"users">
-  tokenIdentifier: string
-  email: string
-  name?: string
-}
-
-async function requireAuthenticatedUser(ctx: QueryCtx | MutationCtx) {
-  const identity = await ctx.auth.getUserIdentity()
-  if (!identity) {
-    throw new ConvexError({ code: "UNAUTHENTICATED", message: "Not authenticated" })
-  }
-
-  const authUser = await authComponent.getAuthUser(ctx)
-  if (!authUser?.email) {
-    throw new ConvexError({ code: "UNAUTHENTICATED", message: "Not authenticated" })
-  }
-
-  return {
-    identity,
-    authUser,
-    email: authUser.email,
-    name: authUser.name ?? identity.name ?? undefined,
-    betterAuthUserId: authUser._id,
-    tokenIdentifier: identity.tokenIdentifier,
-  }
-}
-
-async function findAppUser(ctx: QueryCtx | MutationCtx, tokenIdentifier: string) {
-  return await ctx.db
-    .query("users")
-    .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", tokenIdentifier))
-    .unique()
-}
-
-async function ensureAppUser(ctx: MutationCtx): Promise<AuthenticatedUser> {
-  const auth = await requireAuthenticatedUser(ctx)
-  const now = Date.now()
-  const existing = await findAppUser(ctx, auth.tokenIdentifier)
-
-  if (existing) {
-    await ctx.db.patch(existing._id, {
-      betterAuthUserId: auth.betterAuthUserId,
-      email: auth.email,
-      name: auth.name,
-      lastSeenAt: now,
-    })
-    return {
-      userId: existing._id,
-      tokenIdentifier: auth.tokenIdentifier,
-      email: auth.email,
-      name: auth.name,
-    }
-  }
-
-  const userId = await ctx.db.insert("users", {
-    tokenIdentifier: auth.tokenIdentifier,
-    betterAuthUserId: auth.betterAuthUserId,
-    email: auth.email,
-    name: auth.name,
-    createdAt: now,
-    lastSeenAt: now,
-  })
-
-  return {
-    userId,
-    tokenIdentifier: auth.tokenIdentifier,
-    email: auth.email,
-    name: auth.name,
-  }
-}
-
-async function requireExistingAppUser(ctx: QueryCtx): Promise<AuthenticatedUser> {
-  const auth = await requireAuthenticatedUser(ctx)
-  const user = await findAppUser(ctx, auth.tokenIdentifier)
-  if (!user) {
-    throw new ConvexError({ code: "WORKSPACE_NOT_READY", message: "Workspace not ready" })
-  }
-  return {
-    userId: user._id,
-    tokenIdentifier: auth.tokenIdentifier,
-    email: auth.email,
-    name: auth.name,
-  }
-}
-
-async function getWorkspaceByOwner(ctx: QueryCtx | MutationCtx, ownerUserId: Id<"users">) {
-  return await ctx.db
-    .query("workspaces")
-    .withIndex("by_ownerUserId", (q) => q.eq("ownerUserId", ownerUserId))
-    .unique()
-}
-
-async function requireOwnerWorkspace(ctx: QueryCtx) {
-  const user = await requireExistingAppUser(ctx)
-  const workspace = await getWorkspaceByOwner(ctx, user.userId)
-  if (!workspace) {
-    throw new ConvexError({ code: "WORKSPACE_NOT_READY", message: "Workspace not ready" })
-  }
-  return { user, workspace }
-}
-
-function defaultWorkspaceName(user: AuthenticatedUser) {
-  if (user.name?.trim()) return `${user.name.trim()} Workspace`
-  const local = user.email.split("@")[0]
-  return `${local || "SitePitch"} Workspace`
-}
+import {
+  DEFAULT_WORKSPACE_ACCENT,
+  DEFAULT_WORKSPACE_CTA_TEXT,
+  defaultWorkspaceName,
+  ensureAppUser,
+  getWorkspaceByOwner,
+  requireOwnerWorkspace,
+} from "./lib/workspace"
+import {
+  ensureWorkspaceCreditBalance,
+  getWorkspaceCreditBalance,
+  getWorkspaceCreditSnapshot,
+} from "./lib/credits"
 
 function optionalStorageId(value: string | null): Id<"_storage"> | undefined {
   return value ? (value as Id<"_storage">) : undefined
@@ -126,16 +27,23 @@ export const ensureCurrentWorkspace = mutation({
     const user = await ensureAppUser(ctx)
     const existing = await getWorkspaceByOwner(ctx, user.userId)
     if (existing) {
-      return existing._id
+      await ensureWorkspaceCreditBalance(ctx, existing._id, user.userId)
+      return {
+        workspaceId: existing._id,
+        userId: user.userId,
+        credits: getWorkspaceCreditSnapshot(
+          await getWorkspaceCreditBalance(ctx, existing._id),
+        ),
+      }
     }
 
     const now = Date.now()
     const workspaceId = await ctx.db.insert("workspaces", {
       name: defaultWorkspaceName(user),
       ownerUserId: user.userId,
-      accentColor: DEFAULT_ACCENT,
+      accentColor: DEFAULT_WORKSPACE_ACCENT,
       contactEmail: user.email,
-      ctaText: DEFAULT_CTA_TEXT,
+      ctaText: DEFAULT_WORKSPACE_CTA_TEXT,
       reportLanguage: "de",
       createdAt: now,
       updatedAt: now,
@@ -148,7 +56,15 @@ export const ensureCurrentWorkspace = mutation({
       createdAt: now,
     })
 
-    return workspaceId
+    await ensureWorkspaceCreditBalance(ctx, workspaceId, user.userId)
+
+    return {
+      workspaceId,
+      userId: user.userId,
+      credits: getWorkspaceCreditSnapshot(
+        await getWorkspaceCreditBalance(ctx, workspaceId),
+      ),
+    }
   },
 })
 
@@ -161,6 +77,8 @@ export const getMyWorkspace = query({
       : null
 
     return {
+      userId: user.userId,
+      workspaceId: workspace._id,
       user: {
         email: user.email,
         name: user.name ?? null,
@@ -170,7 +88,7 @@ export const getMyWorkspace = query({
         name: workspace.name,
         logoStorageId: workspace.logoStorageId ?? null,
         logoUrl,
-        accentColor: workspace.accentColor ?? DEFAULT_ACCENT,
+        accentColor: workspace.accentColor ?? DEFAULT_WORKSPACE_ACCENT,
         website: workspace.website ?? "",
         contactEmail: workspace.contactEmail ?? "",
         ctaText: workspace.ctaText ?? "",
@@ -178,6 +96,50 @@ export const getMyWorkspace = query({
         reportLanguage: workspace.reportLanguage,
         updatedAt: workspace.updatedAt,
       },
+      credits: getWorkspaceCreditSnapshot(await getWorkspaceCreditBalance(ctx, workspace._id)),
+    }
+  },
+})
+
+export const getWorkspaceAuditContext = internalQuery({
+  args: {
+    workspaceId: v.id("workspaces"),
+  },
+  handler: async (ctx, args) => {
+    const workspace = await ctx.db.get(args.workspaceId)
+    if (!workspace) {
+      return null
+    }
+
+    return {
+      workspaceId: workspace._id,
+      userId: workspace.ownerUserId,
+      credits: getWorkspaceCreditSnapshot(
+        await getWorkspaceCreditBalance(ctx, workspace._id),
+      ),
+    }
+  },
+})
+
+export const getWorkspaceAuditContextByOwner = internalQuery({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const workspace = await ctx.db
+      .query("workspaces")
+      .withIndex("by_ownerUserId", (q) => q.eq("ownerUserId", args.userId))
+      .unique()
+    if (!workspace) {
+      return null
+    }
+
+    return {
+      workspaceId: workspace._id,
+      userId: args.userId,
+      credits: getWorkspaceCreditSnapshot(
+        await getWorkspaceCreditBalance(ctx, workspace._id),
+      ),
     }
   },
 })
@@ -257,7 +219,7 @@ export const getReportBranding = query({
       logoUrl: workspace.logoStorageId
         ? await ctx.storage.getUrl(workspace.logoStorageId)
         : null,
-      accentColor: workspace.accentColor ?? DEFAULT_ACCENT,
+      accentColor: workspace.accentColor ?? DEFAULT_WORKSPACE_ACCENT,
       website: workspace.website ?? null,
       contactEmail: workspace.contactEmail ?? null,
       ctaText: workspace.ctaText ?? null,

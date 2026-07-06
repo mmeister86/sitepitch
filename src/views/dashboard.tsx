@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/chart"
 import { StatCard } from "@/components/stat-card"
 import { ScoreBadge, LeadStatusBadge } from "@/components/status-badges"
+import { NewAuditDialog } from "@/components/new-audit-dialog"
 import { useRouter } from "@/lib/router"
 import { audits, activities } from "@/lib/mock-data"
 import { formatRelative } from "@/lib/scores"
@@ -102,10 +103,14 @@ export function DashboardView() {
             <Target className="size-4" />
             Leads suchen
           </Button>
-          <Button className="gap-2" onClick={() => navigate({ name: "audits" })}>
-            <Plus className="size-4" />
-            Neuer Audit
-          </Button>
+          <NewAuditDialog
+            trigger={
+              <Button className="gap-2">
+                <Plus className="size-4" />
+                Neuer Audit
+              </Button>
+            }
+          />
         </div>
       </div>
 

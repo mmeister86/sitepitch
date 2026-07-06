@@ -13,6 +13,7 @@ import {
   auditFindingSeverityValidator,
   auditPerformanceStrategyValidator,
   auditStatusValidator,
+  auditTypeValidator,
   creditLedgerTypeValidator,
   leadSourceProviderValidator,
   leadStatusValidator,
@@ -151,6 +152,9 @@ export default defineSchema({
     url: v.string(),
     normalizedUrl: v.string(),
     domain: v.string(),
+    auditType: auditTypeValidator,
+    reportLanguage: reportLanguageValidator,
+    idempotencyKey: v.string(),
     status: auditStatusValidator,
     statusMessage: v.optional(v.string()),
     publicSlug: v.string(),
@@ -170,6 +174,7 @@ export default defineSchema({
     .index("by_workspaceId", ["workspaceId"])
     .index("by_workspaceId_and_status", ["workspaceId", "status"])
     .index("by_workspaceId_and_createdByUserId", ["workspaceId", "createdByUserId"])
+    .index("by_workspaceId_and_idempotencyKey", ["workspaceId", "idempotencyKey"])
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
     .index("by_leadId", ["leadId"])
     .index("by_publicSlug", ["publicSlug"])

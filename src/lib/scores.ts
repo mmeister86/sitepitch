@@ -77,10 +77,22 @@ export const auditStatusMeta: Record<
   AuditStatus,
   { label: string; badge: string }
 > = {
+  draft: { label: "Entwurf", badge: "bg-muted text-muted-foreground" },
   queued: { label: "In Warteschlange", badge: "bg-muted text-muted-foreground" },
+  validating_url: { label: "URL wird geprüft", badge: "bg-primary/12 text-primary" },
+  fetching_html: { label: "HTML wird geladen", badge: "bg-primary/12 text-primary" },
+  extracting_content: { label: "Inhalte werden extrahiert", badge: "bg-primary/12 text-primary" },
+  taking_screenshots: { label: "Screenshots werden erstellt", badge: "bg-primary/12 text-primary" },
+  running_performance_checks: { label: "Performance-Checks", badge: "bg-primary/12 text-primary" },
+  fetching_business_data: { label: "Firmendaten werden geprüft", badge: "bg-primary/12 text-primary" },
+  running_deterministic_checks: { label: "Deterministische Checks", badge: "bg-primary/12 text-primary" },
+  calculating_scores: { label: "Scores werden berechnet", badge: "bg-primary/12 text-primary" },
+  generating_findings: { label: "Findings werden geschrieben", badge: "bg-primary/12 text-primary" },
+  generating_outreach: { label: "Outreach wird vorbereitet", badge: "bg-primary/12 text-primary" },
   running: { label: "Läuft", badge: "bg-primary/12 text-primary" },
   completed: { label: "Fertig", badge: "bg-score-strong/15 text-score-strong" },
   failed: { label: "Fehlgeschlagen", badge: "bg-score-critical/12 text-score-critical" },
+  cancelled: { label: "Abgebrochen", badge: "bg-muted text-muted-foreground" },
 }
 
 export const severityMeta: Record<
