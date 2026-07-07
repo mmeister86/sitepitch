@@ -2,11 +2,21 @@
 import assert from "node:assert/strict"
 
 import { convexTest } from "convex-test"
-import { beforeEach, describe, test } from "vitest"
+import { beforeEach, describe, test, vi } from "vitest"
 
 import schema from "./schema.ts"
 import { internal } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
+
+vi.mock("./workpools", () => {
+  const pool = () => ({ enqueueAction: vi.fn(async () => "work-id") })
+  return {
+    auditWorkpool: pool(),
+    providerWorkpool: pool(),
+    llmWorkpool: pool(),
+    pdfWorkpool: pool(),
+  }
+})
 
 const modules = import.meta.glob([
   "./auth.ts",
