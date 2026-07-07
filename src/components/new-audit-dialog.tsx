@@ -115,7 +115,13 @@ export function NewAuditDialog({ trigger }: { trigger: ReactNode }) {
       } else if (code === "INSUFFICIENT_CREDITS") {
         setFormError(message ?? "Für diesen Audit sind aktuell keine Credits verfügbar.")
       } else if (code === "RATE_LIMITED") {
-        setFormError(message ?? "Zu viele Startversuche. Bitte später erneut probieren.")
+        const retryAfter = dataError?.data.retryAfter
+        const base = "Zu viele Versuche in kurzer Zeit. Bitte versuche es später erneut."
+        setFormError(
+          retryAfter && retryAfter > Date.now()
+            ? `${base} (freigegeben in ca. ${Math.max(1, Math.round((retryAfter - Date.now()) / 60000))} Min.)`
+            : base,
+        )
       } else {
         setFormError("Der Audit konnte nicht gestartet werden.")
       }

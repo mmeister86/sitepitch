@@ -27,6 +27,7 @@ import type * as lib_audit_scoring from "../lib/audit_scoring.js";
 import type * as lib_audit_url from "../lib/audit_url.js";
 import type * as lib_credits from "../lib/credits.js";
 import type * as lib_rate_limit_helpers from "../lib/rate_limit_helpers.js";
+import type * as lib_turnstile from "../lib/turnstile.js";
 import type * as lib_workspace from "../lib/workspace.js";
 import type * as reports from "../reports.js";
 import type * as workpools from "../workpools.js";
@@ -58,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   "lib/audit_url": typeof lib_audit_url;
   "lib/credits": typeof lib_credits;
   "lib/rate_limit_helpers": typeof lib_rate_limit_helpers;
+  "lib/turnstile": typeof lib_turnstile;
   "lib/workspace": typeof lib_workspace;
   reports: typeof reports;
   workpools: typeof workpools;
