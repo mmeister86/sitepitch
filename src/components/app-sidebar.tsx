@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { useQuery } from "convex/react"
 import { useRouter as useNextRouter } from "next/navigation"
+import { motion, useReducedMotion } from "motion/react"
 
 import {
   Sidebar,
@@ -54,6 +55,8 @@ const nav: {
   { label: "Kampagnen", view: { name: "campaigns" }, icon: Megaphone },
 ]
 
+const ACTIVE_LAYOUT_ID = "app-sidebar-active-tab"
+
 export function AppSidebar() {
   const { view, navigate } = useRouter()
   const nextRouter = useNextRouter()
@@ -68,6 +71,7 @@ export function AppSidebar() {
   const email = data?.user.email ?? session.data?.user?.email ?? ""
   const workspaceName = data?.workspace.name ?? "SitePitch Workspace"
   const initials = (displayName || email || "SP").slice(0, 2).toUpperCase()
+  const prefersReducedMotion = useReducedMotion()
 
   const isActive = (v: View) =>
     v.name === view.name ||
@@ -101,16 +105,29 @@ export function AppSidebar() {
             <SidebarMenu>
               {nav.map((item) => {
                 const badge = item.view.name === "audits" ? auditCount : undefined
+                const active = isActive(item.view)
                 return (
                   <SidebarMenuItem key={item.label}>
                     <SidebarMenuButton
-                      isActive={isActive(item.view)}
+                      isActive={active}
                       onClick={() => navigate(item.view)}
+                      className="data-[active=true]:bg-transparent data-[active=true]:shadow-none"
                     >
-                      <item.icon />
-                      <span>{item.label}</span>
+                      {active && (
+                        <motion.span
+                          layoutId={ACTIVE_LAYOUT_ID}
+                          className="absolute inset-0 rounded-md bg-sidebar-accent"
+                          transition={
+                            prefersReducedMotion
+                              ? { duration: 0 }
+                              : { type: "spring", stiffness: 500, damping: 30 }
+                          }
+                        />
+                      )}
+                      <item.icon className="relative z-10" />
+                      <span className="relative z-10">{item.label}</span>
                       {badge !== undefined && (
-                        <span className="ml-auto rounded-md bg-sidebar-accent px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-sidebar-foreground/60">
+                        <span className="relative z-10 ml-auto rounded-md bg-sidebar-accent px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-sidebar-foreground/60">
                           {badge}
                         </span>
                       )}
