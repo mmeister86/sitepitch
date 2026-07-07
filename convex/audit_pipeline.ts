@@ -322,7 +322,14 @@ async function runProviderAttempt<T>(
   let lastError: ProviderFetchError | null = null
 
   for (let attempt = 1; attempt <= 2; attempt++) {
-    await checkProviderLimit(ctx, { kind: providerToLimitKind(provider), provider })
+    try {
+      await checkProviderLimit(ctx, { kind: providerToLimitKind(provider), provider })
+    } catch (error) {
+      if (options.optional) {
+        return null
+      }
+      throw error
+    }
 
     const providerCallId = await ctx.runMutation(internal.audit_state.logProviderCallStart, {
       workspaceId: claim.workspaceId,
