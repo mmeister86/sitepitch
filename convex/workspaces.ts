@@ -9,6 +9,7 @@ import {
   defaultWorkspaceName,
   ensureAppUser,
   getWorkspaceByOwner,
+  getWorkspacePlan,
   requireOwnerWorkspace,
 } from "./lib/workspace"
 import {
@@ -31,6 +32,7 @@ export const ensureCurrentWorkspace = mutation({
       return {
         workspaceId: existing._id,
         userId: user.userId,
+        plan: await getWorkspacePlan(ctx, existing._id),
         credits: getWorkspaceCreditSnapshot(
           await getWorkspaceCreditBalance(ctx, existing._id),
         ),
@@ -61,6 +63,7 @@ export const ensureCurrentWorkspace = mutation({
     return {
       workspaceId,
       userId: user.userId,
+      plan: await getWorkspacePlan(ctx, workspaceId),
       credits: getWorkspaceCreditSnapshot(
         await getWorkspaceCreditBalance(ctx, workspaceId),
       ),
@@ -114,6 +117,7 @@ export const getWorkspaceAuditContext = internalQuery({
     return {
       workspaceId: workspace._id,
       userId: workspace.ownerUserId,
+      plan: await getWorkspacePlan(ctx, workspace._id),
       credits: getWorkspaceCreditSnapshot(
         await getWorkspaceCreditBalance(ctx, workspace._id),
       ),
@@ -137,6 +141,7 @@ export const getWorkspaceAuditContextByOwner = internalQuery({
     return {
       workspaceId: workspace._id,
       userId: args.userId,
+      plan: await getWorkspacePlan(ctx, workspace._id),
       credits: getWorkspaceCreditSnapshot(
         await getWorkspaceCreditBalance(ctx, workspace._id),
       ),

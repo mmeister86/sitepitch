@@ -3,7 +3,8 @@ import { ConvexError, v } from "convex/values"
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server"
 import type { Id, Doc } from "./_generated/dataModel"
 import { api, internal } from "./_generated/api"
-import { auditRateLimiter } from "./lib/audit_rate_limit"
+import { checkAuditStartLimits } from "./lib/audit_rate_limit"
+import type { SubscriptionPlan } from "./lib/rate_limit_helpers"
 import {
   generatePublicSlug,
   normalizeAuditUrl,
@@ -17,6 +18,7 @@ import { findAppUser, getWorkspaceByOwner } from "./lib/workspace"
 type WorkspaceContext = {
   userId: Id<"users">
   workspaceId: Id<"workspaces">
+  plan?: SubscriptionPlan
   credits: CreditSnapshot
 }
 
@@ -259,19 +261,14 @@ export const startAudit = action({
       return toAuditStartResult(existing)
     }
 
+    await checkAuditStartLimits(ctx, {
+      workspaceId: workspaceContext.workspaceId,
+      userId: workspaceContext.userId,
+      plan: workspaceContext.plan ?? "free",
+    })
+
     if (workspaceContext.credits.remaining < 1) {
       throw new ConvexError({ code: "INSUFFICIENT_CREDITS", message: "No credits available" })
-    }
-
-    const rateLimit = await auditRateLimiter.limit(ctx, "auditStartsByWorkspace", {
-      key: `${workspaceContext.workspaceId}:${workspaceContext.userId}`,
-    })
-    if (!rateLimit.ok) {
-      throw new ConvexError({
-        code: "RATE_LIMITED",
-        message: "Zu viele Audits in kurzer Zeit. Bitte versuche es später erneut.",
-        retryAfter: rateLimit.retryAfter,
-      })
     }
 
     const target = await validatePublicAuditTarget(normalized.hostname)

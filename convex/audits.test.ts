@@ -10,7 +10,7 @@ import { normalizeAuditUrl, validatePublicAuditTarget } from "./lib/audit_url"
 
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
-  limit: vi.fn(),
+  checkAuditStartLimits: vi.fn(),
 }))
 
 const workspaceState = vi.hoisted(() => ({
@@ -21,9 +21,7 @@ const workspaceState = vi.hoisted(() => ({
 vi.stubGlobal("fetch", mocks.fetch)
 
 vi.mock("./lib/audit_rate_limit", () => ({
-  auditRateLimiter: {
-    limit: mocks.limit,
-  },
+  checkAuditStartLimits: mocks.checkAuditStartLimits,
 }))
 
 vi.mock("./audit_pipeline.ts", async () => {
@@ -173,7 +171,7 @@ function createTest() {
 
 beforeEach(() => {
   mocks.fetch.mockReset()
-  mocks.limit.mockReset()
+  mocks.checkAuditStartLimits.mockReset()
   workspaceState.userId = null
   workspaceState.workspaceId = null
 })
@@ -249,7 +247,7 @@ describe("audit URL helpers", () => {
 
 describe("audit start flow", () => {
   test("creates a queued audit, reserves one credit, and stores metadata", async () => {
-    mocks.limit.mockResolvedValue({ ok: true, retryAfter: null })
+    mocks.checkAuditStartLimits.mockResolvedValue(undefined)
     mockDnsAnswers({ a: ["93.184.216.34"] })
 
     const t = createTest().withIdentity({
@@ -266,7 +264,7 @@ describe("audit start flow", () => {
 
     assert.equal(result.status, "queued")
     assert.ok(result.auditId)
-    assert.equal(mocks.limit.mock.calls.length, 1)
+    assert.equal(mocks.checkAuditStartLimits.mock.calls.length, 1)
     assert.equal(mocks.fetch.mock.calls.length, 2)
 
     const audit = await t.query(api.audits.getById, { auditId: result.auditId })
@@ -314,7 +312,7 @@ describe("audit start flow", () => {
       }),
     ).rejects.toMatchObject({ data: { code: "INVALID_URL" } })
 
-    assert.equal(mocks.limit.mock.calls.length, 0)
+    assert.equal(mocks.checkAuditStartLimits.mock.calls.length, 0)
     assert.equal(mocks.fetch.mock.calls.length, 0)
 
     const audits = await t.query((ctx) => ctx.db.query("audits").collect())
@@ -322,7 +320,7 @@ describe("audit start flow", () => {
   })
 
   test("refuses unsafe targets after rate preflight but before reserving credits", async () => {
-    mocks.limit.mockResolvedValue({ ok: true, retryAfter: null })
+    mocks.checkAuditStartLimits.mockResolvedValue(undefined)
     mockDnsAnswers({ a: ["10.0.0.5"] })
 
     const t = createTest().withIdentity({
@@ -339,7 +337,7 @@ describe("audit start flow", () => {
       }),
     ).rejects.toMatchObject({ data: { code: "UNSAFE_URL" } })
 
-    assert.equal(mocks.limit.mock.calls.length, 1)
+    assert.equal(mocks.checkAuditStartLimits.mock.calls.length, 1)
     assert.equal(mocks.fetch.mock.calls.length, 2)
 
     const audits = await t.query((ctx) => ctx.db.query("audits").collect())
@@ -349,7 +347,7 @@ describe("audit start flow", () => {
   })
 
   test("returns rate limit failures before DNS lookups", async () => {
-    mocks.limit.mockResolvedValue({ ok: false, retryAfter: Date.now() + 60_000 })
+    mocks.checkAuditStartLimits.mockRejectedValue({ data: { code: "RATE_LIMITED" } })
 
     const t = createTest().withIdentity({
       email: "dina@example.com",
@@ -365,12 +363,36 @@ describe("audit start flow", () => {
       }),
     ).rejects.toMatchObject({ data: { code: "RATE_LIMITED" } })
 
-    assert.equal(mocks.limit.mock.calls.length, 1)
+    assert.equal(mocks.checkAuditStartLimits.mock.calls.length, 1)
     assert.equal(mocks.fetch.mock.calls.length, 0)
   })
 
+  test("rate limit fires before the credit check", async () => {
+    mocks.checkAuditStartLimits.mockRejectedValue({ data: { code: "RATE_LIMITED" } })
+    mockDnsAnswers({ a: ["93.184.216.34"] })
+
+    const t = createTest().withIdentity({
+      email: "gina@example.com",
+      name: "Gina",
+    })
+
+    await expect(
+      t.action(api.audits.startAudit, {
+        url: "example.com",
+        auditType: "standard",
+        reportLanguage: "de",
+        idempotencyKey: "idem-rate-before-credit",
+      }),
+    ).rejects.toMatchObject({ data: { code: "RATE_LIMITED" } })
+
+    const audits = await t.query((ctx) => ctx.db.query("audits").collect())
+    const creditBalances = await t.query((ctx) => ctx.db.query("creditBalances").collect())
+    assert.equal(audits.length, 0)
+    assert.equal(creditBalances[0]?.reservedCredits ?? 0, 0)
+  })
+
   test("deduplicates repeated submissions through the idempotency key", async () => {
-    mocks.limit.mockResolvedValue({ ok: true, retryAfter: null })
+    mocks.checkAuditStartLimits.mockResolvedValue(undefined)
     mockDnsAnswers({ a: ["93.184.216.34"] })
 
     const t = createTest().withIdentity({
@@ -385,7 +407,7 @@ describe("audit start flow", () => {
       idempotencyKey: "idem-repeat-1",
     })
 
-    mocks.limit.mockClear()
+    mocks.checkAuditStartLimits.mockClear()
     mocks.fetch.mockClear()
 
     const second = await t.action(api.audits.startAudit, {
@@ -396,7 +418,7 @@ describe("audit start flow", () => {
     })
 
     assert.equal(second.auditId, first.auditId)
-    assert.equal(mocks.limit.mock.calls.length, 0)
+    assert.equal(mocks.checkAuditStartLimits.mock.calls.length, 0)
     assert.equal(mocks.fetch.mock.calls.length, 0)
 
     const audits = await t.query((ctx) => ctx.db.query("audits").collect())
@@ -404,7 +426,7 @@ describe("audit start flow", () => {
   })
 
   test("updates the live detail query when the audit status changes", async () => {
-    mocks.limit.mockResolvedValue({ ok: true, retryAfter: null })
+    mocks.checkAuditStartLimits.mockResolvedValue(undefined)
     mockDnsAnswers({ a: ["93.184.216.34"] })
 
     const t = createTest().withIdentity({

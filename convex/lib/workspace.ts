@@ -3,6 +3,7 @@ import { ConvexError } from "convex/values"
 import type { Id } from "../_generated/dataModel"
 import type { MutationCtx, QueryCtx } from "../_generated/server"
 import { authComponent } from "../auth"
+import type { SubscriptionPlan } from "./rate_limit_helpers"
 
 export const DEFAULT_WORKSPACE_ACCENT = "#5b5bd6"
 export const DEFAULT_WORKSPACE_CTA_TEXT = "Kostenloses Erstgespräch buchen"
@@ -98,6 +99,27 @@ export async function getWorkspaceByOwner(ctx: QueryCtx | MutationCtx, ownerUser
     .query("workspaces")
     .withIndex("by_ownerUserId", (q) => q.eq("ownerUserId", ownerUserId))
     .unique()
+}
+
+export async function getWorkspacePlan(
+  ctx: QueryCtx,
+  workspaceId: Id<"workspaces">,
+): Promise<SubscriptionPlan> {
+  const active = await ctx.db
+    .query("subscriptions")
+    .withIndex("by_workspaceId_and_status", (q) =>
+      q.eq("workspaceId", workspaceId).eq("status", "active"),
+    )
+    .first()
+  if (active) return active.plan
+
+  const trialing = await ctx.db
+    .query("subscriptions")
+    .withIndex("by_workspaceId_and_status", (q) =>
+      q.eq("workspaceId", workspaceId).eq("status", "trialing"),
+    )
+    .first()
+  return (trialing?.plan ?? "free") as SubscriptionPlan
 }
 
 export async function requireOwnerWorkspace(ctx: QueryCtx) {
