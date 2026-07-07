@@ -118,8 +118,8 @@ export function NewAuditDialog({ trigger }: { trigger: ReactNode }) {
         const retryAfter = dataError?.data.retryAfter
         const base = "Zu viele Versuche in kurzer Zeit. Bitte versuche es später erneut."
         setFormError(
-          retryAfter && retryAfter > Date.now()
-            ? `${base} (freigegeben in ca. ${Math.max(1, Math.round((retryAfter - Date.now()) / 60000))} Min.)`
+          retryAfter && retryAfter > 0
+            ? `${base} (freigegeben in ca. ${Math.max(1, Math.round(retryAfter / 60000))} Min.)`
             : base,
         )
       } else {
