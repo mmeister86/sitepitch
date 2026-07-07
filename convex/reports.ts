@@ -3,6 +3,7 @@ import { ConvexError, v } from "convex/values"
 import { mutation, query, type QueryCtx } from "./_generated/server"
 import type { Doc, Id } from "./_generated/dataModel"
 import { CATEGORY_WEIGHTS } from "./lib/audit_scoring"
+import { auditRateLimiter } from "./lib/audit_rate_limit"
 import { DEFAULT_WORKSPACE_ACCENT, findAppUser, getWorkspaceByOwner } from "./lib/workspace"
 import { outreachDraftTypeValidator } from "../src/lib/convex-schema-values.ts"
 
@@ -482,6 +483,16 @@ export const recordPublicReportView = mutation({
 
     if (!audit || !audit.isPublic || audit.status !== "completed") {
       return null
+    }
+
+    const viewerKey = args.userAgentHash
+      ? `${audit.publicSlug}:${args.userAgentHash}`
+      : audit.publicSlug
+    const viewLimit = await auditRateLimiter.limit(ctx, "publicReportViewsByViewer", {
+      key: viewerKey,
+    })
+    if (!viewLimit.ok) {
+      return { recorded: false, reason: "rate_limited" as const }
     }
 
     const now = Date.now()

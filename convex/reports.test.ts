@@ -2,11 +2,19 @@
 import assert from "node:assert/strict"
 
 import { convexTest } from "convex-test"
-import { describe, test } from "vitest"
+import { beforeEach, describe, test, vi } from "vitest"
 
 import schema from "./schema.ts"
 import { api } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
+
+const mocks = vi.hoisted(() => ({
+  auditRateLimiter: { limit: vi.fn() },
+}))
+
+vi.mock("./lib/audit_rate_limit", () => ({
+  auditRateLimiter: mocks.auditRateLimiter,
+}))
 
 const modules = import.meta.glob([
   "./auth.ts",
@@ -25,6 +33,11 @@ const modules = import.meta.glob([
 function createTest() {
   return convexTest(schema, modules)
 }
+
+beforeEach(() => {
+  mocks.auditRateLimiter.limit.mockReset()
+  mocks.auditRateLimiter.limit.mockResolvedValue({ ok: true, retryAfter: null })
+})
 
 type SeedIds = {
   userId: Id<"users">
@@ -413,6 +426,86 @@ describe("recordPublicReportView", () => {
         .collect(),
     )
     assert.equal(views.length, 0)
+  })
+
+  test("records a public report view when under the limit", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t, {
+      slug: "under-limit-slug",
+      isPublic: true,
+    })
+
+    mocks.auditRateLimiter.limit.mockResolvedValue({ ok: true, retryAfter: null })
+
+    const result = await t.mutation(api.reports.recordPublicReportView, {
+      slug: "under-limit-slug",
+    })
+
+    assert.ok(result)
+    assert.equal((result as { recorded: boolean }).recorded, true)
+
+    const views = await t.query((ctx) =>
+      ctx.db
+        .query("reportViews")
+        .withIndex("by_auditId", (q) => q.eq("auditId", auditId))
+        .collect(),
+    )
+    assert.equal(views.length, 1)
+
+    const events = await t.query((ctx) =>
+      ctx.db
+        .query("usageEvents")
+        .withIndex("by_workspaceId_and_auditId", (q) =>
+          q.eq("workspaceId", workspaceId).eq("auditId", auditId),
+        )
+        .collect(),
+    )
+    assert.equal(events.length, 1)
+
+    assert.equal(mocks.auditRateLimiter.limit.mock.calls.length, 1)
+    const [limitName, opts] = mocks.auditRateLimiter.limit.mock.calls[0]!.slice(1) as [
+      string,
+      { key: string },
+    ]
+    assert.equal(limitName, "publicReportViewsByViewer")
+    assert.ok(opts.key)
+  })
+
+  test("skips recording and returns rate_limited when over the limit", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t, {
+      slug: "over-limit-slug",
+      isPublic: true,
+    })
+
+    mocks.auditRateLimiter.limit.mockResolvedValue({ ok: false, retryAfter: 1234 })
+
+    let result: any
+    await assert.doesNotReject(async () => {
+      result = await t.mutation(api.reports.recordPublicReportView, {
+        slug: "over-limit-slug",
+      })
+    })
+
+    assert.deepEqual(result, { recorded: false, reason: "rate_limited" })
+
+    const views = await t.query((ctx) =>
+      ctx.db
+        .query("reportViews")
+        .withIndex("by_auditId", (q) => q.eq("auditId", auditId))
+        .collect(),
+    )
+    assert.equal(views.length, 0)
+
+    const events = await t.query((ctx) =>
+      ctx.db
+        .query("usageEvents")
+        .withIndex("by_workspaceId_and_auditId", (q) =>
+          q.eq("workspaceId", workspaceId).eq("auditId", auditId),
+        )
+        .collect(),
+    )
+    assert.equal(events.length, 0)
   })
 })
 
