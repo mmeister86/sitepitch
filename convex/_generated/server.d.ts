@@ -38,6 +38,7 @@ type Env = {
   readonly PAGESPEED_TIMEOUT_MS: string | undefined;
   readonly SCREENSHOTONE_API_KEY: string | undefined;
   readonly SITE_URL: string | undefined;
+  readonly TURNSTILE_SECRET_KEY: string | undefined;
 };
 
 /**

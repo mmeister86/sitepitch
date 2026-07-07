@@ -263,7 +263,7 @@ export const startAudit = action({
       throw new ConvexError({ code: "INSUFFICIENT_CREDITS", message: "No credits available" })
     }
 
-    const rateLimit = await auditRateLimiter.limit(ctx, "auditStarts", {
+    const rateLimit = await auditRateLimiter.limit(ctx, "auditStartsByWorkspace", {
       key: `${workspaceContext.workspaceId}:${workspaceContext.userId}`,
     })
     if (!rateLimit.ok) {

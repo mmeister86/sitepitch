@@ -26,8 +26,10 @@ import type * as lib_audit_rate_limit from "../lib/audit_rate_limit.js";
 import type * as lib_audit_scoring from "../lib/audit_scoring.js";
 import type * as lib_audit_url from "../lib/audit_url.js";
 import type * as lib_credits from "../lib/credits.js";
+import type * as lib_rate_limit_helpers from "../lib/rate_limit_helpers.js";
 import type * as lib_workspace from "../lib/workspace.js";
 import type * as reports from "../reports.js";
+import type * as workpools from "../workpools.js";
 import type * as workspaces from "../workspaces.js";
 
 import type {
@@ -55,8 +57,10 @@ declare const fullApi: ApiFromModules<{
   "lib/audit_scoring": typeof lib_audit_scoring;
   "lib/audit_url": typeof lib_audit_url;
   "lib/credits": typeof lib_credits;
+  "lib/rate_limit_helpers": typeof lib_rate_limit_helpers;
   "lib/workspace": typeof lib_workspace;
   reports: typeof reports;
+  workpools: typeof workpools;
   workspaces: typeof workspaces;
 }>;
 
@@ -89,4 +93,8 @@ export declare const internal: FilterApi<
 export declare const components: {
   betterAuth: import("@convex-dev/better-auth/_generated/component.js").ComponentApi<"betterAuth">;
   rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
+  auditWorkpool: import("@convex-dev/workpool/_generated/component.js").ComponentApi<"auditWorkpool">;
+  providerWorkpool: import("@convex-dev/workpool/_generated/component.js").ComponentApi<"providerWorkpool">;
+  llmWorkpool: import("@convex-dev/workpool/_generated/component.js").ComponentApi<"llmWorkpool">;
+  pdfWorkpool: import("@convex-dev/workpool/_generated/component.js").ComponentApi<"pdfWorkpool">;
 };

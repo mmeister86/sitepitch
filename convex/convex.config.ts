@@ -2,6 +2,7 @@ import { defineApp } from "convex/server"
 import { v } from "convex/values"
 import betterAuth from "@convex-dev/better-auth/convex.config"
 import rateLimiter from "@convex-dev/rate-limiter/convex.config.js"
+import workpool from "@convex-dev/workpool/convex.config.js"
 
 const app = defineApp({
   env: {
@@ -18,10 +19,15 @@ const app = defineApp({
     SITE_URL: v.optional(v.string()),
     EVE_AGENT_URL: v.optional(v.string()),
     EVE_AGENT_MODEL: v.optional(v.string()),
+    TURNSTILE_SECRET_KEY: v.optional(v.string()),
   },
 })
 
 app.use(betterAuth)
 app.use(rateLimiter)
+app.use(workpool, { name: "auditWorkpool" })
+app.use(workpool, { name: "providerWorkpool" })
+app.use(workpool, { name: "llmWorkpool" })
+app.use(workpool, { name: "pdfWorkpool" })
 
 export default app
