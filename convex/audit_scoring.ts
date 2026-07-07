@@ -11,6 +11,7 @@ import {
   SCORING_VERSION,
   type AuditCheckData,
 } from "./lib/audit_scoring"
+import { llmWorkpool } from "./workpools"
 
 function now() {
   return Date.now()
@@ -288,9 +289,12 @@ export const processDeterministicScoring = internalMutation({
     })
 
     try {
-      await ctx.scheduler.runAfter(0, internal.audit_agent_action.processAuditAgentOutputs, {
-        auditId: args.auditId,
-      })
+      await llmWorkpool.enqueueAction(
+        ctx,
+        internal.audit_agent_action.processAuditAgentOutputs,
+        { auditId: args.auditId },
+        { retry: true },
+      )
       console.log("[audit_scoring] scheduled audit agent run", { auditId: args.auditId })
     } catch (error) {
       console.error("[audit_scoring] failed to schedule audit agent run", {

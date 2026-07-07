@@ -11,7 +11,8 @@ import { internalAction, env } from "./_generated/server"
 import { internal } from "./_generated/api"
 import type { ActionCtx } from "./_generated/server"
 import type { Id } from "./_generated/dataModel"
-import { validatePublicAuditTarget } from "./lib/audit_url"
+import { checkProviderLimit } from "./lib/audit_rate_limit"
+import { providerToLimitKind } from "./lib/rate_limit_helpers"
 import {
   extractSignalsFromHtml,
   extractSignalsFromMarkdown,
@@ -21,6 +22,7 @@ import {
   redactSensitiveText,
   sameOrigin,
 } from "./lib/audit_pipeline"
+import { validatePublicAuditTarget } from "./lib/audit_url"
 
 type Claim = {
   auditId: Id<"audits">
@@ -320,6 +322,8 @@ async function runProviderAttempt<T>(
   let lastError: ProviderFetchError | null = null
 
   for (let attempt = 1; attempt <= 2; attempt++) {
+    await checkProviderLimit(ctx, { kind: providerToLimitKind(provider), provider })
+
     const providerCallId = await ctx.runMutation(internal.audit_state.logProviderCallStart, {
       workspaceId: claim.workspaceId,
       auditId: claim.auditId,

@@ -14,6 +14,7 @@ import {
 import { reserveWorkspaceCredit } from "./lib/credits"
 import type { CreditSnapshot } from "./lib/credits"
 import { findAppUser, getWorkspaceByOwner } from "./lib/workspace"
+import { auditWorkpool } from "./workpools"
 
 type WorkspaceContext = {
   userId: Id<"users">
@@ -205,9 +206,12 @@ export const createQueuedAudit = internalMutation({
       createdAt: now,
     })
 
-    await ctx.scheduler.runAfter(0, internal.audit_pipeline.processAuditPipeline, {
-      auditId,
-    })
+    await auditWorkpool.enqueueAction(
+      ctx,
+      internal.audit_pipeline.processAuditPipeline,
+      { auditId },
+      { retry: true },
+    )
 
     return {
       auditId,

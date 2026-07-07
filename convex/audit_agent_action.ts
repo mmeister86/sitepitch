@@ -17,6 +17,7 @@ import {
 } from "./lib/audit_agent_fallback"
 import { buildSystemPrompt, buildUserPrompt } from "./lib/audit_agent_prompt"
 import type { CheckInput, CategoryScores } from "./lib/audit_scoring"
+import { checkProviderLimit } from "./lib/audit_rate_limit"
 
 const SKILL_VERSIONS = {
   "conversion-audit": "2026.07.1",
@@ -227,6 +228,7 @@ export const processAuditAgentOutputs = internalAction({
       })
 
       try {
+        await checkProviderLimit(ctx, { kind: "llm", provider: "openrouter" })
         const llmResult = await runLlmGeneration(agentContext, reportLink)
 
         const parsed = safeParseAgentOutput(llmResult.output)

@@ -5,12 +5,13 @@ import { v } from "convex/values"
 import { beforeEach, describe, expect, test, vi } from "vitest"
 
 import schema from "./schema.ts"
-import { api } from "./_generated/api"
+import { api, internal } from "./_generated/api"
 import { normalizeAuditUrl, validatePublicAuditTarget } from "./lib/audit_url"
 
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
   checkAuditStartLimits: vi.fn(),
+  auditWorkpoolEnqueueAction: vi.fn(async (..._args: any[]) => "work-id" as string),
 }))
 
 const workspaceState = vi.hoisted(() => ({
@@ -23,6 +24,16 @@ vi.stubGlobal("fetch", mocks.fetch)
 vi.mock("./lib/audit_rate_limit", () => ({
   checkAuditStartLimits: mocks.checkAuditStartLimits,
 }))
+
+vi.mock("./workpools", () => {
+  const poolStub = () => ({ enqueueAction: vi.fn(async () => "work-id") })
+  return {
+    auditWorkpool: { enqueueAction: mocks.auditWorkpoolEnqueueAction },
+    providerWorkpool: poolStub(),
+    llmWorkpool: poolStub(),
+    pdfWorkpool: poolStub(),
+  }
+})
 
 vi.mock("./audit_pipeline.ts", async () => {
   const { internalAction } = await import("./_generated/server")
@@ -172,6 +183,8 @@ function createTest() {
 beforeEach(() => {
   mocks.fetch.mockReset()
   mocks.checkAuditStartLimits.mockReset()
+  mocks.auditWorkpoolEnqueueAction.mockReset()
+  mocks.auditWorkpoolEnqueueAction.mockResolvedValue("work-id")
   workspaceState.userId = null
   workspaceState.workspaceId = null
 })
@@ -266,6 +279,13 @@ describe("audit start flow", () => {
     assert.ok(result.auditId)
     assert.equal(mocks.checkAuditStartLimits.mock.calls.length, 1)
     assert.equal(mocks.fetch.mock.calls.length, 2)
+
+    assert.equal(mocks.auditWorkpoolEnqueueAction.mock.calls.length, 1)
+    const enqueueCall = mocks.auditWorkpoolEnqueueAction.mock.calls[0]
+    const [, fnRef, fnArgs] = enqueueCall
+    const fnName = (fnRef as any)[Symbol.for("functionName")]
+    assert.equal(fnName, "audit_pipeline:processAuditPipeline")
+    assert.deepEqual(fnArgs, { auditId: result.auditId })
 
     const audit = await t.query(api.audits.getById, { auditId: result.auditId })
     assert.ok(audit)
