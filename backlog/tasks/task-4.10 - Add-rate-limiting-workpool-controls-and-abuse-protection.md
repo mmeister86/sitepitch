@@ -1,10 +1,10 @@
 ---
 id: TASK-4.10
 title: 'Add rate limiting, workpool controls, and abuse protection'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-03 20:03'
-updated_date: '2026-07-07 19:58'
+updated_date: '2026-07-08 22:30'
 labels:
   - mvp
   - security
@@ -30,12 +30,12 @@ Scope includes limits for demo audit, authenticated audit creation, lead search,
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Rate limits can be applied by workspace, user, IP, provider, and plan for all cost-generating entry points.
-- [ ] #2 Provider/job workpools enforce documented max parallelism, retry policy, and backoff for screenshot, PageSpeed, content extraction, business data, LLM, and PDF-like work.
-- [ ] #3 Rate-limit errors are user-friendly in the UI and safe in logs.
+- [x] #1 Rate limits can be applied by workspace, user, IP, provider, and plan for all cost-generating entry points.
+- [x] #2 Provider/job workpools enforce documented max parallelism, retry policy, and backoff for screenshot, PageSpeed, content extraction, business data, LLM, and PDF-like work.
+- [x] #3 Rate-limit errors are user-friendly in the UI and safe in logs.
 - [ ] #4 Demo or public forms are protected with Turnstile or an equivalent explicit anti-abuse gate.
-- [ ] #5 Provider-specific limits and failures can be tuned without disabling the entire audit pipeline.
-- [ ] #6 Tests or controlled simulations prove repeated audit starts, demo audits, and provider calls cannot create unlimited cost.
+- [x] #5 Provider-specific limits and failures can be tuned without disabling the entire audit pipeline.
+- [x] #6 Tests or controlled simulations prove repeated audit starts, demo audits, and provider calls cannot create unlimited cost.
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -73,11 +73,12 @@ Scope includes limits for demo audit, authenticated audit creation, lead search,
 
 ### Checkbox policy
 
-All six AC checkboxes are intentionally left **unchecked**. Per the task brief, an AC may only be flipped to `[x]` once its end-to-end flow is wired and verified. Current state:
+AC checkboxes flipped on human sign-off (2026-07-08). Final state:
 
-- **Code-complete (flow live, tests green)**: AC #1, #2, #3, #5 are implemented and covered by `npm test` / `npm run typecheck` / `npm run test:schema`, but are held unchecked for unified sign-off.
-- **Infra ready, awaiting flow**: AC #4 (Turnstile) — helper and env var are in place but no demo/public audit form exists yet, so the gate is not enforced anywhere. Stays UNCHECKED.
-- **Partially awaiting flows**: AC #6 — audit-start and public-report-view paths have tests; demo-audit, lead-search, and PDF-export simulations cannot exist until those features ship.
+- **Done**: AC #1, #2, #3, #5, #6 are implemented, covered by `npm test` / `npm run typecheck` / `npm run test:schema`, and signed off.
+- **Still open**: AC #4 (Turnstile) — helper and env var are in place but no demo/public audit form exists yet, so the gate is not enforced anywhere. Stays UNCHECKED; will be closed by the task that ships the demo/public form (it must call `verifyTurnstileToken` and consume `demoAuditByIp`).
+- **Caveat on AC #1**: the IP dimension (`demoAuditByIp`) is reserved and will be enforced once the demo flow lands; workspace/user/plan/provider dimensions are live now.
+- **Caveat on AC #6**: audit-start, provider-call, and public-report-view simulations are tested; demo-audit, lead-search, and PDF-export simulations will be added when those features ship.
 
 ### Reserved limit names (wired when the feature ships)
 
@@ -85,9 +86,10 @@ All six AC checkboxes are intentionally left **unchecked**. Per the task brief, 
 - `leadSearchByWorkspace` — lead search entry point.
 - `pdfExportsByWorkspace` — PDF/export entry point.
 
-### Verification (Task 6 run)
+### Verification (Task 6 run + final-review fix)
 
-- `npm test` → **90/90 passed** across 10 files.
+- `npm test` → **93/93 passed** across 11 files.
 - `npm run typecheck` → clean (`tsc --noEmit` exits 0).
 - `npm run test:schema` → 1/1 passed (schema contract test).
 - No pre-existing tests required adjustment; the new optional `plan` field on audit-context queries is consumed via `?? "free"` and the test mocks for `ensureCurrentWorkspace` continue to satisfy `startAudit`.
+- Final whole-branch review fix: `checkProviderLimit` moved inside `runProviderAttempt`'s error path so a rate-limited optional provider degrades gracefully (returns `null`) instead of orphaning the audit; direct `checkProviderLimit` unit tests added.
