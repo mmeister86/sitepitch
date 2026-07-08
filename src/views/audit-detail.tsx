@@ -26,8 +26,8 @@ import {
   Link2Off,
 } from "lucide-react"
 import { toast } from "@/components/ui/sonner"
-import type { ReactNode } from "react"
-import { useMutation, useQuery } from "convex/react"
+import { useState, type ReactNode } from "react"
+import { useAction, useMutation, useQuery } from "convex/react"
 
 import {
   Card,
@@ -59,6 +59,7 @@ import { AuditReport } from "@/components/audit-report"
 import { OutreachWorkflows } from "@/components/outreach-workflows"
 import { PersonaPanel } from "@/components/persona-panel"
 import { CopyReviewPanel } from "@/components/copy-review"
+import { DesignCritiquePanel } from "@/components/design-critique"
 import { useRouter } from "@/lib/router"
 import { auditById, campaignById } from "@/lib/mock-data"
 import {
@@ -152,7 +153,7 @@ const liveAuditStages: Array<{
   {
     status: "generating_outreach",
     title: "Outreach & Analysen",
-    description: "Outreach-Texte, Copy-Review und Persona-Perspektiven werden erstellt.",
+    description: "Outreach-Texte, Copy-Review, Persona-Perspektiven und Design-Kritik werden erstellt.",
   },
   {
     status: "completed",
@@ -404,6 +405,8 @@ function LiveCompletedReport({
 }) {
   const setPublic = useMutation(api.reports.setPublicReportEnabled)
   const recordCopy = useMutation(api.reports.recordReportCopyEvent)
+  const generateDesignCritique = useAction(api.audit_agent_action.generateDesignCritique)
+  const [isGeneratingDesignCritique, setIsGeneratingDesignCritique] = useState(false)
   const shareUrl = buildShareUrl(report.publicSlug)
   const hasOutreach = report.outreachDrafts.length > 0
   const hasChecks = report.checks.length > 0
@@ -427,6 +430,18 @@ function LiveCompletedReport({
       await recordCopy({ auditId: report.auditId, kind: "public_link" })
     } catch {
       /* analytics only */
+    }
+  }
+
+  const handleGenerateDesignCritique = async () => {
+    setIsGeneratingDesignCritique(true)
+    try {
+      await generateDesignCritique({ auditId: report.auditId })
+      toast.success("Design-Analyse erzeugt")
+    } catch {
+      toast.error("Design-Analyse konnte nicht erzeugt werden")
+    } finally {
+      setIsGeneratingDesignCritique(false)
     }
   }
 
@@ -521,6 +536,9 @@ function LiveCompletedReport({
           <TabsTrigger value="copy" className="no-print">
             Copy
           </TabsTrigger>
+          <TabsTrigger value="design" className="no-print">
+            Design
+          </TabsTrigger>
           <TabsTrigger value="personas" className="no-print">
             Personas
             {hasPersonas && (
@@ -571,6 +589,14 @@ function LiveCompletedReport({
 
         <TabsContent value="copy" className="no-print">
           <CopyReviewPanel review={report.copyReview} />
+        </TabsContent>
+
+        <TabsContent value="design" className="no-print">
+          <DesignCritiquePanel
+            critique={report.designCritique}
+            isGenerating={isGeneratingDesignCritique}
+            onGenerate={handleGenerateDesignCritique}
+          />
         </TabsContent>
 
         <TabsContent value="personas" className="no-print">

@@ -512,4 +512,39 @@ export default defineSchema({
     .index("by_workspaceId", ["workspaceId"])
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
     .index("by_auditId", ["auditId"]),
+
+  auditDesignCritiques: defineTable({
+    workspaceId: v.id("workspaces"),
+    auditId: v.id("audits"),
+    designHealthScore: v.number(),
+    ratingBand: v.string(),
+    overallImpression: v.string(),
+    heuristicScores: v.array(
+      v.object({
+        name: v.string(),
+        score: v.number(),
+        keyIssue: v.string(),
+      }),
+    ),
+    cognitiveLoadFailedCount: v.number(),
+    cognitiveLoadLevel: v.union(v.literal("low"), v.literal("moderate"), v.literal("high")),
+    cognitiveLoadNotes: v.string(),
+    antiPatternVerdict: v.string(),
+    whatsWorking: v.array(v.string()),
+    priorityIssues: v.array(
+      v.object({
+        severity: v.union(v.literal("P0"), v.literal("P1"), v.literal("P2"), v.literal("P3")),
+        title: v.string(),
+        whyItMatters: v.string(),
+        fix: v.string(),
+        evidenceRefs: v.array(v.string()),
+      }),
+    ),
+    recommendations: v.array(v.string()),
+    evidenceRefs: v.array(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
+    .index("by_auditId", ["auditId"]),
 })

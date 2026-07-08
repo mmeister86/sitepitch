@@ -20,6 +20,7 @@ assert.deepEqual(tableNames, [
   "auditBusinessData",
   "auditChecks",
   "auditCopyReviews",
+  "auditDesignCritiques",
   "auditFindings",
   "auditPages",
   "auditPerformance",
@@ -196,3 +197,9 @@ const personaReviewsIndexes = (schema.tables.auditPersonaReviews as any).indexes
 assert.ok(personaReviewsIndexes.includes("by_auditId"))
 assert.ok(personaReviewsIndexes.includes("by_auditId_and_sortOrder"))
 assert.ok(personaReviewsIndexes.includes("by_workspaceId_and_auditId"))
+
+const designCritiqueIndexes = (schema.tables.auditDesignCritiques as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(designCritiqueIndexes.includes("by_auditId"))
+assert.ok(designCritiqueIndexes.includes("by_workspaceId_and_auditId"))

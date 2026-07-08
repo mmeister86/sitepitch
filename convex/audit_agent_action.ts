@@ -1,9 +1,9 @@
 "use node"
 
-import { v } from "convex/values"
+import { ConvexError, v } from "convex/values"
 
-import { internalAction, env, type ActionCtx } from "./_generated/server"
-import { internal } from "./_generated/api"
+import { action, internalAction, env, type ActionCtx } from "./_generated/server"
+import { api, internal } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
 import type { AuditAgentContext, AuditAgentContextCheck } from "./audit_agent"
 import type { AuditAgentOutput } from "./lib/audit_agent_schemas"
@@ -30,6 +30,17 @@ import {
   validateCopyEvidence,
   type CopyReviewOutput,
 } from "./lib/audit_copy_review_schemas"
+import {
+  buildDesignCritiqueSystemPrompt,
+  buildDesignCritiqueUserMessages,
+} from "./lib/audit_design_critique_prompt"
+import {
+  designCritiqueOutputSchema,
+  safeParseDesignCritique,
+  validateDesignCritiqueEvidence,
+  type DesignCritiqueOutput,
+} from "./lib/audit_design_critique_schemas"
+import { generateDeterministicDesignCritique } from "./lib/audit_design_critique_fallback"
 import type { CheckInput, CategoryScores } from "./lib/audit_scoring"
 import { checkProviderLimit } from "./lib/audit_rate_limit"
 
@@ -42,6 +53,7 @@ const SKILL_VERSIONS = {
   "website-copy-audit": "2026.07.1",
   "copy-review": "2026.07.1",
   "persona-review": "2026.07.1",
+  "design-critique": "2026.07.1",
   "respectful-outreach": "2026.07.1",
   "claim-safety": "2026.07.1",
 }
@@ -500,6 +512,269 @@ async function runCopyReview(
   }
 }
 
+async function runDesignCritiqueGeneration(
+  agentContext: AuditAgentContext,
+): Promise<{ output: DesignCritiqueOutput; tokensIn?: number; tokensOut?: number }> {
+  const apiKey = env.OPENROUTER_API_KEY
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY not configured")
+  }
+
+  const { createOpenAI } = await import("@ai-sdk/openai")
+  const { generateObject } = await import("ai")
+
+  const openrouter = createOpenAI({
+    baseURL: OPENROUTER_BASE_URL,
+    apiKey,
+    name: "openrouter",
+  })
+
+  const model = env.OPENROUTER_MODEL ?? DEFAULT_MODEL
+  const system = buildDesignCritiqueSystemPrompt(agentContext.reportLanguage)
+  const messages = buildDesignCritiqueUserMessages(agentContext)
+
+  const result = await generateObject({
+    model: openrouter(model),
+    schema: designCritiqueOutputSchema,
+    schemaName: "DesignCritiqueOutput",
+    schemaDescription: "Structured UX and design critique grounded in audit checks, signals, and screenshots.",
+    system,
+    messages,
+    temperature: 0.5,
+    maxRetries: 0,
+  })
+
+  return {
+    output: result.object,
+    tokensIn: result.usage.inputTokens,
+    tokensOut: result.usage.outputTokens,
+  }
+}
+
+function validateDesignCritiqueSafety(
+  output: DesignCritiqueOutput,
+  evidenceRefs: ReturnType<typeof buildEvidenceRefs>,
+): { ok: true } | { ok: false; reason: string } {
+  const evidenceIssues = validateDesignCritiqueEvidence(output, evidenceRefs)
+  if (evidenceIssues.length > 0) {
+    return {
+      ok: false,
+      reason: `design critique evidence reference missing (${evidenceIssues[0].reason})`,
+    }
+  }
+
+  const texts: { text: string; path: string }[] = [
+    { text: output.ratingBand, path: "ratingBand" },
+    { text: output.overallImpression, path: "overallImpression" },
+    { text: output.cognitiveLoad.notes, path: "cognitiveLoad.notes" },
+    { text: output.antiPatternVerdict, path: "antiPatternVerdict" },
+  ]
+  output.heuristicScores.forEach((h, i) => {
+    texts.push({ text: h.keyIssue, path: `heuristicScores[${i}].keyIssue` })
+  })
+  output.whatsWorking.forEach((w, i) => texts.push({ text: w, path: `whatsWorking[${i}]` }))
+  output.priorityIssues.forEach((issue, i) => {
+    texts.push({ text: issue.title, path: `priorityIssues[${i}].title` })
+    texts.push({ text: issue.whyItMatters, path: `priorityIssues[${i}].whyItMatters` })
+    texts.push({ text: issue.fix, path: `priorityIssues[${i}].fix` })
+  })
+  output.recommendations.forEach((r, j) => texts.push({ text: r, path: `recommendations[${j}]` }))
+
+  const safety = reviewTextsClaimSafety(texts)
+  if (!safety.ok) {
+    return {
+      ok: false,
+      reason: `design critique claim safety violation at ${safety.issues[0].path}: "${safety.issues[0].matched}"`,
+    }
+  }
+
+  return { ok: true }
+}
+
+async function runDesignCritique(
+  ctx: ActionCtx,
+  agentContext: AuditAgentContext,
+  auditId: Id<"audits">,
+): Promise<{ saved: boolean; usedFallback: boolean }> {
+  console.log("[audit_agent] design critique started", { auditId })
+
+  await ctx.runMutation(internal.audit_agent.setAuditAgentStage, {
+    auditId,
+    status: "generating_outreach",
+    statusMessage: "Design-Kritik wird erstellt",
+  })
+
+  const evidenceRefs = buildEvidenceRefs(
+    agentContext.checks.map((check) => ({
+      category: check.category,
+      key: check.key,
+      label: check.label,
+      status: check.status,
+      evidence: check.evidence,
+      source: check.source,
+      weight: check.weight,
+    })),
+  )
+
+  const saveIfValid = async (
+    runId: Id<"auditAgentRuns">,
+    output: DesignCritiqueOutput,
+    tokensIn?: number,
+    tokensOut?: number,
+  ): Promise<{ saved: boolean; reason?: string }> => {
+    const parsed = safeParseDesignCritique(output)
+    if (!parsed.ok) {
+      return { saved: false, reason: parsed.error }
+    }
+    const safety = validateDesignCritiqueSafety(parsed.data, evidenceRefs)
+    if (!safety.ok) {
+      return { saved: false, reason: safety.reason }
+    }
+    await ctx.runMutation(internal.audit_agent.saveAuditDesignCritique, {
+      auditId,
+      critique: parsed.data,
+    })
+    await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+      auditAgentRunId: runId,
+      status: "completed",
+      tokensIn,
+      tokensOut,
+    })
+    return { saved: true }
+  }
+
+  const startLlmRun = async () =>
+    ctx.runMutation(internal.audit_agent.startAuditAgentRun, {
+      workspaceId: agentContext.workspaceId as Id<"workspaces">,
+      auditId,
+      provider: "other",
+      model: env.OPENROUTER_MODEL ?? DEFAULT_MODEL,
+      purpose: "critique",
+      skillVersions: { "design-critique": SKILL_VERSIONS["design-critique"] },
+    })
+
+  const finishFailed = (runId: Id<"auditAgentRuns">, reason?: string) =>
+    ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+      auditAgentRunId: runId,
+      status: "failed",
+      errorMessage: reason ? reason.slice(0, 500) : "design critique failed",
+    })
+
+  // Attempt 1: LLM with screenshots.
+  const runId = await startLlmRun()
+  try {
+    await checkProviderLimit(ctx, { kind: "llm", provider: "openrouter" })
+    const { output, tokensIn, tokensOut } = await runDesignCritiqueGeneration(agentContext)
+    const result = await saveIfValid(runId, output, tokensIn, tokensOut)
+    if (result.saved) {
+      console.log("[audit_agent] design critique completed (llm + screenshots)", { auditId })
+      return { saved: true, usedFallback: false }
+    }
+    console.warn("[audit_agent] design critique llm attempt failed", { auditId, reason: result.reason })
+    await finishFailed(runId, result.reason)
+  } catch (error) {
+    const detail = describeError(error)
+    console.warn("[audit_agent] design critique llm call failed", { auditId, detail })
+    await finishFailed(runId, detail)
+  }
+
+  // Attempt 2: LLM without screenshots (vision may be the culprit).
+  const textRunId = await startLlmRun()
+  try {
+    await checkProviderLimit(ctx, { kind: "llm", provider: "openrouter" })
+    const textOnlyContext = { ...agentContext, screenshots: {} }
+    const { output, tokensIn, tokensOut } = await runDesignCritiqueGeneration(textOnlyContext)
+    const result = await saveIfValid(textRunId, output, tokensIn, tokensOut)
+    if (result.saved) {
+      console.log("[audit_agent] design critique completed (llm text-only)", { auditId })
+      return { saved: true, usedFallback: false }
+    }
+    console.warn("[audit_agent] design critique text-only attempt failed", { auditId, reason: result.reason })
+    await finishFailed(textRunId, result.reason)
+  } catch (error) {
+    const detail = describeError(error)
+    console.warn("[audit_agent] design critique text-only llm call failed", { auditId, detail })
+    await finishFailed(textRunId, detail)
+  }
+
+  // Attempt 3: deterministic fallback — always saves so the Design tab is never empty.
+  const fallbackRunId = await ctx.runMutation(internal.audit_agent.startAuditAgentRun, {
+    workspaceId: agentContext.workspaceId as Id<"workspaces">,
+    auditId,
+    provider: FALLBACK_PROVIDER,
+    model: FALLBACK_MODEL,
+    purpose: "critique",
+    skillVersions: { "design-critique": SKILL_VERSIONS["design-critique"] },
+  })
+
+  const fallbackOutput = generateDeterministicDesignCritique({
+    domain: agentContext.domain,
+    reportLanguage: agentContext.reportLanguage,
+    categoryScores: {
+      conversion: agentContext.categoryScores.conversion,
+      seo: agentContext.categoryScores.seo,
+      local_seo: agentContext.categoryScores.local_seo,
+      performance: agentContext.categoryScores.performance,
+      mobile: agentContext.categoryScores.mobile,
+      trust: agentContext.categoryScores.trust,
+    },
+    overallScore: agentContext.overallScore,
+    checks: agentContext.checks.map((check) => ({
+      category: check.category,
+      key: check.key,
+      label: check.label,
+      status: check.status,
+      evidence: check.evidence,
+      source: check.source,
+      weight: check.weight,
+    })),
+  })
+
+  await ctx.runMutation(internal.audit_agent.saveAuditDesignCritique, {
+    auditId,
+    critique: fallbackOutput,
+  })
+
+  await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+    auditAgentRunId: fallbackRunId,
+    status: "completed",
+  })
+
+  console.log("[audit_agent] design critique completed (deterministic fallback)", { auditId })
+  return { saved: true, usedFallback: true }
+}
+
+export const generateDesignCritique = action({
+  args: {
+    auditId: v.id("audits"),
+  },
+  handler: async (ctx, args) => {
+    const report = await ctx.runQuery(api.reports.getInternalReportById, {
+      auditId: args.auditId,
+    })
+    if (!report) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Audit not found or access denied" })
+    }
+    if (report.status !== "completed") {
+      throw new ConvexError({ code: "AUDIT_NOT_READY", message: "Design critique can only be generated for completed audits" })
+    }
+
+    const agentContext = await ctx.runQuery(internal.audit_agent.getAuditAgentContext, {
+      auditId: args.auditId,
+    })
+    if (!agentContext) {
+      throw new ConvexError({ code: "AGENT_CONTEXT_MISSING", message: "Audit context could not be loaded" })
+    }
+
+    const result = await runDesignCritique(ctx, agentContext, args.auditId)
+    if (!result.saved) {
+      throw new ConvexError({ code: "DESIGN_CRITIQUE_FAILED", message: "Design critique generation failed" })
+    }
+
+    return { saved: true, usedFallback: result.usedFallback }
+  },
+})
+
 export const processAuditAgentOutputs = internalAction({
   args: {
     auditId: v.id("audits"),
@@ -646,6 +921,8 @@ export const processAuditAgentOutputs = internalAction({
     await runPersonaPanel(ctx, agentContext, args.auditId)
 
     await runCopyReview(ctx, agentContext, args.auditId)
+
+    await runDesignCritique(ctx, agentContext, args.auditId)
 
     await ctx.runMutation(internal.audit_agent.completeAuditFromAgent, {
       auditId: args.auditId,

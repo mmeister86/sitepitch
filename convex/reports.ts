@@ -134,6 +134,35 @@ export interface CopyReviewDto {
   evidenceRefs: string[]
 }
 
+export interface DesignCritiqueHeuristicDto {
+  name: string
+  score: number
+  keyIssue: string
+}
+
+export interface DesignPriorityIssueDto {
+  severity: string
+  title: string
+  whyItMatters: string
+  fix: string
+  evidenceRefs: string[]
+}
+
+export interface DesignCritiqueDto {
+  designHealthScore: number
+  ratingBand: string
+  overallImpression: string
+  heuristicScores: DesignCritiqueHeuristicDto[]
+  cognitiveLoadFailedCount: number
+  cognitiveLoadLevel: string
+  cognitiveLoadNotes: string
+  antiPatternVerdict: string
+  whatsWorking: string[]
+  priorityIssues: DesignPriorityIssueDto[]
+  recommendations: string[]
+  evidenceRefs: string[]
+}
+
 // ---------------------------------------------------------------------------
 // DTO builders
 // ---------------------------------------------------------------------------
@@ -274,6 +303,34 @@ function buildCopyReview(review: Doc<"auditCopyReviews"> | null): CopyReviewDto 
   }
 }
 
+function buildDesignCritique(review: Doc<"auditDesignCritiques"> | null): DesignCritiqueDto | null {
+  if (!review) return null
+  return {
+    designHealthScore: review.designHealthScore,
+    ratingBand: review.ratingBand,
+    overallImpression: review.overallImpression,
+    heuristicScores: review.heuristicScores.map((h) => ({
+      name: h.name,
+      score: h.score,
+      keyIssue: h.keyIssue,
+    })),
+    cognitiveLoadFailedCount: review.cognitiveLoadFailedCount,
+    cognitiveLoadLevel: review.cognitiveLoadLevel,
+    cognitiveLoadNotes: review.cognitiveLoadNotes,
+    antiPatternVerdict: review.antiPatternVerdict,
+    whatsWorking: review.whatsWorking,
+    priorityIssues: review.priorityIssues.map((issue) => ({
+      severity: issue.severity,
+      title: issue.title,
+      whyItMatters: issue.whyItMatters,
+      fix: issue.fix,
+      evidenceRefs: issue.evidenceRefs,
+    })),
+    recommendations: review.recommendations,
+    evidenceRefs: review.evidenceRefs,
+  }
+}
+
 async function resolveScreenshotUrls(
   ctx: QueryCtx,
   auditId: Id<"audits">,
@@ -337,7 +394,7 @@ export const getInternalReportById = query({
     const workspace = await getWorkspaceByOwner(ctx, user._id)
     if (!workspace || audit.workspaceId !== workspace._id) return null
 
-    const [score, summary, findings, checks, outreach, performanceRows, reportViews, personaReviews, copyReviewDoc] =
+    const [score, summary, findings, checks, outreach, performanceRows, reportViews, personaReviews, copyReviewDoc, designCritiqueDoc] =
       await Promise.all([
         ctx.db
           .query("auditScores")
@@ -373,6 +430,10 @@ export const getInternalReportById = query({
           .take(10),
         ctx.db
           .query("auditCopyReviews")
+          .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+          .first(),
+        ctx.db
+          .query("auditDesignCritiques")
           .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
           .first(),
       ])
@@ -420,6 +481,7 @@ export const getInternalReportById = query({
       branding: buildBranding(workspace),
       personaReviews: buildPersonaReviews(personaReviews),
       copyReview: buildCopyReview(copyReviewDoc ?? null),
+      designCritique: buildDesignCritique(designCritiqueDoc ?? null),
       warnings,
     }
   },

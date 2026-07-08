@@ -6,6 +6,7 @@ import type { CheckCategory, CheckInput } from "./lib/audit_scoring"
 import { auditAgentOutputSchema, type AuditAgentOutput } from "./lib/audit_agent_schemas"
 import { personaPanelOutputSchema } from "./lib/audit_persona_schemas"
 import { copyReviewOutputSchema } from "./lib/audit_copy_review_schemas"
+import { designCritiqueOutputSchema } from "./lib/audit_design_critique_schemas"
 
 export interface AuditAgentContextCheck {
   category: CheckCategory
@@ -66,6 +67,10 @@ export interface AuditAgentContext {
     mobile?: { performanceScore?: number; lcp?: number; cls?: number; fcp?: number }
     desktop?: { performanceScore?: number; lcp?: number }
   }
+  screenshots: {
+    desktop?: string
+    mobile?: string
+  }
   business?: {
     name?: string
     city?: string
@@ -118,6 +123,28 @@ export const getAuditAgentContext = internalQuery({
       .query("auditBusinessData")
       .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
       .unique()
+
+    const assets = await ctx.db
+      .query("auditAssets")
+      .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+      .take(10)
+
+    const desktopAsset = assets.find((a) => a.type === "desktop_screenshot")
+    const mobileAsset = assets.find((a) => a.type === "mobile_screenshot")
+
+    const resolveAssetUrl = async (asset: Doc<"auditAssets"> | undefined): Promise<string | undefined> => {
+      if (!asset) return undefined
+      if (asset.storageId) {
+        const url = await ctx.storage.getUrl(asset.storageId)
+        return url ?? undefined
+      }
+      return asset.url ?? undefined
+    }
+
+    const [desktopScreenshot, mobileScreenshot] = await Promise.all([
+      resolveAssetUrl(desktopAsset),
+      resolveAssetUrl(mobileAsset),
+    ])
 
     const mobile = performanceRows.find((row) => row.strategy === "mobile")
     const desktop = performanceRows.find((row) => row.strategy === "desktop")
@@ -202,6 +229,10 @@ export const getAuditAgentContext = internalQuery({
             }
           : undefined,
       },
+      screenshots: {
+        desktop: desktopScreenshot,
+        mobile: mobileScreenshot,
+      },
       business: business
         ? {
             name: business.name,
@@ -225,7 +256,7 @@ export const startAuditAgentRun = internalMutation({
     auditId: v.id("audits"),
     provider: v.union(v.literal("openai"), v.literal("anthropic"), v.literal("other")),
     model: v.string(),
-    purpose: v.union(v.literal("findings"), v.literal("summary"), v.literal("outreach"), v.literal("qa")),
+    purpose: v.union(v.literal("findings"), v.literal("summary"), v.literal("outreach"), v.literal("qa"), v.literal("critique")),
     skillVersions: v.optional(v.record(v.string(), v.string())),
   },
   handler: async (ctx, args) => {
@@ -455,6 +486,69 @@ export const saveAuditCopyReview = internalMutation({
       overallVerdict: review.overallVerdict,
       recommendations: review.recommendations,
       evidenceRefs: review.evidenceRefs,
+      createdAt: current,
+    })
+
+    return { saved: true }
+  },
+})
+
+export const saveAuditDesignCritique = internalMutation({
+  args: {
+    auditId: v.id("audits"),
+    critique: v.any(),
+  },
+  handler: async (ctx, args) => {
+    const audit = await ctx.db.get(args.auditId)
+    if (!audit) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Audit not found" })
+    }
+
+    const parseResult = designCritiqueOutputSchema.safeParse(args.critique)
+    if (!parseResult.success) {
+      throw new ConvexError({
+        code: "INVALID_DESIGN_CRITIQUE",
+        message: "Design critique failed schema validation",
+      })
+    }
+    const critique = parseResult.data
+
+    const workspaceId = audit.workspaceId
+    const current = now()
+
+    const existing = await ctx.db
+      .query("auditDesignCritiques")
+      .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+      .collect()
+    for (const row of existing) {
+      await ctx.db.delete(row._id)
+    }
+
+    await ctx.db.insert("auditDesignCritiques", {
+      workspaceId,
+      auditId: args.auditId,
+      designHealthScore: critique.designHealthScore,
+      ratingBand: critique.ratingBand,
+      overallImpression: critique.overallImpression,
+      heuristicScores: critique.heuristicScores.map((h) => ({
+        name: h.name,
+        score: h.score,
+        keyIssue: h.keyIssue,
+      })),
+      cognitiveLoadFailedCount: critique.cognitiveLoad.failedCount,
+      cognitiveLoadLevel: critique.cognitiveLoad.level,
+      cognitiveLoadNotes: critique.cognitiveLoad.notes,
+      antiPatternVerdict: critique.antiPatternVerdict,
+      whatsWorking: critique.whatsWorking,
+      priorityIssues: critique.priorityIssues.map((issue) => ({
+        severity: issue.severity,
+        title: issue.title,
+        whyItMatters: issue.whyItMatters,
+        fix: issue.fix,
+        evidenceRefs: issue.evidenceRefs,
+      })),
+      recommendations: critique.recommendations,
+      evidenceRefs: critique.evidenceRefs,
       createdAt: current,
     })
 

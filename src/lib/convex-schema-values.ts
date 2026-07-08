@@ -184,6 +184,7 @@ export const auditAgentRunPurposeValidator = v.union(
   v.literal("summary"),
   v.literal("outreach"),
   v.literal("qa"),
+  v.literal("critique"),
 )
 
 export const auditAgentRunStatusValidator = v.union(

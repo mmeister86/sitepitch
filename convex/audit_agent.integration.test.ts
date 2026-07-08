@@ -453,3 +453,73 @@ describe("saveAuditCopyReview", () => {
     )
   })
 })
+
+describe("saveAuditDesignCritique", () => {
+  const heuristicNames = [
+    "Visibility of System Status",
+    "Match Between System and Real World",
+    "User Control and Freedom",
+    "Consistency and Standards",
+    "Error Prevention",
+    "Recognition Rather Than Recall",
+    "Flexibility and Efficiency of Use",
+    "Aesthetic and Minimalist Design",
+    "Help Users Recognize, Diagnose, and Recover from Errors",
+    "Help and Documentation",
+  ]
+
+  function sampleCritique() {
+    return {
+      designHealthScore: 28,
+      ratingBand: "Good",
+      overallImpression: "Solide Basis mit Potenzial bei der Hero-Klarheit.",
+      heuristicScores: heuristicNames.map((name) => ({ name, score: 3, keyIssue: "Konkrete Beobachtung." })),
+      cognitiveLoad: { failedCount: 2, level: "moderate" as const, notes: "Einige Entscheidungen könnten gruppiert werden." },
+      antiPatternVerdict: "Das Layout wirkt eigenständig.",
+      whatsWorking: ["Klare Leistungsnennung."],
+      priorityIssues: [
+        {
+          severity: "P1" as const,
+          title: "Hero-Nutzen könnte prominenter sein",
+          whyItMatters: "Besucher erkennen das Angebot sonst verzögert.",
+          fix: "Nutzenversprechen größer platzieren.",
+          evidenceRefs: ["conversion:hero_value_proposition"],
+        },
+      ],
+      recommendations: ["Hero-Headline konkreter formulieren."],
+      evidenceRefs: ["conversion:hero_value_proposition"],
+    }
+  }
+
+  test("writes design critique and is idempotent", async () => {
+    const t = createTest()
+    const { auditId } = await seedAuditWithScores(t, "generating_findings")
+    const critique = sampleCritique()
+
+    await t.mutation(internal.audit_agent.saveAuditDesignCritique, { auditId, critique })
+    await t.mutation(internal.audit_agent.saveAuditDesignCritique, { auditId, critique })
+
+    const stored = await t.query((ctx) =>
+      ctx.db.query("auditDesignCritiques").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).collect(),
+    )
+    assert.equal(stored.length, 1)
+    assert.equal(stored[0]!.designHealthScore, 28)
+    assert.equal(stored[0]!.heuristicScores.length, 10)
+    assert.equal(stored[0]!.cognitiveLoadLevel, "moderate")
+    assert.equal(stored[0]!.priorityIssues[0]!.severity, "P1")
+  })
+
+  test("rejects invalid design critique", async () => {
+    const t = createTest()
+    const { auditId } = await seedAuditWithScores(t, "generating_findings")
+
+    await assert.rejects(
+      () =>
+        t.mutation(internal.audit_agent.saveAuditDesignCritique, {
+          auditId,
+          critique: { ratingBand: "ok" },
+        }),
+      /INVALID_DESIGN_CRITIQUE|validation/i,
+    )
+  })
+})
