@@ -191,3 +191,16 @@ export const auditAgentRunStatusValidator = v.union(
   v.literal("completed"),
   v.literal("failed"),
 )
+
+export const personaIdValidator = v.union(
+  v.literal("busy_owner"),
+  v.literal("mobile_customer"),
+  v.literal("skeptical_buyer"),
+  v.literal("search_visitor"),
+)
+
+export const personaConfidenceValidator = v.union(
+  v.literal("low"),
+  v.literal("medium"),
+  v.literal("high"),
+)

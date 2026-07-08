@@ -57,6 +57,8 @@ import {
 import { CopyButton } from "@/components/copy-button"
 import { AuditReport } from "@/components/audit-report"
 import { OutreachWorkflows } from "@/components/outreach-workflows"
+import { PersonaPanel } from "@/components/persona-panel"
+import { CopyReviewPanel } from "@/components/copy-review"
 import { useRouter } from "@/lib/router"
 import { auditById, campaignById } from "@/lib/mock-data"
 import {
@@ -80,6 +82,7 @@ const runningSteps = [
   "Screenshots erstellt",
   "Performance geprüft",
   "Findings werden geschrieben",
+  "Outreach & Analysen",
 ]
 
 const checkIcon: Record<CheckResult["status"], ReactNode> = {
@@ -145,6 +148,11 @@ const liveAuditStages: Array<{
     status: "generating_findings",
     title: "Findings vorbereiten",
     description: "Die strukturierten Befunde werden für den Report aufbereitet.",
+  },
+  {
+    status: "generating_outreach",
+    title: "Outreach & Analysen",
+    description: "Outreach-Texte, Copy-Review und Persona-Perspektiven werden erstellt.",
   },
   {
     status: "completed",
@@ -399,6 +407,8 @@ function LiveCompletedReport({
   const shareUrl = buildShareUrl(report.publicSlug)
   const hasOutreach = report.outreachDrafts.length > 0
   const hasChecks = report.checks.length > 0
+  const hasPersonas = report.personaReviews.length > 0
+  const hasCopyReview = report.copyReview !== null
 
   const togglePublic = async (enabled: boolean) => {
     try {
@@ -508,6 +518,17 @@ function LiveCompletedReport({
               {report.findings.length}
             </Badge>
           </TabsTrigger>
+          <TabsTrigger value="copy" className="no-print">
+            Copy
+          </TabsTrigger>
+          <TabsTrigger value="personas" className="no-print">
+            Personas
+            {hasPersonas && (
+              <Badge className="ml-1.5 h-5 min-w-5 border-0 bg-muted px-1 text-muted-foreground">
+                {report.personaReviews.length}
+              </Badge>
+            )}
+          </TabsTrigger>
           {hasOutreach && <TabsTrigger value="outreach">Outreach</TabsTrigger>}
           {hasChecks && <TabsTrigger value="checks">Checks</TabsTrigger>}
         </TabsList>
@@ -546,6 +567,14 @@ function LiveCompletedReport({
               </Card>
             ))
           )}
+        </TabsContent>
+
+        <TabsContent value="copy" className="no-print">
+          <CopyReviewPanel review={report.copyReview} />
+        </TabsContent>
+
+        <TabsContent value="personas" className="no-print">
+          <PersonaPanel reviews={report.personaReviews} />
         </TabsContent>
 
         {hasOutreach && (

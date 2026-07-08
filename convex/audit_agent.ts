@@ -4,6 +4,8 @@ import type { Doc, Id } from "./_generated/dataModel"
 import { internalMutation, internalQuery } from "./_generated/server"
 import type { CheckCategory, CheckInput } from "./lib/audit_scoring"
 import { auditAgentOutputSchema, type AuditAgentOutput } from "./lib/audit_agent_schemas"
+import { personaPanelOutputSchema } from "./lib/audit_persona_schemas"
+import { copyReviewOutputSchema } from "./lib/audit_copy_review_schemas"
 
 export interface AuditAgentContextCheck {
   category: CheckCategory
@@ -44,7 +46,10 @@ export interface AuditAgentContext {
   signals: {
     title?: string
     metaDescription?: string
+    openGraphTitle?: string
+    openGraphDescription?: string
     h1Texts?: string[]
+    h2Texts?: string[]
     ctaCandidates?: string[]
     phoneNumbers?: string[]
     contactLinks?: string[]
@@ -55,6 +60,7 @@ export interface AuditAgentContext {
     imagesMissingAltCount?: number
     privacyLinkFound?: boolean
     imprintLinkFound?: boolean
+    copySample?: string
   }
   performance: {
     mobile?: { performanceScore?: number; lcp?: number; cls?: number; fcp?: number }
@@ -67,6 +73,12 @@ export interface AuditAgentContext {
     rating?: number
     reviewCount?: number
   }
+}
+
+function compactCopySample(markdown: string | undefined): string | undefined {
+  const sample = markdown?.replace(/\s+/g, " ").trim()
+  if (!sample) return undefined
+  return sample.slice(0, 4000)
 }
 
 export const getAuditAgentContext = internalQuery({
@@ -158,7 +170,10 @@ export const getAuditAgentContext = internalQuery({
       signals: {
         title: rawData?.title,
         metaDescription: rawData?.metaDescription,
+        openGraphTitle: rawData?.openGraphTitle,
+        openGraphDescription: rawData?.openGraphDescription,
         h1Texts: rawData?.h1Texts,
+        h2Texts: rawData?.h2Texts?.slice(0, 8),
         ctaCandidates: rawData?.ctaCandidates,
         phoneNumbers: rawData?.phoneNumbers,
         contactLinks: rawData?.contactLinks,
@@ -169,6 +184,7 @@ export const getAuditAgentContext = internalQuery({
         imagesMissingAltCount: rawData?.imagesMissingAltCount,
         privacyLinkFound: rawData?.privacyLinkFound,
         imprintLinkFound: rawData?.imprintLinkFound,
+        copySample: compactCopySample(rawData?.extractedMarkdown),
       },
       performance: {
         mobile: mobile
@@ -340,6 +356,109 @@ export const saveAuditAgentOutput = internalMutation({
       outreachCount: output.outreach.length,
       reportLink: args.reportLink,
     }
+  },
+})
+
+export const saveAuditPersonaReviews = internalMutation({
+  args: {
+    auditId: v.id("audits"),
+    reviews: v.any(),
+  },
+  handler: async (ctx, args) => {
+    const audit = await ctx.db.get(args.auditId)
+    if (!audit) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Audit not found" })
+    }
+
+    const parseResult = personaPanelOutputSchema.safeParse({ reviews: args.reviews })
+    if (!parseResult.success) {
+      throw new ConvexError({
+        code: "INVALID_PERSONA_OUTPUT",
+        message: "Persona reviews failed schema validation",
+      })
+    }
+    const reviews = parseResult.data.reviews
+
+    const workspaceId = audit.workspaceId
+    const current = now()
+
+    const existing = await ctx.db
+      .query("auditPersonaReviews")
+      .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+      .collect()
+    for (const row of existing) {
+      await ctx.db.delete(row._id)
+    }
+
+    for (let i = 0; i < reviews.length; i++) {
+      const review = reviews[i]
+      await ctx.db.insert("auditPersonaReviews", {
+        workspaceId,
+        auditId: args.auditId,
+        personaId: review.personaId,
+        personaName: review.personaName,
+        lens: review.lens,
+        verdict: review.verdict,
+        positives: review.positives,
+        frictionPoints: review.frictionPoints,
+        topRecommendation: review.topRecommendation,
+        evidenceRefs: review.evidenceRefs,
+        confidence: review.confidence,
+        sortOrder: i,
+        createdAt: current,
+      })
+    }
+
+    return { reviewsCount: reviews.length }
+  },
+})
+
+export const saveAuditCopyReview = internalMutation({
+  args: {
+    auditId: v.id("audits"),
+    review: v.any(),
+  },
+  handler: async (ctx, args) => {
+    const audit = await ctx.db.get(args.auditId)
+    if (!audit) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Audit not found" })
+    }
+
+    const parseResult = copyReviewOutputSchema.safeParse(args.review)
+    if (!parseResult.success) {
+      throw new ConvexError({
+        code: "INVALID_COPY_REVIEW",
+        message: "Copy review failed schema validation",
+      })
+    }
+    const review = parseResult.data
+
+    const workspaceId = audit.workspaceId
+    const current = now()
+
+    const existing = await ctx.db
+      .query("auditCopyReviews")
+      .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+      .collect()
+    for (const row of existing) {
+      await ctx.db.delete(row._id)
+    }
+
+    await ctx.db.insert("auditCopyReviews", {
+      workspaceId,
+      auditId: args.auditId,
+      heroClarity: review.heroClarity,
+      valueProposition: review.valueProposition,
+      offerClarity: review.offerClarity,
+      ctaClarity: review.ctaClarity,
+      snippetClarity: review.snippetClarity,
+      overallVerdict: review.overallVerdict,
+      recommendations: review.recommendations,
+      evidenceRefs: review.evidenceRefs,
+      createdAt: current,
+    })
+
+    return { saved: true }
   },
 })
 

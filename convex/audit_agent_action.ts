@@ -2,20 +2,34 @@
 
 import { v } from "convex/values"
 
-import { internalAction, env } from "./_generated/server"
+import { internalAction, env, type ActionCtx } from "./_generated/server"
 import { internal } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
 import type { AuditAgentContext, AuditAgentContextCheck } from "./audit_agent"
 import type { AuditAgentOutput } from "./lib/audit_agent_schemas"
 import { auditAgentGenerationSchema, generationToStorage, safeParseAgentOutput } from "./lib/audit_agent_schemas"
 import { buildEvidenceRefs, validateFindingEvidence } from "./lib/audit_agent_evidence"
-import { reviewClaimSafety } from "./lib/audit_agent_claim_safety"
+import { reviewClaimSafety, reviewTextsClaimSafety } from "./lib/audit_agent_claim_safety"
 import {
   generateDeterministicAgentOutput,
   FALLBACK_MODEL,
   FALLBACK_PROVIDER,
 } from "./lib/audit_agent_fallback"
 import { buildSystemPrompt, buildUserPrompt } from "./lib/audit_agent_prompt"
+import { buildPersonaSystemPrompt, buildPersonaUserPrompt } from "./lib/audit_persona_prompt"
+import {
+  personaPanelOutputSchema,
+  safeParsePersonaPanel,
+  validatePersonaEvidence,
+  type PersonaPanelOutput,
+} from "./lib/audit_persona_schemas"
+import { buildCopyReviewSystemPrompt, buildCopyReviewUserPrompt } from "./lib/audit_copy_review_prompt"
+import {
+  copyReviewOutputSchema,
+  safeParseCopyReview,
+  validateCopyEvidence,
+  type CopyReviewOutput,
+} from "./lib/audit_copy_review_schemas"
 import type { CheckInput, CategoryScores } from "./lib/audit_scoring"
 import { checkProviderLimit } from "./lib/audit_rate_limit"
 
@@ -25,6 +39,9 @@ const SKILL_VERSIONS = {
   "local-seo-audit": "2026.07.1",
   "mobile-ux-audit": "2026.07.1",
   "trust-audit": "2026.07.1",
+  "website-copy-audit": "2026.07.1",
+  "copy-review": "2026.07.1",
+  "persona-review": "2026.07.1",
   "respectful-outreach": "2026.07.1",
   "claim-safety": "2026.07.1",
 }
@@ -170,6 +187,319 @@ async function runLlmGeneration(
   }
 }
 
+async function runPersonaPanelGeneration(
+  agentContext: AuditAgentContext,
+): Promise<{ output: PersonaPanelOutput; tokensIn?: number; tokensOut?: number }> {
+  const apiKey = env.OPENROUTER_API_KEY
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY not configured")
+  }
+
+  const { createOpenAI } = await import("@ai-sdk/openai")
+  const { generateObject } = await import("ai")
+
+  const openrouter = createOpenAI({
+    baseURL: OPENROUTER_BASE_URL,
+    apiKey,
+    name: "openrouter",
+  })
+
+  const model = env.OPENROUTER_MODEL ?? DEFAULT_MODEL
+  const system = buildPersonaSystemPrompt(agentContext.reportLanguage)
+  const prompt = buildPersonaUserPrompt(agentContext)
+
+  const result = await generateObject({
+    model: openrouter(model),
+    schema: personaPanelOutputSchema,
+    schemaName: "PersonaPanelOutput",
+    schemaDescription: "Persona reviews from multiple reviewer perspectives.",
+    system,
+    prompt,
+    temperature: 0.5,
+    maxRetries: 0,
+  })
+
+  return {
+    output: result.object,
+    tokensIn: result.usage.inputTokens,
+    tokensOut: result.usage.outputTokens,
+  }
+}
+
+function validatePersonaSafety(
+  output: PersonaPanelOutput,
+  evidenceRefs: ReturnType<typeof buildEvidenceRefs>,
+): { ok: true } | { ok: false; reason: string } {
+  const evidenceIssues = validatePersonaEvidence(output.reviews, evidenceRefs)
+  if (evidenceIssues.length > 0) {
+    return {
+      ok: false,
+      reason: `persona evidence reference missing: ${evidenceIssues[0].personaId} (${evidenceIssues[0].reason})`,
+    }
+  }
+
+  const texts: { text: string; path: string }[] = []
+  output.reviews.forEach((review, i) => {
+    texts.push({ text: review.personaName, path: `reviews[${i}].personaName` })
+    texts.push({ text: review.lens, path: `reviews[${i}].lens` })
+    texts.push({ text: review.verdict, path: `reviews[${i}].verdict` })
+    texts.push({ text: review.topRecommendation, path: `reviews[${i}].topRecommendation` })
+    review.positives.forEach((p, j) => texts.push({ text: p, path: `reviews[${i}].positives[${j}]` }))
+    review.frictionPoints.forEach((p, j) => texts.push({ text: p, path: `reviews[${i}].frictionPoints[${j}]` }))
+  })
+
+  const safety = reviewTextsClaimSafety(texts)
+  if (!safety.ok) {
+    return {
+      ok: false,
+      reason: `persona claim safety violation at ${safety.issues[0].path}: "${safety.issues[0].matched}"`,
+    }
+  }
+
+  return { ok: true }
+}
+
+async function runPersonaPanel(
+  ctx: ActionCtx,
+  agentContext: AuditAgentContext,
+  auditId: Id<"audits">,
+): Promise<void> {
+  console.log("[audit_agent] persona panel started", { auditId })
+
+  await ctx.runMutation(internal.audit_agent.setAuditAgentStage, {
+    auditId,
+    status: "generating_outreach",
+    statusMessage: "Persona-Reviews werden erstellt",
+  })
+
+  const runId = await ctx.runMutation(internal.audit_agent.startAuditAgentRun, {
+    workspaceId: agentContext.workspaceId as Id<"workspaces">,
+    auditId,
+    provider: "other",
+    model: env.OPENROUTER_MODEL ?? DEFAULT_MODEL,
+    purpose: "qa",
+    skillVersions: { "persona-review": SKILL_VERSIONS["persona-review"] },
+  })
+
+  try {
+    await checkProviderLimit(ctx, { kind: "llm", provider: "openrouter" })
+
+    const { output, tokensIn, tokensOut } = await runPersonaPanelGeneration(agentContext)
+
+    const parsed = safeParsePersonaPanel(output)
+    if (!parsed.ok) {
+      await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+        auditAgentRunId: runId,
+        status: "failed",
+        errorMessage: parsed.error,
+      })
+      return
+    }
+
+    const evidenceRefs = buildEvidenceRefs(
+      agentContext.checks.map((check) => ({
+        category: check.category,
+        key: check.key,
+        label: check.label,
+        status: check.status,
+        evidence: check.evidence,
+        source: check.source,
+        weight: check.weight,
+      })),
+    )
+
+    const safety = validatePersonaSafety(parsed.data, evidenceRefs)
+    if (!safety.ok) {
+      await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+        auditAgentRunId: runId,
+        status: "failed",
+        errorMessage: safety.reason,
+      })
+      return
+    }
+
+    await ctx.runMutation(internal.audit_agent.saveAuditPersonaReviews, {
+      auditId,
+      reviews: parsed.data.reviews,
+    })
+
+    await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+      auditAgentRunId: runId,
+      status: "completed",
+      tokensIn,
+      tokensOut,
+    })
+
+    console.log("[audit_agent] persona panel completed", {
+      auditId,
+      reviewsCount: parsed.data.reviews.length,
+    })
+  } catch (error) {
+    const detail = describeError(error)
+    console.warn("[audit_agent] persona panel failed", { auditId, detail })
+    await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+      auditAgentRunId: runId,
+      status: "failed",
+      errorMessage: detail.slice(0, 500),
+    })
+  }
+}
+
+async function runCopyReviewGeneration(
+  agentContext: AuditAgentContext,
+): Promise<{ output: CopyReviewOutput; tokensIn?: number; tokensOut?: number }> {
+  const apiKey = env.OPENROUTER_API_KEY
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY not configured")
+  }
+
+  const { createOpenAI } = await import("@ai-sdk/openai")
+  const { generateObject } = await import("ai")
+
+  const openrouter = createOpenAI({
+    baseURL: OPENROUTER_BASE_URL,
+    apiKey,
+    name: "openrouter",
+  })
+
+  const model = env.OPENROUTER_MODEL ?? DEFAULT_MODEL
+  const system = buildCopyReviewSystemPrompt(agentContext.reportLanguage)
+  const prompt = buildCopyReviewUserPrompt(agentContext)
+
+  const result = await generateObject({
+    model: openrouter(model),
+    schema: copyReviewOutputSchema,
+    schemaName: "CopyReviewOutput",
+    schemaDescription: "Structured website copy review.",
+    system,
+    prompt,
+    temperature: 0.5,
+    maxRetries: 0,
+  })
+
+  return {
+    output: result.object,
+    tokensIn: result.usage.inputTokens,
+    tokensOut: result.usage.outputTokens,
+  }
+}
+
+function validateCopyReviewSafety(
+  output: CopyReviewOutput,
+  evidenceRefs: ReturnType<typeof buildEvidenceRefs>,
+): { ok: true } | { ok: false; reason: string } {
+  const evidenceIssues = validateCopyEvidence(output, evidenceRefs)
+  if (evidenceIssues.length > 0) {
+    return {
+      ok: false,
+      reason: `copy review evidence reference missing (${evidenceIssues[0].reason})`,
+    }
+  }
+
+  const texts: { text: string; path: string }[] = [
+    { text: output.heroClarity, path: "heroClarity" },
+    { text: output.valueProposition, path: "valueProposition" },
+    { text: output.offerClarity, path: "offerClarity" },
+    { text: output.ctaClarity, path: "ctaClarity" },
+    { text: output.snippetClarity, path: "snippetClarity" },
+    { text: output.overallVerdict, path: "overallVerdict" },
+  ]
+  output.recommendations.forEach((r, j) => texts.push({ text: r, path: `recommendations[${j}]` }))
+
+  const safety = reviewTextsClaimSafety(texts)
+  if (!safety.ok) {
+    return {
+      ok: false,
+      reason: `copy review claim safety violation at ${safety.issues[0].path}: "${safety.issues[0].matched}"`,
+    }
+  }
+
+  return { ok: true }
+}
+
+async function runCopyReview(
+  ctx: ActionCtx,
+  agentContext: AuditAgentContext,
+  auditId: Id<"audits">,
+): Promise<void> {
+  console.log("[audit_agent] copy review started", { auditId })
+
+  await ctx.runMutation(internal.audit_agent.setAuditAgentStage, {
+    auditId,
+    status: "generating_outreach",
+    statusMessage: "Website-Copy wird analysiert",
+  })
+
+  const runId = await ctx.runMutation(internal.audit_agent.startAuditAgentRun, {
+    workspaceId: agentContext.workspaceId as Id<"workspaces">,
+    auditId,
+    provider: "other",
+    model: env.OPENROUTER_MODEL ?? DEFAULT_MODEL,
+    purpose: "qa",
+    skillVersions: { "copy-review": SKILL_VERSIONS["copy-review"] },
+  })
+
+  try {
+    await checkProviderLimit(ctx, { kind: "llm", provider: "openrouter" })
+
+    const { output, tokensIn, tokensOut } = await runCopyReviewGeneration(agentContext)
+
+    const parsed = safeParseCopyReview(output)
+    if (!parsed.ok) {
+      await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+        auditAgentRunId: runId,
+        status: "failed",
+        errorMessage: parsed.error,
+      })
+      return
+    }
+
+    const evidenceRefs = buildEvidenceRefs(
+      agentContext.checks.map((check) => ({
+        category: check.category,
+        key: check.key,
+        label: check.label,
+        status: check.status,
+        evidence: check.evidence,
+        source: check.source,
+        weight: check.weight,
+      })),
+    )
+
+    const safety = validateCopyReviewSafety(parsed.data, evidenceRefs)
+    if (!safety.ok) {
+      await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+        auditAgentRunId: runId,
+        status: "failed",
+        errorMessage: safety.reason,
+      })
+      return
+    }
+
+    await ctx.runMutation(internal.audit_agent.saveAuditCopyReview, {
+      auditId,
+      review: parsed.data,
+    })
+
+    await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+      auditAgentRunId: runId,
+      status: "completed",
+      tokensIn,
+      tokensOut,
+    })
+
+    console.log("[audit_agent] copy review completed", { auditId })
+  } catch (error) {
+    const detail = describeError(error)
+    console.warn("[audit_agent] copy review failed", { auditId, detail })
+    await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+      auditAgentRunId: runId,
+      status: "failed",
+      errorMessage: detail.slice(0, 500),
+    })
+  }
+}
+
 export const processAuditAgentOutputs = internalAction({
   args: {
     auditId: v.id("audits"),
@@ -312,6 +642,10 @@ export const processAuditAgentOutputs = internalAction({
       output: chosen.output,
       reportLink,
     })
+
+    await runPersonaPanel(ctx, agentContext, args.auditId)
+
+    await runCopyReview(ctx, agentContext, args.auditId)
 
     await ctx.runMutation(internal.audit_agent.completeAuditFromAgent, {
       auditId: args.auditId,

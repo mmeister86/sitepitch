@@ -267,3 +267,189 @@ describe("completeAuditFromAgent", () => {
     assert.equal(events.length, 1)
   })
 })
+
+describe("getAuditAgentContext copy signals", () => {
+  test("includes bounded website copy signals (h2, OG, copySample)", async () => {
+    const t = createTest()
+    const { workspaceId, auditId } = await seedAuditWithScores(t, "generating_findings")
+    const longCopy = "Hero Nutzen Angebot ".repeat(500)
+
+    await t.mutation(async (ctx) => {
+      await ctx.db.insert("auditRawData", {
+        workspaceId,
+        auditId,
+        title: "Webdesign für lokale Betriebe in Berlin",
+        metaDescription: "Klare Websites für lokale Dienstleister mit Fokus auf Anfragen.",
+        openGraphTitle: "Webdesign Berlin",
+        openGraphDescription: "Websites, die Angebote klar erklären.",
+        h1Texts: ["Websites für lokale Dienstleister"],
+        h2Texts: ["Leistungen", "Referenzen", "Kontakt", "Ablauf", "Preise", "FAQ", "Team", "Standort", "Extra"],
+        ctaCandidates: ["Kostenloses Erstgespräch buchen"],
+        extractedMarkdown: longCopy,
+        createdAt: Date.now(),
+      })
+    })
+
+    const context = await t.query(internal.audit_agent.getAuditAgentContext, { auditId })
+
+    assert.ok(context)
+    assert.equal(context!.signals.openGraphTitle, "Webdesign Berlin")
+    assert.equal(context!.signals.openGraphDescription, "Websites, die Angebote klar erklären.")
+    assert.deepEqual(context!.signals.h2Texts, [
+      "Leistungen",
+      "Referenzen",
+      "Kontakt",
+      "Ablauf",
+      "Preise",
+      "FAQ",
+      "Team",
+      "Standort",
+    ])
+    assert.ok(context!.signals.copySample)
+    assert.ok(context!.signals.copySample!.length <= 4000)
+    assert.match(context!.signals.copySample!, /Hero Nutzen Angebot/)
+  })
+
+  test("omits copySample when no markdown is stored", async () => {
+    const t = createTest()
+    const { auditId } = await seedAuditWithScores(t, "generating_findings")
+
+    const context = await t.query(internal.audit_agent.getAuditAgentContext, { auditId })
+
+    assert.ok(context)
+    assert.equal(context!.signals.copySample, undefined)
+    assert.equal(context!.signals.h2Texts, undefined)
+  })
+})
+
+describe("saveAuditPersonaReviews", () => {
+  function sampleReviews() {
+    return [
+      {
+        personaId: "busy_owner",
+        personaName: "Vielbeschäftigte:r Geschäftsinhaber:in",
+        lens: "Hat wenig Zeit und entscheidet schnell.",
+        verdict: "Das Angebot wird schnell klar, der Kontaktweg könnte aber prominenter sein.",
+        positives: ["Leistungen sind klar benannt."],
+        frictionPoints: ["Kontaktbereich ist unter dem Fold."],
+        topRecommendation: "Kontakt oben fixieren.",
+        evidenceRefs: ["conversion:primary_cta"],
+        confidence: "medium",
+      },
+      {
+        personaId: "mobile_customer",
+        personaName: "Smartphone-Nutzer:in",
+        lens: "Möchte schnell handeln.",
+        verdict: "Mobile gut strukturiert, CTA aber schwer erreichbar.",
+        positives: ["Seite lädt schnell."],
+        frictionPoints: ["CTA nicht sofort sichtbar."],
+        topRecommendation: "Sticky CTA prüfen.",
+        evidenceRefs: ["conversion:primary_cta"],
+        confidence: "high",
+      },
+    ]
+  }
+
+  test("writes persona reviews and is idempotent", async () => {
+    const t = createTest()
+    const { auditId } = await seedAuditWithScores(t, "generating_findings")
+    const reviews = sampleReviews()
+
+    await t.mutation(internal.audit_agent.saveAuditPersonaReviews, { auditId, reviews })
+    await t.mutation(internal.audit_agent.saveAuditPersonaReviews, { auditId, reviews })
+
+    const stored = await t.query((ctx) =>
+      ctx.db.query("auditPersonaReviews").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).collect(),
+    )
+    assert.equal(stored.length, 2)
+    assert.equal(stored[0]!.personaId, "busy_owner")
+    assert.equal(stored[0]!.sortOrder, 0)
+    assert.equal(stored[1]!.personaId, "mobile_customer")
+    assert.equal(stored[1]!.sortOrder, 1)
+  })
+
+  test("rejects invalid persona output", async () => {
+    const t = createTest()
+    const { auditId } = await seedAuditWithScores(t, "generating_findings")
+
+    await assert.rejects(
+      () =>
+        t.mutation(internal.audit_agent.saveAuditPersonaReviews, {
+          auditId,
+          reviews: [{ personaId: "busy_owner" }],
+        }),
+      /INVALID_PERSONA_OUTPUT|validation/i,
+    )
+  })
+
+  test("rejects unknown personaId", async () => {
+    const t = createTest()
+    const { auditId } = await seedAuditWithScores(t, "generating_findings")
+
+    await assert.rejects(
+      () =>
+        t.mutation(internal.audit_agent.saveAuditPersonaReviews, {
+          auditId,
+          reviews: [
+            {
+              personaId: "unknown_persona",
+              personaName: "X",
+              lens: "Y",
+              verdict: "V",
+              positives: [],
+              frictionPoints: ["F"],
+              topRecommendation: "R",
+              evidenceRefs: ["conversion:primary_cta"],
+              confidence: "low",
+            },
+          ],
+        }),
+      /INVALID_PERSONA_OUTPUT|validation/i,
+    )
+  })
+})
+
+describe("saveAuditCopyReview", () => {
+  function sampleReview() {
+    return {
+      heroClarity: "Die Hero-Headline nennt keinen klaren Kundennutzen.",
+      valueProposition: "Das Nutzenversprechen könnte konkreter sein.",
+      offerClarity: "Das Angebot wird nicht sofort erkennbar.",
+      ctaClarity: "Der CTA ist generisch.",
+      snippetClarity: "Title und Meta Description sind zu kurz.",
+      overallVerdict: "Die Copy hat Potenzial bei Hero-Klarheit und CTA-Wording.",
+      recommendations: ["Hero-Headline konkreter formulieren.", "CTA handlungsorientierter gestalten."],
+      evidenceRefs: ["conversion:hero_value_proposition"],
+    }
+  }
+
+  test("writes copy review and is idempotent", async () => {
+    const t = createTest()
+    const { auditId } = await seedAuditWithScores(t, "generating_findings")
+    const review = sampleReview()
+
+    await t.mutation(internal.audit_agent.saveAuditCopyReview, { auditId, review })
+    await t.mutation(internal.audit_agent.saveAuditCopyReview, { auditId, review })
+
+    const stored = await t.query((ctx) =>
+      ctx.db.query("auditCopyReviews").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).collect(),
+    )
+    assert.equal(stored.length, 1)
+    assert.equal(stored[0]!.heroClarity, review.heroClarity)
+    assert.equal(stored[0]!.recommendations.length, 2)
+  })
+
+  test("rejects invalid copy review", async () => {
+    const t = createTest()
+    const { auditId } = await seedAuditWithScores(t, "generating_findings")
+
+    await assert.rejects(
+      () =>
+        t.mutation(internal.audit_agent.saveAuditCopyReview, {
+          auditId,
+          review: { heroClarity: "ok" },
+        }),
+      /INVALID_COPY_REVIEW|validation/i,
+    )
+  })
+})

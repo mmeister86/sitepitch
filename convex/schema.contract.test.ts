@@ -19,9 +19,11 @@ assert.deepEqual(tableNames, [
   "auditAssets",
   "auditBusinessData",
   "auditChecks",
+  "auditCopyReviews",
   "auditFindings",
   "auditPages",
   "auditPerformance",
+  "auditPersonaReviews",
   "auditPipelineStates",
   "auditRawData",
   "auditScores",
@@ -187,3 +189,10 @@ for (const field of [
 ]) {
   assert.ok(auditRawDataFields.includes(field), `auditRawData should include ${field}`)
 }
+
+const personaReviewsIndexes = (schema.tables.auditPersonaReviews as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(personaReviewsIndexes.includes("by_auditId"))
+assert.ok(personaReviewsIndexes.includes("by_auditId_and_sortOrder"))
+assert.ok(personaReviewsIndexes.includes("by_workspaceId_and_auditId"))

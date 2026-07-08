@@ -110,6 +110,30 @@ export interface BrandingDto {
   contactEmail?: string
 }
 
+export interface PersonaReviewDto {
+  personaId: string
+  personaName: string
+  lens: string
+  verdict: string
+  positives: string[]
+  frictionPoints: string[]
+  topRecommendation: string
+  evidenceRefs: string[]
+  confidence: string
+  sortOrder: number
+}
+
+export interface CopyReviewDto {
+  heroClarity: string
+  valueProposition: string
+  offerClarity: string
+  ctaClarity: string
+  snippetClarity: string
+  overallVerdict: string
+  recommendations: string[]
+  evidenceRefs: string[]
+}
+
 // ---------------------------------------------------------------------------
 // DTO builders
 // ---------------------------------------------------------------------------
@@ -221,6 +245,35 @@ function buildBranding(workspace: Doc<"workspaces">): BrandingDto {
   }
 }
 
+function buildPersonaReviews(reviews: Doc<"auditPersonaReviews">[]): PersonaReviewDto[] {
+  return reviews.map((r) => ({
+    personaId: r.personaId,
+    personaName: r.personaName,
+    lens: r.lens,
+    verdict: r.verdict,
+    positives: r.positives,
+    frictionPoints: r.frictionPoints,
+    topRecommendation: r.topRecommendation,
+    evidenceRefs: r.evidenceRefs,
+    confidence: r.confidence,
+    sortOrder: r.sortOrder,
+  }))
+}
+
+function buildCopyReview(review: Doc<"auditCopyReviews"> | null): CopyReviewDto | null {
+  if (!review) return null
+  return {
+    heroClarity: review.heroClarity,
+    valueProposition: review.valueProposition,
+    offerClarity: review.offerClarity,
+    ctaClarity: review.ctaClarity,
+    snippetClarity: review.snippetClarity,
+    overallVerdict: review.overallVerdict,
+    recommendations: review.recommendations,
+    evidenceRefs: review.evidenceRefs,
+  }
+}
+
 async function resolveScreenshotUrls(
   ctx: QueryCtx,
   auditId: Id<"audits">,
@@ -284,7 +337,7 @@ export const getInternalReportById = query({
     const workspace = await getWorkspaceByOwner(ctx, user._id)
     if (!workspace || audit.workspaceId !== workspace._id) return null
 
-    const [score, summary, findings, checks, outreach, performanceRows, reportViews] =
+    const [score, summary, findings, checks, outreach, performanceRows, reportViews, personaReviews, copyReviewDoc] =
       await Promise.all([
         ctx.db
           .query("auditScores")
@@ -314,6 +367,14 @@ export const getInternalReportById = query({
           .query("reportViews")
           .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
           .take(100),
+        ctx.db
+          .query("auditPersonaReviews")
+          .withIndex("by_auditId_and_sortOrder", (q) => q.eq("auditId", args.auditId))
+          .take(10),
+        ctx.db
+          .query("auditCopyReviews")
+          .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+          .first(),
       ])
 
     const screenshots = await resolveScreenshotUrls(ctx, args.auditId)
@@ -357,6 +418,8 @@ export const getInternalReportById = query({
       screenshots,
       viewCount: reportViews.length,
       branding: buildBranding(workspace),
+      personaReviews: buildPersonaReviews(personaReviews),
+      copyReview: buildCopyReview(copyReviewDoc ?? null),
       warnings,
     }
   },

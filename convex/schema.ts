@@ -18,6 +18,8 @@ import {
   creditLedgerTypeValidator,
   leadSourceProviderValidator,
   leadStatusValidator,
+  personaConfidenceValidator,
+  personaIdValidator,
   providerCallProviderValidator,
   providerCallStatusValidator,
   outreachDraftTypeValidator,
@@ -473,4 +475,41 @@ export default defineSchema({
     .index("by_auditId", ["auditId"])
     .index("by_workspaceId_and_purpose", ["workspaceId", "purpose"])
     .index("by_workspaceId_and_status", ["workspaceId", "status"]),
+
+  auditPersonaReviews: defineTable({
+    workspaceId: v.id("workspaces"),
+    auditId: v.id("audits"),
+    personaId: personaIdValidator,
+    personaName: v.string(),
+    lens: v.string(),
+    verdict: v.string(),
+    positives: v.array(v.string()),
+    frictionPoints: v.array(v.string()),
+    topRecommendation: v.string(),
+    evidenceRefs: v.array(v.string()),
+    confidence: personaConfidenceValidator,
+    sortOrder: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
+    .index("by_auditId", ["auditId"])
+    .index("by_auditId_and_sortOrder", ["auditId", "sortOrder"]),
+
+  auditCopyReviews: defineTable({
+    workspaceId: v.id("workspaces"),
+    auditId: v.id("audits"),
+    heroClarity: v.string(),
+    valueProposition: v.string(),
+    offerClarity: v.string(),
+    ctaClarity: v.string(),
+    snippetClarity: v.string(),
+    overallVerdict: v.string(),
+    recommendations: v.array(v.string()),
+    evidenceRefs: v.array(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
+    .index("by_auditId", ["auditId"]),
 })

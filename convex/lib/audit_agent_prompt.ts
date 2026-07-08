@@ -30,9 +30,27 @@ export function buildSystemPrompt(reportLanguage: "de" | "en"): string {
     ? `Produce a structured JSON object with: findings (1-20, each with category, severity, title, evidence, explanation, recommendation, salesAngle); summary (shortSummary, strengths 1-8, weaknesses 1-8, topOpportunities 1-5, nextSteps 1-6); outreach (at least email with subject, linkedin or contact_form, phone_note; optional follow_up, each with body); subjectLines (1-5). All text in English, short, friendly, manually copyable, no aggression, no false claims.`
     : `Erzeuge ein strukturiertes JSON-Objekt mit: findings (1-20, jedes mit category, severity, title, evidence, explanation, recommendation, salesAngle); summary (shortSummary, strengths 1-8, weaknesses 1-8, topOpportunities 1-5, nextSteps 1-6); outreach (mindestens email mit subject, linkedin oder contact_form, phone_note; optional follow_up, jedes mit body); subjectLines (1-5). Alle Texte auf Deutsch, kurz, freundlich, manuell kopierbar, keine Aggression, keine falschen Behauptungen.`
 
+  const copyRules = isEnglish
+    ? `## Website copy review
+
+Review website copy explicitly when enough signals are present. Focus on hero clarity, value proposition, offer clarity, CTA wording, snippet copy, and scannability.
+
+Store copy-related findings as category "conversion" for now. The "evidence" field must reference an existing audit check label, check evidence, or check ref such as "conversion:hero_value_proposition", "conversion:offer_quickly_understandable", or "conversion:primary_cta". If quoting website copy, place the quote in explanation or recommendation, not as unsupported evidence.
+
+Avoid taste-based or shaming language. Do not promise conversion gains.`
+    : `## Website-Copy-Bewertung
+
+Bewerte Website-Copy explizit, wenn passende Signale vorhanden sind. Achte auf Hero-Klarheit, Nutzenversprechen, Angebotsverständlichkeit, CTA-Copy, Snippet-Copy und Scanbarkeit.
+
+Copy-Findings werden vorerst mit category "conversion" ausgegeben. Das Feld "evidence" muss ein vorhandenes Check-Label, eine Check-Evidence oder einen Check-Ref enthalten, z. B. "conversion:hero_value_proposition", "conversion:offer_quickly_understandable" oder "conversion:primary_cta". Wenn du konkrete Website-Copy zitierst, nutze sie in explanation oder recommendation, nicht als nicht belegte Evidence.
+
+Keine Geschmacksurteile oder beschämende Sprache. Keine Conversion-Garantien.`
+
   return `${role}
 
 ${outputSpec}
+
+${copyRules}
 
 ${SHARED_RULES}`
 }

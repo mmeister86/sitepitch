@@ -529,12 +529,19 @@ export function evaluateChecks(data: AuditCheckData): CheckInput[] {
     source: "audit_raw_data",
   })
 
+  const genericCtaPattern = /^(mehr erfahren|mehr|weiter|homepage|start|home|klick|hier| hier|los|ok|go|weiterlesen|read more|more|click here|enter|start)$/i
+  const primaryCta = data.ctaCandidates?.[0]
+  const primaryCtaGeneric = primaryCta ? genericCtaPattern.test(primaryCta.trim()) : false
   checks.push({
     category: "conversion",
     key: "primary_cta",
     label: "Primärer Call-to-Action sichtbar",
-    status: hasAny(data.ctaCandidates) ? "passed" : "warning",
-    evidence: data.ctaCandidates?.[0],
+    status: !hasAny(data.ctaCandidates)
+      ? "warning"
+      : primaryCtaGeneric
+        ? "warning"
+        : "passed",
+    evidence: primaryCta ?? (hasAny(data.ctaCandidates) ? `${data.ctaCandidates!.length} CTA-Kandidaten` : undefined),
     source: "audit_raw_data",
   })
 
@@ -599,11 +606,17 @@ export function evaluateChecks(data: AuditCheckData): CheckInput[] {
   })
 
   const heroTextShort = [data.h1Texts?.[0], data.title].filter(Boolean).join(" ").trim()
+  const heroOfferLike = markdownMentions(heroTextShort, "web", "design", "entwickl", "agentur", "studio", "dienstleis", "service", "leist", "berat", "handwerk", "prax", "kanzlei", "restaur", "café", "shop", "produkt", "lösung", "software", "app", "onlin", "marketing", "seo", "repair", "bau", "maler", "schloss", "sanitär", "elektr", "dach", "friseur")
   checks.push({
     category: "conversion",
     key: "hero_value_proposition",
     label: "Eindeutiges Nutzenversprechen im Hero",
-    status: heroTextShort.length > 0 ? "passed" : "warning",
+    status:
+      heroTextShort.length === 0
+        ? "warning"
+        : heroTextShort.length < 10 || !heroOfferLike
+          ? "warning"
+          : "passed",
     evidence: heroTextShort || undefined,
     source: "audit_raw_data",
   })

@@ -8,7 +8,7 @@ Du erhältst pro Lauf einen kompakten Audit-Kontext mit:
 
 - Metadaten: Domain, Report-Sprache (`de` oder `en`), Gesamtscore, Kategorie-Scores
 - Deterministische Checks: Kategorie, Key, Status (`passed`/`failed`/`warning`/`not_applicable`/`unknown`), Label, Evidence, Source, Weight
-- Kompakte Signale: Titel, Meta Description, H1, CTA-Kandidaten, Telefonnummern, Kontaktlinks, Schema-Types
+- Kompakte Signale: Titel, Meta Description, Open-Graph-Texte, H1/H2, CTA-Kandidaten, Telefonnummern, Kontaktlinks, Schema-Types, begrenzter Copy-Auszug
 - Performance: Mobile/Desktop Scores, LCP, CLS, FCP
 - Business-Daten (optional): Name, Stadt, Telefon, Rating
 - Workspace-Branding: Name, CTA-Text
@@ -22,6 +22,12 @@ Ein strukturiertes JSON-Objekt mit:
 2. **summary**: `shortSummary`, `strengths` (1–8), `weaknesses` (1–8), `topOpportunities` (1–5), `nextSteps` (1–6)
 3. **outreach**: mindestens `email`, `linkedin` oder `contact_form`, `phone_note`; optional `follow_up`. Jedes mit `body` und ggf. `subject`
 4. **subjectLines** (1–5): kurze Betreffzeilen
+
+## Website-Copy-Bewertung
+
+Bewerte Website-Copy explizit, wenn passende Signale vorhanden sind. Achte auf Hero-Klarheit, Nutzenversprechen, Angebotsverständlichkeit, CTA-Copy, Snippet-Copy und Scanbarkeit.
+
+Copy-Findings werden vorerst mit `category: "conversion"` ausgegeben. Nutze für `evidence` vorhandene Check-Labels, Check-Evidence oder Check-Refs, z. B. `conversion:hero_value_proposition`, `conversion:offer_quickly_understandable` oder `conversion:primary_cta`.
 
 ## Harte Regeln — Claim Safety
 

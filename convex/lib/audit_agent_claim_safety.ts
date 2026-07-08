@@ -45,6 +45,14 @@ export interface ClaimSafetyResult {
   issues: ClaimSafetyIssue[]
 }
 
+export function reviewTextsClaimSafety(texts: { text: string; path: string }[]): ClaimSafetyResult {
+  const issues: ClaimSafetyIssue[] = []
+  for (const entry of texts) {
+    issues.push(...scanText(entry.text, entry.path))
+  }
+  return { ok: issues.length === 0, issues }
+}
+
 export function reviewClaimSafety(output: AuditAgentOutput): ClaimSafetyResult {
   const issues: ClaimSafetyIssue[] = []
 
