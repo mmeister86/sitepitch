@@ -12,6 +12,8 @@ import { api } from "../../convex/_generated/api"
 export function PublicReportView({ slug }: { slug: string }) {
   const report = useQuery(api.reports.getPublicReportBySlug, { slug })
   const recordView = useMutation(api.reports.recordPublicReportView)
+  const recordCta = useMutation(api.reports.recordPublicReportCtaClick)
+  const recordPdf = useMutation(api.reports.recordPublicReportPdfExport)
   const trackedRef = useRef(false)
 
   useEffect(() => {
@@ -26,6 +28,15 @@ export function PublicReportView({ slug }: { slug: string }) {
 
     recordView({ slug }).catch(() => {})
   }, [report, slug, recordView])
+
+  const handleCtaClick = () => {
+    recordCta({ slug }).catch(() => {})
+  }
+
+  const handlePrint = () => {
+    recordPdf({ slug }).catch(() => {})
+    window.print()
+  }
 
   if (report === undefined) {
     return (
@@ -55,12 +66,12 @@ export function PublicReportView({ slug }: { slug: string }) {
     <div className="min-h-svh bg-background">
       <div className="mx-auto max-w-[1000px] px-4 py-8 md:py-12">
         <div className="mb-4 flex justify-end no-print">
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
+          <Button variant="outline" size="sm" className="gap-2" onClick={handlePrint}>
             <Printer className="size-4" />
             Drucken / PDF
           </Button>
         </div>
-        <AuditReport report={report} variant="public" />
+        <AuditReport report={report} variant="public" onCtaClick={handleCtaClick} />
       </div>
     </div>
   )

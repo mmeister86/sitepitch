@@ -721,3 +721,241 @@ export const recordReportCopyEvent = mutation({
     return { recorded: true }
   },
 })
+
+// ---------------------------------------------------------------------------
+// Public: recordPublicReportCtaClick
+// ---------------------------------------------------------------------------
+
+export const recordPublicReportCtaClick = mutation({
+  args: {
+    slug: v.string(),
+    userAgentHash: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const audit = await ctx.db
+      .query("audits")
+      .withIndex("by_publicSlug", (q) => q.eq("publicSlug", args.slug))
+      .unique()
+
+    if (!audit || !audit.isPublic || audit.status !== "completed") {
+      return null
+    }
+
+    const viewerKey = args.userAgentHash
+      ? `${audit.publicSlug}:cta:${args.userAgentHash}`
+      : `${audit.publicSlug}:cta`
+    const ctaLimit = await auditRateLimiter.limit(ctx, "publicReportCtaByViewer", {
+      key: viewerKey,
+    })
+    if (!ctaLimit.ok) {
+      return { recorded: false, reason: "rate_limited" as const }
+    }
+
+    const now = Date.now()
+    await ctx.db.insert("usageEvents", {
+      workspaceId: audit.workspaceId,
+      auditId: audit._id,
+      event: "report_cta_clicked",
+      metadata: { source: "public_report" },
+      createdAt: now,
+    })
+
+    return { recorded: true }
+  },
+})
+
+// ---------------------------------------------------------------------------
+// Public: recordPublicReportPdfExport
+// ---------------------------------------------------------------------------
+
+export const recordPublicReportPdfExport = mutation({
+  args: {
+    slug: v.string(),
+    userAgentHash: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const audit = await ctx.db
+      .query("audits")
+      .withIndex("by_publicSlug", (q) => q.eq("publicSlug", args.slug))
+      .unique()
+
+    if (!audit || !audit.isPublic || audit.status !== "completed") {
+      return null
+    }
+
+    const viewerKey = args.userAgentHash
+      ? `${audit.publicSlug}:pdf:${args.userAgentHash}`
+      : `${audit.publicSlug}:pdf`
+    const pdfLimit = await auditRateLimiter.limit(ctx, "publicReportCtaByViewer", {
+      key: viewerKey,
+    })
+    if (!pdfLimit.ok) {
+      return { recorded: false, reason: "rate_limited" as const }
+    }
+
+    const now = Date.now()
+    await ctx.db.insert("usageEvents", {
+      workspaceId: audit.workspaceId,
+      auditId: audit._id,
+      event: "pdf_exported",
+      metadata: { source: "public_report" },
+      createdAt: now,
+    })
+
+    return { recorded: true }
+  },
+})
+
+// ---------------------------------------------------------------------------
+// Dashboard: getDashboardEngagement
+// ---------------------------------------------------------------------------
+
+const DAY_MS = 86_400_000
+const ENGAGEMENT_WINDOW_DAYS = 14
+const ACTIVITY_EVENT_TYPES = new Set([
+  "report_viewed",
+  "report_cta_clicked",
+  "outreach_copied",
+  "public_link_copied",
+  "pdf_exported",
+  "audit_completed",
+])
+
+export interface EngagementSeriesPoint {
+  ts: number
+  date: string
+  views: number
+}
+
+export interface EngagementActivityItem {
+  id: string
+  event: string
+  createdAt: number
+  auditId: Id<"audits"> | null
+  domain: string | null
+  businessName: string | null
+  detail: string | null
+}
+
+export const getDashboardEngagement = query({
+  args: {
+    tzOffsetMinutes: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+
+    const user = await findAppUser(ctx, identity.tokenIdentifier)
+    if (!user) return null
+
+    const workspace = await getWorkspaceByOwner(ctx, user._id)
+    if (!workspace) return null
+
+    const tzOffsetMin = args.tzOffsetMinutes ?? 0
+
+    const now = Date.now()
+    const localNow = now + tzOffsetMin * 60_000
+    const todayBucket = Math.floor(localNow / DAY_MS)
+    const startBucket = todayBucket - (ENGAGEMENT_WINDOW_DAYS - 1)
+    const startTs = startBucket * DAY_MS - tzOffsetMin * 60_000
+
+    const recentViews = await ctx.db
+      .query("reportViews")
+      .withIndex("by_workspaceId_and_viewedAt", (q) =>
+        q.eq("workspaceId", workspace._id).gte("viewedAt", startTs),
+      )
+      .take(500)
+
+    const buckets = new Map<number, number>()
+    for (let i = 0; i < ENGAGEMENT_WINDOW_DAYS; i++) {
+      buckets.set(startBucket + i, 0)
+    }
+    for (const view of recentViews) {
+      const bucket = Math.floor((view.viewedAt + tzOffsetMin * 60_000) / DAY_MS)
+      if (bucket < startBucket) continue
+      buckets.set(bucket, (buckets.get(bucket) ?? 0) + 1)
+    }
+
+    const series: EngagementSeriesPoint[] = []
+    for (let i = 0; i < ENGAGEMENT_WINDOW_DAYS; i++) {
+      const bucket = startBucket + i
+      const ts = bucket * DAY_MS
+      const d = new Date(ts)
+      series.push({
+        ts,
+        date: `${d.getUTCDate()}.${d.getUTCMonth() + 1}.`,
+        views: buckets.get(bucket) ?? 0,
+      })
+    }
+
+    const recentEvents = await ctx.db
+      .query("usageEvents")
+      .withIndex("by_workspaceId_and_createdAt", (q) => q.eq("workspaceId", workspace._id))
+      .order("desc")
+      .take(40)
+
+    const activityRaw = recentEvents.filter((e) => ACTIVITY_EVENT_TYPES.has(e.event))
+
+    const auditIds = new Set<Id<"audits">>()
+    for (const e of activityRaw) {
+      if (e.auditId) auditIds.add(e.auditId)
+    }
+
+    const auditMeta = new Map<Id<"audits">, { domain: string; businessName: string | null }>()
+    for (const auditId of auditIds) {
+      const audit = await ctx.db.get(auditId)
+      if (!audit) continue
+      const lead = audit.leadId ? await ctx.db.get(audit.leadId) : null
+      auditMeta.set(auditId, {
+        domain: audit.domain,
+        businessName: lead?.businessName ?? null,
+      })
+    }
+
+    const activity: EngagementActivityItem[] = activityRaw
+      .slice(0, 12)
+      .map((e) => {
+        const meta = e.auditId ? auditMeta.get(e.auditId) ?? null : null
+        return {
+          id: e._id,
+          event: e.event,
+          createdAt: e.createdAt,
+          auditId: e.auditId ?? null,
+          domain: meta?.domain ?? null,
+          businessName: meta?.businessName ?? null,
+          detail: activityDetail(e.event, e.metadata),
+        }
+      })
+
+    const totals = {
+      views: recentViews.length,
+      outreachCopied: recentEvents.filter((e) => e.event === "outreach_copied").length,
+      publicLinkCopied: recentEvents.filter((e) => e.event === "public_link_copied").length,
+      ctaClicks: recentEvents.filter((e) => e.event === "report_cta_clicked").length,
+      pdfExports: recentEvents.filter((e) => e.event === "pdf_exported").length,
+    }
+
+    return {
+      series,
+      activity,
+      totals,
+      hasData: recentViews.length > 0 || activity.length > 0,
+    }
+  },
+})
+
+function activityDetail(
+  event: string,
+  metadata: Record<string, string | number | boolean | null> | undefined,
+): string | null {
+  if (event === "report_viewed") return "Report aufgerufen"
+  if (event === "report_cta_clicked") return "CTA geklickt"
+  if (event === "audit_completed") return "Audit abgeschlossen"
+  if (event === "pdf_exported") return "Report als PDF exportiert"
+  if (event === "public_link_copied") return "Report-Link kopiert"
+  if (event === "outreach_copied") {
+    const draftType = metadata?.draftType
+    return draftType ? `Outreach kopiert (${String(draftType)})` : "Outreach kopiert"
+  }
+  return null
+}

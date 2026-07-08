@@ -11,8 +11,14 @@ import {
   Sparkles,
   TrendingUp,
   Bell,
+  MousePointerClick,
+  Copy,
+  Download,
+  Link2,
+  type LucideIcon,
 } from "lucide-react"
 import { useQuery } from "convex/react"
+import { Bar, BarChart, CartesianGrid, XAxis } from "recharts"
 
 import {
   Card,
@@ -24,6 +30,12 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart"
 import { StatCard } from "@/components/stat-card"
 import { ScoreBadge } from "@/components/status-badges"
 import { NewAuditDialog } from "@/components/new-audit-dialog"
@@ -35,10 +47,30 @@ import { getFirstName, getUserDisplayName } from "@/lib/user-display"
 import { api } from "../../convex/_generated/api"
 import { Spinner } from "@/components/ui/spinner"
 
+type EngagementData = NonNullable<
+  ReturnType<typeof useQuery<typeof api.reports.getDashboardEngagement>>
+>
+
+const engagementChartConfig = {
+  views: { label: "Views", color: "var(--chart-1)" },
+} satisfies ChartConfig
+
+const activityIcon: Record<string, { icon: LucideIcon; tone: string }> = {
+  report_viewed: { icon: Eye, tone: "bg-chart-1/12 text-chart-1" },
+  report_cta_clicked: { icon: MousePointerClick, tone: "bg-primary/12 text-primary" },
+  outreach_copied: { icon: Copy, tone: "bg-chart-2/12 text-chart-2" },
+  public_link_copied: { icon: Link2, tone: "bg-chart-3/12 text-chart-3" },
+  pdf_exported: { icon: Download, tone: "bg-chart-4/12 text-chart-4" },
+  audit_completed: { icon: CheckCircle2, tone: "bg-score-strong/15 text-score-strong" },
+}
+
 export function DashboardView() {
   const { navigate } = useRouter()
   const ws = useQuery(api.workspaces.getMyWorkspace)
   const auditsData = useQuery(api.audits.listMyAudits, {})
+  const engagement = useQuery(api.reports.getDashboardEngagement, {
+    tzOffsetMinutes: typeof window !== "undefined" ? new Date().getTimezoneOffset() : 0,
+  })
   const session = authClient.useSession()
 
   const displayName = getUserDisplayName(
@@ -46,7 +78,7 @@ export function DashboardView() {
     ws?.user.email ?? session.data?.user?.email,
   )
 
-  if (ws === undefined || auditsData === undefined) {
+  if (ws === undefined || auditsData === undefined || engagement === undefined) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <Spinner className="size-6 text-primary" />
@@ -127,45 +159,10 @@ export function DashboardView() {
         />
       </div>
 
-      {/* Engagement + Activity placeholders */}
+      {/* Engagement + Activity */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Report-Engagement</CardTitle>
-            <CardDescription>Views und Engagement über die Zeit</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex h-[220px] flex-col items-center justify-center gap-2 text-center">
-              <div className="flex size-10 items-center justify-center rounded-full bg-muted">
-                <TrendingUp className="size-5 text-muted-foreground" />
-              </div>
-              <p className="text-sm font-medium text-muted-foreground">Noch keine Daten</p>
-              <p className="max-w-xs text-xs text-muted-foreground/70">
-                Sobald du Reports freigibst und teilst, erscheinen hier Views,
-                erneute Öffnungen und CTA-Klicks im Zeitverlauf.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Aktivität</CardTitle>
-            <CardDescription>Was Prospects gerade tun</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex h-[220px] flex-col items-center justify-center gap-2 text-center">
-              <div className="flex size-10 items-center justify-center rounded-full bg-muted">
-                <Bell className="size-5 text-muted-foreground" />
-              </div>
-              <p className="text-sm font-medium text-muted-foreground">Noch keine Aktivität</p>
-              <p className="max-w-xs text-xs text-muted-foreground/70">
-                Report-Views, Outreach-Kopien und Statuswechsel erscheinen hier,
-                sobald der erste Prospect interagiert.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <EngagementCard engagement={engagement} />
+        <ActivityCard engagement={engagement} />
       </div>
 
       {/* Activation + Recent */}
@@ -291,5 +288,122 @@ export function DashboardView() {
         </Card>
       </div>
     </div>
+  )
+}
+
+function EngagementCard({ engagement }: { engagement: EngagementData | null }) {
+  const empty = !engagement || !engagement.hasData
+  const totalViews = engagement?.totals.views ?? 0
+
+  return (
+    <Card className="lg:col-span-2">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <CardTitle>Report-Engagement</CardTitle>
+            <CardDescription>Views über die letzten 14 Tage</CardDescription>
+          </div>
+          {!empty && (
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Eye className="size-4 text-chart-1" />
+              <span className="font-semibold tabular-nums text-foreground">{totalViews}</span>
+              Views
+            </div>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {empty ? (
+          <div className="flex h-[220px] flex-col items-center justify-center gap-2 text-center">
+            <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+              <TrendingUp className="size-5 text-muted-foreground" />
+            </div>
+            <p className="text-sm font-medium text-muted-foreground">Noch keine Daten</p>
+            <p className="max-w-xs text-xs text-muted-foreground/70">
+              Sobald du Reports freigibst und teilst, erscheinen hier Views und
+              CTA-Klicks im Zeitverlauf.
+            </p>
+          </div>
+        ) : (
+          <ChartContainer
+            config={engagementChartConfig}
+            className="aspect-auto h-[220px] w-full"
+          >
+            <BarChart
+              data={engagement!.series}
+              margin={{ top: 8, right: 4, left: 4, bottom: 0 }}
+            >
+              <CartesianGrid vertical={false} strokeDasharray="3 3" />
+              <XAxis
+                dataKey="date"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                minTickGap={16}
+              />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar dataKey="views" fill="var(--color-views)" radius={4} maxBarSize={28} />
+            </BarChart>
+          </ChartContainer>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function ActivityCard({ engagement }: { engagement: EngagementData | null }) {
+  const items = engagement?.activity ?? []
+  const empty = items.length === 0
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Aktivität</CardTitle>
+        <CardDescription>Was Prospects gerade tun</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {empty ? (
+          <div className="flex h-[220px] flex-col items-center justify-center gap-2 text-center">
+            <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+              <Bell className="size-5 text-muted-foreground" />
+            </div>
+            <p className="text-sm font-medium text-muted-foreground">Noch keine Aktivität</p>
+            <p className="max-w-xs text-xs text-muted-foreground/70">
+              Report-Views, CTA-Klicks und Outreach-Kopien erscheinen hier, sobald
+              der erste Prospect interagiert.
+            </p>
+          </div>
+        ) : (
+          <ul className="divide-y">
+            {items.map((item) => {
+              const meta = activityIcon[item.event] ?? {
+                icon: Bell,
+                tone: "bg-muted text-muted-foreground",
+              }
+              const Icon = meta.icon
+              const label = item.businessName ?? item.domain ?? "Report"
+              return (
+                <li key={item.id} className="flex items-start gap-3 py-2.5 first:pt-0">
+                  <span
+                    className={cn(
+                      "flex size-7 shrink-0 items-center justify-center rounded-full",
+                      meta.tone,
+                    )}
+                  >
+                    <Icon className="size-3.5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm leading-tight">{item.detail ?? item.event}</p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {label} · {formatRelativeTs(item.createdAt)}
+                    </p>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   )
 }

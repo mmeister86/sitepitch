@@ -147,6 +147,7 @@ export const usageEventTypeValidator = v.union(
   v.literal("audit_failed"),
   v.literal("lead_search_started"),
   v.literal("report_viewed"),
+  v.literal("report_cta_clicked"),
   v.literal("outreach_copied"),
   v.literal("public_link_copied"),
   v.literal("pdf_exported"),

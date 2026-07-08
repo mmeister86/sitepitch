@@ -660,3 +660,233 @@ describe("recordReportCopyEvent", () => {
     )
   })
 })
+
+// ---------------------------------------------------------------------------
+// recordPublicReportCtaClick
+// ---------------------------------------------------------------------------
+
+describe("recordPublicReportCtaClick", () => {
+  test("records a cta click event for an enabled report", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t, {
+      slug: "cta-test-slug",
+      isPublic: true,
+    })
+
+    const result = await t.mutation(api.reports.recordPublicReportCtaClick, {
+      slug: "cta-test-slug",
+    })
+
+    assert.deepEqual(result, { recorded: true })
+
+    const events = await t.query((ctx) =>
+      ctx.db
+        .query("usageEvents")
+        .withIndex("by_workspaceId_and_auditId", (q) =>
+          q.eq("workspaceId", workspaceId).eq("auditId", auditId),
+        )
+        .collect(),
+    )
+    const ctaEvent = events.find((e) => e.event === "report_cta_clicked")
+    assert.ok(ctaEvent)
+  })
+
+  test("returns null for a disabled report", async () => {
+    const t = createTest()
+    await seedCompletedReport(t, {
+      slug: "cta-disabled-slug",
+      isPublic: false,
+    })
+
+    const result = await t.mutation(api.reports.recordPublicReportCtaClick, {
+      slug: "cta-disabled-slug",
+    })
+
+    assert.equal(result, null)
+  })
+
+  test("returns rate_limited when over the limit", async () => {
+    const t = createTest()
+    await seedCompletedReport(t, {
+      slug: "cta-over-limit-slug",
+      isPublic: true,
+    })
+
+    mocks.auditRateLimiter.limit.mockResolvedValue({ ok: false, retryAfter: 1234 })
+
+    const result = await t.mutation(api.reports.recordPublicReportCtaClick, {
+      slug: "cta-over-limit-slug",
+    })
+
+    assert.deepEqual(result, { recorded: false, reason: "rate_limited" })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// recordPublicReportPdfExport
+// ---------------------------------------------------------------------------
+
+describe("recordPublicReportPdfExport", () => {
+  test("records a pdf_exported event for an enabled report", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t, {
+      slug: "pdf-test-slug",
+      isPublic: true,
+    })
+
+    mocks.auditRateLimiter.limit.mockResolvedValue({ ok: true, retryAfter: null })
+
+    const result = await t.mutation(api.reports.recordPublicReportPdfExport, {
+      slug: "pdf-test-slug",
+    })
+
+    assert.deepEqual(result, { recorded: true })
+
+    const events = await t.query((ctx) =>
+      ctx.db
+        .query("usageEvents")
+        .withIndex("by_workspaceId_and_auditId", (q) =>
+          q.eq("workspaceId", workspaceId).eq("auditId", auditId),
+        )
+        .collect(),
+    )
+    const pdfEvent = events.find((e) => e.event === "pdf_exported")
+    assert.ok(pdfEvent)
+  })
+
+  test("returns null for a disabled report", async () => {
+    const t = createTest()
+    await seedCompletedReport(t, {
+      slug: "pdf-disabled-slug",
+      isPublic: false,
+    })
+
+    const result = await t.mutation(api.reports.recordPublicReportPdfExport, {
+      slug: "pdf-disabled-slug",
+    })
+
+    assert.equal(result, null)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// getDashboardEngagement
+// ---------------------------------------------------------------------------
+
+describe("getDashboardEngagement", () => {
+  test("returns null without authentication", async () => {
+    const t = createTest()
+    const { auditId } = await seedCompletedReport(t)
+
+    const result = await t.query(api.reports.getDashboardEngagement, {
+      tzOffsetMinutes: 0,
+    })
+
+    assert.equal(result, null)
+    void auditId
+  })
+
+  test("returns empty state for a workspace without activity", async () => {
+    const t = createTest()
+    await seedCompletedReport(t)
+
+    const result = await t
+      .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+      .query(api.reports.getDashboardEngagement, { tzOffsetMinutes: 0 })
+
+    assert.ok(result)
+    assert.equal(result!.hasData, false)
+    assert.equal(result!.activity.length, 0)
+    assert.equal(result!.series.length, 14)
+    assert.equal(result!.totals.views, 0)
+  })
+
+  test("aggregates views into the series and surfaces activity", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t, {
+      slug: "dash-slug",
+      isPublic: true,
+    })
+
+    await t.mutation(async (ctx) => {
+      const now = Date.now()
+      await ctx.db.insert("reportViews", {
+        workspaceId,
+        auditId,
+        viewedAt: now,
+      })
+      await ctx.db.insert("reportViews", {
+        workspaceId,
+        auditId,
+        viewedAt: now - 1000,
+      })
+      await ctx.db.insert("usageEvents", {
+        workspaceId,
+        auditId,
+        event: "report_cta_clicked",
+        createdAt: now,
+      })
+      await ctx.db.insert("usageEvents", {
+        workspaceId,
+        auditId,
+        event: "audit_completed",
+        createdAt: now - 2000,
+      })
+    })
+
+    const result = await t
+      .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+      .query(api.reports.getDashboardEngagement, { tzOffsetMinutes: 0 })
+
+    assert.ok(result)
+    assert.equal(result!.hasData, true)
+    assert.equal(result!.totals.views, 2)
+    assert.equal(result!.totals.ctaClicks, 1)
+
+    const today = result!.series[result!.series.length - 1]!
+    assert.ok(today!.views >= 2, "today bucket should contain both views")
+
+    assert.ok(result!.activity.length >= 1)
+    const ctaActivity = result!.activity.find((a) => a.event === "report_cta_clicked")
+    assert.ok(ctaActivity)
+    assert.equal(ctaActivity!.domain, "acme.com")
+    assert.equal(ctaActivity!.detail, "CTA geklickt")
+  })
+
+  test("enriches activity with lead business name", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t, {
+      isPublic: true,
+    })
+
+    await t.mutation(async (ctx) => {
+      const now = Date.now()
+      const leadId = await ctx.db.insert("leads", {
+        workspaceId,
+        businessName: "Acme Bakery",
+        websiteUrl: "https://acme.com",
+        sourceProvider: "manual",
+        status: "new",
+        auditId,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.patch(auditId, { leadId })
+      await ctx.db.insert("usageEvents", {
+        workspaceId,
+        auditId,
+        event: "report_viewed",
+        createdAt: now,
+      })
+    })
+
+    const result = await t
+      .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+      .query(api.reports.getDashboardEngagement, { tzOffsetMinutes: 0 })
+
+    assert.ok(result)
+    const viewed = result!.activity.find((a) => a.event === "report_viewed")
+    assert.ok(viewed)
+    assert.equal(viewed!.businessName, "Acme Bakery")
+  })
+})

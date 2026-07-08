@@ -78,9 +78,11 @@ export interface AuditReportData {
 export function AuditReport({
   report,
   variant = "public",
+  onCtaClick,
 }: {
   report: AuditReportData
   variant?: "public" | "internal"
+  onCtaClick?: () => void
 }) {
   const { branding, summary, overallScore, categoryScores } = report
 
@@ -295,7 +297,7 @@ export function AuditReport({
       )}
 
       {/* CTA */}
-      <ReportCTA branding={branding} />
+      <ReportCTA branding={branding} onCtaClick={onCtaClick} />
     </div>
   )
 }
@@ -395,7 +397,13 @@ function ScreenshotFallback() {
   )
 }
 
-function ReportCTA({ branding }: { branding: AuditReportData["branding"] }) {
+function ReportCTA({
+  branding,
+  onCtaClick,
+}: {
+  branding: AuditReportData["branding"]
+  onCtaClick?: () => void
+}) {
   const ctaLabel = branding.ctaText || "In Kontakt treten"
   const ctaHref = resolveCtaHref(branding)
   const icon = ctaHref && ctaHref.startsWith("mailto:")
@@ -430,6 +438,7 @@ function ReportCTA({ branding }: { branding: AuditReportData["branding"] }) {
           href={ctaHref}
           target={ctaHref.startsWith("mailto:") ? undefined : "_blank"}
           rel="noreferrer"
+          onClick={onCtaClick}
           className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 no-underline"
           style={{ backgroundColor: branding.accentColor }}
         >
