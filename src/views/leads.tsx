@@ -45,6 +45,7 @@ import { useRouter } from "@/lib/router"
 import { cn } from "@/lib/utils"
 import { api } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
+import type { LeadListItem } from "../../convex/leads"
 
 const LeadMap = dynamic(() => import("@/components/lead-map").then((m) => m.LeadMap), {
   ssr: false,
@@ -432,6 +433,48 @@ export function LeadsView() {
     }
   }
 
+  function renderLeadPrimaryAction(
+    lead: LeadListItem,
+    opts: { inline?: boolean } = {},
+  ) {
+    const { inline = false } = opts
+    if (lead.auditReady) {
+      return (
+        <Button
+          size="sm"
+          className="gap-1.5"
+          disabled={auditStartingId === lead._id}
+          onClick={(e) => {
+            e.stopPropagation()
+            void handleStartAudit(lead._id, lead.auditId)
+          }}
+        >
+          {auditStartingId === lead._id ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Globe className="size-3.5" />
+          )}
+          {lead.audit ? "Zum Audit" : "Audit starten"}
+        </Button>
+      )
+    }
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-1.5"
+        onClick={(e) => {
+          e.stopPropagation()
+          openWebsiteDialog(lead._id, lead.businessName)
+        }}
+        aria-label={inline ? "Website ergänzen" : undefined}
+      >
+        <Plus className="size-3.5" />
+        {inline ? "Website" : "Website ergänzen"}
+      </Button>
+    )
+  }
+
   return (
     <div className="mx-auto w-full max-w-[1100px] space-y-5 p-4 md:p-6">
       <div>
@@ -633,7 +676,14 @@ export function LeadsView() {
             <Expandable type="single" collapsible className="divide-y">
               {leads.map((lead: (typeof leads)[number]) => (
                 <ExpandableItem key={lead._id} value={lead._id} className="px-6">
-                  <ExpandableTrigger className="items-center">
+                  <ExpandableTrigger
+                    className="items-center"
+                    action={
+                      <div className="shrink-0 group-data-[state=closed]:block group-data-[state=open]:hidden">
+                        {renderLeadPrimaryAction(lead, { inline: true })}
+                      </div>
+                    }
+                  >
                     <LeadSummary
                       lead={{
                         businessName: lead.businessName,
@@ -674,31 +724,7 @@ export function LeadsView() {
                       }}
                       action={
                         <>
-                          {lead.auditReady ? (
-                            <Button
-                              size="sm"
-                              className="gap-1.5"
-                              disabled={auditStartingId === lead._id}
-                              onClick={() => void handleStartAudit(lead._id, lead.auditId)}
-                            >
-                              {auditStartingId === lead._id ? (
-                                <Loader2 className="size-3.5 animate-spin" />
-                              ) : (
-                                <Globe className="size-3.5" />
-                              )}
-                              {lead.audit ? "Zum Audit" : "Audit starten"}
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1.5"
-                              onClick={() => openWebsiteDialog(lead._id, lead.businessName)}
-                            >
-                              <Plus className="size-3.5" />
-                              Website ergänzen
-                            </Button>
-                          )}
+                          {renderLeadPrimaryAction(lead)}
                           <Button
                             variant="outline"
                             size="sm"

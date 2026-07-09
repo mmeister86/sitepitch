@@ -13,7 +13,7 @@ const ExpandableItem = React.forwardRef<
   <AccordionPrimitive.Item
     ref={ref}
     data-slot="expandable-item"
-    className={cn("border-b last:border-b-0", className)}
+    className={cn("group border-b last:border-b-0", className)}
     {...props}
   />
 ))
@@ -21,9 +21,11 @@ ExpandableItem.displayName = "ExpandableItem"
 
 const ExpandableTrigger = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>
->(({ className, children, ...props }, ref) => (
-  <AccordionPrimitive.Header className="flex">
+  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger> & {
+    action?: React.ReactNode
+  }
+>(({ className, children, action, ...props }, ref) => (
+  <AccordionPrimitive.Header className="flex items-center gap-3">
     <AccordionPrimitive.Trigger
       ref={ref}
       data-slot="expandable-trigger"
@@ -34,8 +36,14 @@ const ExpandableTrigger = React.forwardRef<
       {...props}
     >
       {children}
-      <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+      {!action && (
+        <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+      )}
     </AccordionPrimitive.Trigger>
+    {action}
+    {action && (
+      <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+    )}
   </AccordionPrimitive.Header>
 ))
 ExpandableTrigger.displayName = "ExpandableTrigger"
