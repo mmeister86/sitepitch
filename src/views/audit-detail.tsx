@@ -132,18 +132,13 @@ const liveAuditStages: Array<{
   },
   {
     status: "fetching_business_data",
-    title: "Firmendaten prüfen",
-    description: "Lokale Firmendaten oder Google Places werden abgeglichen.",
+    title: "Externe Prüfungen",
+    description: "Performance, Screenshots und lokale Firmendaten werden abgeglichen.",
   },
   {
     status: "running_deterministic_checks",
     title: "Checks zusammenführen",
     description: "Die gesammelten Ergebnisse werden verdichtet und bewertet.",
-  },
-  {
-    status: "calculating_scores",
-    title: "Scores berechnen",
-    description: "Kategorie- und Gesamtscores werden deterministisch ermittelt.",
   },
   {
     status: "generating_findings",
@@ -154,6 +149,11 @@ const liveAuditStages: Array<{
     status: "generating_outreach",
     title: "Outreach & Analysen",
     description: "Outreach-Texte, Copy-Review, Persona-Perspektiven und Design-Kritik werden erstellt.",
+  },
+  {
+    status: "calculating_scores",
+    title: "Scores berechnen",
+    description: "Checks, Persona-Perspektiven und Design-Kritik werden zum finalen Score zusammengeführt.",
   },
   {
     status: "completed",
@@ -250,6 +250,112 @@ function buildShareUrl(slug: string): string {
   return `${shareBaseUrl}/r/${slug}`
 }
 
+type ProviderCallStatus = "queued" | "started" | "completed" | "failed"
+
+interface ProviderCallItem {
+  operation: string
+  status: ProviderCallStatus
+  attempt: number
+  latencyMs?: number
+  errorMessage?: string
+}
+
+interface ProviderCallsSummary {
+  items: ProviderCallItem[]
+  overall: "idle" | "running" | "completed" | "failed"
+}
+
+function providerCallLabel(operation: string): string {
+  const labels: Record<string, string> = {
+    capture_desktop_screenshot: "Desktop-Screenshot",
+    capture_mobile_screenshot: "Mobile-Screenshot",
+    run_mobile_pagespeed: "PageSpeed Mobile",
+    run_desktop_pagespeed: "PageSpeed Desktop",
+    search_business_data: "Firmendaten",
+    scrape_homepage: "Startseite laden",
+    fetch_priority_page: "Zusätzliche Seite laden",
+    map_site_urls: "Seiten verzeichnen",
+  }
+  return labels[operation] ?? operation
+}
+
+function providerCallStatusText(status: ProviderCallStatus): string {
+  switch (status) {
+    case "queued":
+      return "wartend"
+    case "started":
+      return "läuft"
+    case "completed":
+      return "abgeschlossen"
+    case "failed":
+      return "fehlgeschlagen"
+  }
+}
+
+function ProviderCallStatusIcon({ status }: { status: ProviderCallStatus }) {
+  if (status === "completed") {
+    return <CircleCheck className="size-4 text-score-strong" />
+  }
+  if (status === "failed") {
+    return <CircleX className="size-4 text-score-critical" />
+  }
+  return <Loader2 className="size-4 animate-spin text-primary" />
+}
+
+function ProviderSubstatus({ providerCalls }: { providerCalls?: ProviderCallsSummary }) {
+  if (!providerCalls || providerCalls.items.length === 0) {
+    return null
+  }
+
+  const items = providerCalls.items
+    .slice()
+    .sort((a, b) => {
+      const order: Record<ProviderCallStatus, number> = {
+        started: 0,
+        queued: 1,
+        failed: 2,
+        completed: 3,
+      }
+      return order[a.status] - order[b.status]
+    })
+
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3">
+      <div className="text-xs font-medium text-muted-foreground">Aktuelle Prüfungen</div>
+      <div className="mt-2 space-y-2">
+        {items.map((item, index) => (
+          <div key={`${item.operation}-${index}`} className="flex items-center justify-between gap-3 text-sm">
+            <div className="flex items-center gap-2">
+              <ProviderCallStatusIcon status={item.status} />
+              <span>{providerCallLabel(item.operation)}</span>
+              {item.attempt > 1 && (
+                <span className="text-xs text-muted-foreground">(Versuch {item.attempt})</span>
+              )}
+            </div>
+            <span
+              className={cn(
+                "text-xs",
+                item.status === "failed"
+                  ? "text-score-critical"
+                  : item.status === "completed"
+                    ? "text-score-strong"
+                    : "text-muted-foreground",
+              )}
+            >
+              {providerCallStatusText(item.status)}
+            </span>
+          </div>
+        ))}
+      </div>
+      {providerCalls.overall === "failed" && (
+        <p className="mt-2 text-xs text-score-critical">
+          Einige optionale Prüfungen konnten nicht abgeschlossen werden. Der Audit läuft trotzdem weiter.
+        </p>
+      )}
+    </div>
+  )
+}
+
 function LiveProgressReport({
   report,
   navigate,
@@ -322,6 +428,9 @@ function LiveProgressReport({
             <Progress value={progress} className="h-2" />
             {report.statusMessage && (
               <p className="text-sm text-muted-foreground">{report.statusMessage}</p>
+            )}
+            {report.status !== "completed" && report.status !== "failed" && (
+              <ProviderSubstatus providerCalls={report.providerCalls} />
             )}
           </div>
 

@@ -1399,7 +1399,7 @@ export const processAuditPipeline = internalAction({
       leaseToken: claim.leaseToken,
       stage: "fetching_business_data",
       status: "fetching_business_data",
-      statusMessage: plan.useBusinessData ? "Firmendaten werden geprüft" : "Deterministische Checks werden vorbereitet",
+      statusMessage: "Externe Prüfungen werden finalisiert",
     })
 
     const businessTask = plan.useBusinessData

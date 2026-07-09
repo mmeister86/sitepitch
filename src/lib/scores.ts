@@ -84,7 +84,7 @@ export const auditStatusMeta: Record<
   extracting_content: { label: "Inhalte werden extrahiert", badge: "bg-primary/12 text-primary" },
   taking_screenshots: { label: "Screenshots werden erstellt", badge: "bg-primary/12 text-primary" },
   running_performance_checks: { label: "Performance-Checks", badge: "bg-primary/12 text-primary" },
-  fetching_business_data: { label: "Firmendaten werden geprüft", badge: "bg-primary/12 text-primary" },
+  fetching_business_data: { label: "Externe Prüfungen", badge: "bg-primary/12 text-primary" },
   running_deterministic_checks: { label: "Deterministische Checks", badge: "bg-primary/12 text-primary" },
   calculating_scores: { label: "Scores werden berechnet", badge: "bg-primary/12 text-primary" },
   generating_findings: { label: "Findings werden geschrieben", badge: "bg-primary/12 text-primary" },

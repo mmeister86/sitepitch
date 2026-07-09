@@ -163,6 +163,57 @@ export interface DesignCritiqueDto {
   evidenceRefs: string[]
 }
 
+export interface ProviderCallDto {
+  providerCallId: string
+  provider: string
+  operation: string
+  status: "queued" | "started" | "completed" | "failed"
+  attempt: number
+  latencyMs?: number
+  errorCode?: string
+  errorMessage?: string
+  responseStatus?: number
+  startedAt: number
+  completedAt?: number
+}
+
+export interface ProviderCallsSummaryDto {
+  items: ProviderCallDto[]
+  overall: "idle" | "running" | "completed" | "failed"
+}
+
+function buildProviderCallDto(call: Doc<"providerCalls">): ProviderCallDto {
+  return {
+    providerCallId: call._id,
+    provider: call.provider,
+    operation: call.operation,
+    status: call.status,
+    attempt: call.attempt,
+    latencyMs: call.latencyMs ?? undefined,
+    errorCode: call.errorCode ?? undefined,
+    errorMessage: call.errorMessage ?? undefined,
+    responseStatus: call.responseStatus ?? undefined,
+    startedAt: call.startedAt,
+    completedAt: call.completedAt ?? undefined,
+  }
+}
+
+function buildProviderCallsSummary(calls: Doc<"providerCalls">[]): ProviderCallsSummaryDto {
+  const items = calls.map(buildProviderCallDto)
+  if (items.length === 0) {
+    return { items, overall: "idle" }
+  }
+  const hasRunning = items.some((item) => item.status === "started" || item.status === "queued")
+  if (hasRunning) {
+    return { items, overall: "running" }
+  }
+  const hasFailed = items.some((item) => item.status === "failed")
+  if (hasFailed) {
+    return { items, overall: "failed" }
+  }
+  return { items, overall: "completed" }
+}
+
 // ---------------------------------------------------------------------------
 // DTO builders
 // ---------------------------------------------------------------------------
@@ -394,7 +445,7 @@ export const getInternalReportById = query({
     const workspace = await getWorkspaceByOwner(ctx, user._id)
     if (!workspace || audit.workspaceId !== workspace._id) return null
 
-    const [score, summary, findings, checks, outreach, performanceRows, reportViews, personaReviews, copyReviewDoc, designCritiqueDoc] =
+    const [score, summary, findings, checks, outreach, performanceRows, reportViews, personaReviews, copyReviewDoc, designCritiqueDoc, providerCalls] =
       await Promise.all([
         ctx.db
           .query("auditScores")
@@ -436,6 +487,10 @@ export const getInternalReportById = query({
           .query("auditDesignCritiques")
           .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
           .first(),
+        ctx.db
+          .query("providerCalls")
+          .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+          .take(50),
       ])
 
     const screenshots = await resolveScreenshotUrls(ctx, args.auditId)
@@ -483,6 +538,7 @@ export const getInternalReportById = query({
       copyReview: buildCopyReview(copyReviewDoc ?? null),
       designCritique: buildDesignCritique(designCritiqueDoc ?? null),
       warnings,
+      providerCalls: buildProviderCallsSummary(providerCalls),
     }
   },
 })
