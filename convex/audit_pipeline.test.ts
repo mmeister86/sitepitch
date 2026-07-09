@@ -81,4 +81,33 @@ describe("audit pipeline helpers", () => {
     assert.equal(redacted.includes("abc123"), false)
     assert.equal(redacted.includes("xyz"), false)
   })
+
+  test("pickPriorityPages dedupes and filters merged discovery links (firecrawl map scenario)", () => {
+    const home = "https://example.com/"
+    const internalLinks = [
+      "https://example.com/kontakt",
+      "https://example.com/leistungen",
+    ]
+    const firecrawlMapLinks = [
+      "https://example.com/kontakt",
+      "https://example.com/impressum",
+      "https://example.com/datenschutz",
+      "https://other.example.org/foreign",
+      "https://example.com/ueber-uns?ref=nav",
+    ]
+    const merged = [...internalLinks, ...firecrawlMapLinks]
+
+    const pages = pickPriorityPages(home, merged, 5)
+    const normalized = pages.map((page) => page.normalizedUrl)
+
+    assert.equal(pages[0].kind, "primary")
+    assert.equal(new Set(normalized).size, normalized.length, "no duplicate URLs")
+    assert.ok(pages.some((page) => page.kind === "contact"))
+    assert.ok(pages.some((page) => page.kind === "imprint"))
+    assert.ok(pages.some((page) => page.kind === "privacy"))
+    assert.ok(
+      pages.every((page) => new URL(page.url).hostname === "example.com"),
+      "foreign-origin links filtered out",
+    )
+  })
 })

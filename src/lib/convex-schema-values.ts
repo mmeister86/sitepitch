@@ -158,6 +158,7 @@ export const usageEventTypeValidator = v.union(
 export const providerCallProviderValidator = v.union(
   v.literal("direct_html"),
   v.literal("jina"),
+  v.literal("firecrawl"),
   v.literal("screenshotone"),
   v.literal("pagespeed"),
   v.literal("local_business_data"),

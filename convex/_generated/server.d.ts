@@ -29,6 +29,8 @@ type Env = {
   readonly BETTER_AUTH_URL: string;
   readonly EVE_AGENT_MODEL: string | undefined;
   readonly EVE_AGENT_URL: string | undefined;
+  readonly FIRECRAWL_API_BASE_URL: string | undefined;
+  readonly FIRECRAWL_API_KEY: string | undefined;
   readonly GOOGLE_PLACES_API_KEY: string | undefined;
   readonly JINA_API_KEY: string | undefined;
   readonly LOCAL_BUSINESS_DATA_API_KEY: string | undefined;

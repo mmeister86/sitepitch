@@ -50,6 +50,26 @@ type PrimaryFetchResult =
       sourceProvider: "jina"
       markdown: string
     }
+  | {
+      finalUrl: string
+      httpStatus: number
+      sourceProvider: "firecrawl"
+      html: string
+      markdown: string
+      links: string[]
+    }
+
+type PriorityPageResult = {
+  pageIndex: number
+  kind: string
+  url: string
+  normalizedUrl: string
+  httpStatus: number
+  finalUrl: string
+  html?: string
+  markdown?: string
+  sourceProvider: "direct_html" | "firecrawl"
+}
 
 type FetchResult = {
   statusCode: number
@@ -280,6 +300,7 @@ async function requestText(
   options: {
     method?: string
     headers?: Record<string, string>
+    body?: Buffer | string
     timeoutMs: number
     bodyLimitBytes: number
     maxRedirects?: number
@@ -296,6 +317,7 @@ async function requestJson<T = unknown>(
   options: {
     method?: string
     headers?: Record<string, string>
+    body?: Buffer | string
     timeoutMs: number
     bodyLimitBytes: number
     maxRedirects?: number
@@ -313,7 +335,14 @@ async function requestJson<T = unknown>(
 async function runProviderAttempt<T>(
   ctx: ActionCtx,
   claim: Claim,
-  provider: "direct_html" | "jina" | "screenshotone" | "pagespeed" | "local_business_data" | "google_places",
+  provider:
+    | "direct_html"
+    | "jina"
+    | "firecrawl"
+    | "screenshotone"
+    | "pagespeed"
+    | "local_business_data"
+    | "google_places",
   operation: string,
   requestEvidence: string,
   attemptFn: (attempt: number) => Promise<{ value: T; responseStatus?: number }>,
@@ -386,6 +415,265 @@ async function runProviderAttempt<T>(
   throw lastError ?? new ProviderFetchError("PROVIDER_ERROR", "Providerfehler.", { retryable: false })
 }
 
+const FIRECRAWL_DEFAULT_BASE_URL = "https://api.firecrawl.dev"
+const FIRECRAWL_RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504])
+
+type FirecrawlScrapePayload = {
+  markdown?: string
+  html?: string
+  links?: string[]
+  metadata?: {
+    statusCode?: number
+    sourceURL?: string
+    url?: string
+    title?: string
+    description?: string
+  }
+}
+
+type FirecrawlNormalizedScrape = {
+  finalUrl: string
+  httpStatus: number
+  markdown?: string
+  html?: string
+  links: string[]
+  title?: string
+  metaDescription?: string
+}
+
+function firecrawlBaseUrl() {
+  return (env.FIRECRAWL_API_BASE_URL ?? FIRECRAWL_DEFAULT_BASE_URL).replace(/\/$/, "")
+}
+
+function isFirecrawlConfigured() {
+  return Boolean(env.FIRECRAWL_API_KEY)
+}
+
+function firecrawlRequestHeaders() {
+  return {
+    authorization: `Bearer ${env.FIRECRAWL_API_KEY ?? ""}`,
+    "content-type": "application/json",
+    accept: "application/json",
+  }
+}
+
+function firecrawlHttpError(
+  statusCode: number,
+  headers: Record<string, string | string[] | undefined>,
+  operation: string,
+) {
+  return new ProviderFetchError(
+    `HTTP_${statusCode}`,
+    `Firecrawl ${operation} failed with ${statusCode}`,
+    {
+      retryable: FIRECRAWL_RETRYABLE_STATUSES.has(statusCode),
+      statusCode,
+      retryAfterMs: parseRetryAfter(headers["retry-after"]),
+    },
+  )
+}
+
+function normalizeFirecrawlScrape(
+  payload: unknown,
+  fallbackUrl: string,
+  responseStatus: number,
+): FirecrawlNormalizedScrape {
+  const root = (payload ?? {}) as { data?: FirecrawlScrapePayload } & FirecrawlScrapePayload
+  const data = root.data ?? root
+  const metadata = data.metadata ?? {}
+  const links = Array.isArray(data.links)
+    ? data.links.filter((link): link is string => typeof link === "string")
+    : []
+  const finalUrl = metadata.sourceURL ?? metadata.url ?? fallbackUrl
+  const httpStatus = typeof metadata.statusCode === "number" ? metadata.statusCode : responseStatus
+  return {
+    finalUrl,
+    httpStatus,
+    markdown: data.markdown,
+    html: data.html,
+    links,
+    title: metadata.title,
+    metaDescription: metadata.description,
+  }
+}
+
+function extractFirecrawlMapLinks(payload: unknown): string[] {
+  const root = (payload ?? {}) as {
+    success?: boolean
+    links?: Array<{ url?: string } | string>
+  }
+  const raw = Array.isArray(root.links) ? root.links : []
+  return raw
+    .map((entry) => (typeof entry === "string" ? entry : entry?.url))
+    .filter((value): value is string => typeof value === "string" && value.length > 0)
+}
+
+async function scrapeHomepageWithFirecrawl(
+  ctx: ActionCtx,
+  claim: Claim,
+): Promise<PrimaryFetchResult | null> {
+  if (!isFirecrawlConfigured()) {
+    return null
+  }
+
+  const url = claim.normalizedUrl
+  const result = await runProviderAttempt<PrimaryFetchResult>(
+    ctx,
+    claim,
+    "firecrawl",
+    "scrape_homepage",
+    `firecrawl:scrape:${url}`,
+    async () => {
+      const response = await requestJson<unknown>(`${firecrawlBaseUrl()}/v2/scrape`, {
+        method: "POST",
+        headers: firecrawlRequestHeaders(),
+        body: JSON.stringify({
+          url,
+          formats: ["markdown", "html", "links"],
+          onlyMainContent: false,
+          timeout: 25_000,
+        }),
+        timeoutMs: 35_000,
+        bodyLimitBytes: 5_000_000,
+        maxRedirects: 3,
+      })
+
+      if (response.statusCode >= 400) {
+        throw firecrawlHttpError(response.statusCode, response.headers, "scrape_homepage")
+      }
+
+      const normalized = normalizeFirecrawlScrape(response.json, url, response.statusCode)
+      if (!normalized.html && !normalized.markdown) {
+        throw new ProviderFetchError("EMPTY_RESPONSE", "Firecrawl returned no usable content.", {
+          retryable: false,
+        })
+      }
+
+      return {
+        value: {
+          finalUrl: normalized.finalUrl,
+          httpStatus: normalized.httpStatus,
+          sourceProvider: "firecrawl" as const,
+          html: normalized.html ?? "",
+          markdown: normalized.markdown ?? "",
+          links: normalized.links,
+        },
+        responseStatus: response.statusCode,
+      }
+    },
+    { optional: true },
+  )
+
+  return result
+}
+
+async function scrapePriorityPageWithFirecrawl(
+  ctx: ActionCtx,
+  claim: Claim,
+  url: string,
+  pageIndex: number,
+  kind: string,
+): Promise<PriorityPageResult | null> {
+  if (!isFirecrawlConfigured()) {
+    return null
+  }
+
+  const result = await runProviderAttempt<PriorityPageResult>(
+    ctx,
+    claim,
+    "firecrawl",
+    "scrape_priority_page",
+    `firecrawl:scrape:${url}`,
+    async () => {
+      const response = await requestJson<unknown>(`${firecrawlBaseUrl()}/v2/scrape`, {
+        method: "POST",
+        headers: firecrawlRequestHeaders(),
+        body: JSON.stringify({
+          url,
+          formats: ["markdown", "html"],
+          onlyMainContent: false,
+          timeout: 25_000,
+        }),
+        timeoutMs: 35_000,
+        bodyLimitBytes: 5_000_000,
+        maxRedirects: 3,
+      })
+
+      if (response.statusCode >= 400) {
+        throw firecrawlHttpError(response.statusCode, response.headers, "scrape_priority_page")
+      }
+
+      const normalized = normalizeFirecrawlScrape(response.json, url, response.statusCode)
+      if (!normalized.html && !normalized.markdown) {
+        throw new ProviderFetchError("EMPTY_RESPONSE", "Firecrawl returned no usable content.", {
+          retryable: false,
+        })
+      }
+
+      return {
+        value: {
+          pageIndex,
+          kind,
+          url,
+          normalizedUrl: normalizeUrlForAudit(normalized.finalUrl),
+          httpStatus: normalized.httpStatus,
+          finalUrl: normalized.finalUrl,
+          html: normalized.html,
+          markdown: normalized.markdown,
+          sourceProvider: "firecrawl" as const,
+        },
+        responseStatus: response.statusCode,
+      }
+    },
+    { optional: true },
+  )
+
+  return result
+}
+
+async function mapWithFirecrawl(ctx: ActionCtx, claim: Claim, baseUrl: string): Promise<string[]> {
+  if (!isFirecrawlConfigured()) {
+    return []
+  }
+
+  const result = await runProviderAttempt<string[]>(
+    ctx,
+    claim,
+    "firecrawl",
+    "map_site_urls",
+    `firecrawl:map:${baseUrl}`,
+    async () => {
+      const response = await requestJson<unknown>(`${firecrawlBaseUrl()}/v2/map`, {
+        method: "POST",
+        headers: firecrawlRequestHeaders(),
+        body: JSON.stringify({
+          url: baseUrl,
+          sitemap: "include",
+          includeSubdomains: false,
+          ignoreQueryParameters: true,
+          limit: 30,
+          timeout: 15_000,
+        }),
+        timeoutMs: 25_000,
+        bodyLimitBytes: 1_500_000,
+        maxRedirects: 3,
+      })
+
+      if (response.statusCode >= 400) {
+        throw firecrawlHttpError(response.statusCode, response.headers, "map_site_urls")
+      }
+
+      return {
+        value: extractFirecrawlMapLinks(response.json),
+        responseStatus: response.statusCode,
+      }
+    },
+    { optional: true },
+  )
+
+  return result ?? []
+}
+
 async function fetchPrimaryHtml(ctx: ActionCtx, claim: Claim): Promise<PrimaryFetchResult> {
   const directEvidence = `direct_html:${claim.normalizedUrl}`
   try {
@@ -436,6 +724,16 @@ async function fetchPrimaryHtml(ctx: ActionCtx, claim: Claim): Promise<PrimaryFe
     throw new ProviderFetchError("EMPTY_RESPONSE", "HTML fetch returned no content.", { retryable: false })
   } catch (error) {
     const directError = error instanceof Error ? error : new Error("HTML fetch failed")
+
+    try {
+      const firecrawlResult = await scrapeHomepageWithFirecrawl(ctx, claim)
+      if (firecrawlResult) {
+        return firecrawlResult
+      }
+    } catch {
+      // fall through to jina markdown fallback
+    }
+
     const jinaUrl = `https://r.jina.ai/http://${claim.normalizedUrl.replace(/^https?:\/\//, "")}`
     const jinaEvidence = `jina:${jinaUrl}`
 
@@ -492,8 +790,14 @@ async function fetchPrimaryHtml(ctx: ActionCtx, claim: Claim): Promise<PrimaryFe
   }
 }
 
-async function fetchPriorityPage(ctx: ActionCtx, claim: Claim, url: string, pageIndex: number, kind: string) {
-  return await runProviderAttempt(
+async function fetchPriorityPage(
+  ctx: ActionCtx,
+  claim: Claim,
+  url: string,
+  pageIndex: number,
+  kind: string,
+): Promise<PriorityPageResult | null> {
+  const directResult = await runProviderAttempt<PriorityPageResult>(
     ctx,
     claim,
     "direct_html",
@@ -527,12 +831,19 @@ async function fetchPriorityPage(ctx: ActionCtx, claim: Claim, url: string, page
           httpStatus: response.statusCode,
           finalUrl: response.finalUrl,
           html: response.text,
+          sourceProvider: "direct_html" as const,
         },
         responseStatus: response.statusCode,
       }
     },
     { optional: true },
   )
+
+  if (directResult) {
+    return directResult
+  }
+
+  return await scrapePriorityPageWithFirecrawl(ctx, claim, url, pageIndex, kind)
 }
 
 function parsePageSpeed(result: {
@@ -912,10 +1223,12 @@ export const processAuditPipeline = internalAction({
     const plan = getAuditPipelinePlan(claim.auditType)
     const primaryFetch = await fetchPrimaryHtml(ctx, claim)
 
+    const primaryOrigin = new URL(primaryFetch.finalUrl).origin
     const primarySignals =
-      primaryFetch.sourceProvider === "direct_html"
-        ? extractSignalsFromHtml(primaryFetch.html, primaryFetch.finalUrl, new URL(primaryFetch.finalUrl).origin)
-        : extractSignalsFromMarkdown(primaryFetch.markdown, new URL(claim.normalizedUrl).origin)
+      primaryFetch.sourceProvider === "jina" ||
+      (primaryFetch.sourceProvider === "firecrawl" && !primaryFetch.html)
+        ? extractSignalsFromMarkdown(primaryFetch.markdown, primaryOrigin)
+        : extractSignalsFromHtml(primaryFetch.html, primaryFetch.finalUrl, primaryOrigin)
 
     await ctx.runMutation(internal.audit_state.advanceAuditPipelineStage, {
       auditId: claim.auditId,
@@ -960,7 +1273,15 @@ export const processAuditPipeline = internalAction({
     })
 
     const homeUrl = new URL(primaryFetch.finalUrl)
-    const prioritizedPages = pickPriorityPages(homeUrl.toString(), primarySignals.internalLinks, plan.maxPages)
+    const firecrawlScrapeLinks = primaryFetch.sourceProvider === "firecrawl" ? primaryFetch.links : []
+    const firecrawlMappedLinks =
+      plan.maxPages > 1 ? await mapWithFirecrawl(ctx, claim, homeUrl.toString()) : []
+    const discoveredInternalLinks = [
+      ...primarySignals.internalLinks,
+      ...firecrawlScrapeLinks,
+      ...firecrawlMappedLinks,
+    ]
+    const prioritizedPages = pickPriorityPages(homeUrl.toString(), discoveredInternalLinks, plan.maxPages)
 
     const additionalPages = await Promise.allSettled(
       prioritizedPages.slice(1).map((page, index) =>
@@ -986,7 +1307,10 @@ export const processAuditPipeline = internalAction({
           return []
         }
         const page = result.value
-        const pageSignals = extractSignalsFromHtml(page.html, page.finalUrl, new URL(page.finalUrl).origin)
+        const pageOrigin = new URL(page.finalUrl).origin
+        const pageSignals = page.html
+          ? extractSignalsFromHtml(page.html, page.finalUrl, pageOrigin)
+          : extractSignalsFromMarkdown(page.markdown ?? "", pageOrigin)
         return [
           {
             pageIndex: page.pageIndex,
@@ -997,7 +1321,7 @@ export const processAuditPipeline = internalAction({
             finalUrl: page.finalUrl,
             title: pageSignals.title,
             metaDescription: pageSignals.metaDescription,
-            sourceProvider: "direct_html" as const,
+            sourceProvider: page.sourceProvider,
             sourceUrl: page.finalUrl,
           },
         ]

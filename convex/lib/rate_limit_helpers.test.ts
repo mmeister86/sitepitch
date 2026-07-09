@@ -29,6 +29,7 @@ describe("providerToLimitKind", () => {
     assert.equal(providerToLimitKind("other"), "llm")
     assert.equal(providerToLimitKind("direct_html"), "content")
     assert.equal(providerToLimitKind("jina"), "content")
+    assert.equal(providerToLimitKind("firecrawl"), "content")
   })
 })
 

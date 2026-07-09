@@ -93,6 +93,7 @@ assert.deepEqual(getValidatorValues(auditTypeValidator), [
 assert.deepEqual(getValidatorValues(providerCallProviderValidator), [
   { type: "literal", value: "direct_html" },
   { type: "literal", value: "jina" },
+  { type: "literal", value: "firecrawl" },
   { type: "literal", value: "screenshotone" },
   { type: "literal", value: "pagespeed" },
   { type: "literal", value: "local_business_data" },

@@ -14,6 +14,8 @@ const app = defineApp({
     PAGESPEED_TIMEOUT_MS: v.optional(v.string()),
     LOCAL_BUSINESS_DATA_API_KEY: v.optional(v.string()),
     GOOGLE_PLACES_API_KEY: v.optional(v.string()),
+    FIRECRAWL_API_KEY: v.optional(v.string()),
+    FIRECRAWL_API_BASE_URL: v.optional(v.string()),
     OPENROUTER_API_KEY: v.optional(v.string()),
     OPENROUTER_MODEL: v.optional(v.string()),
     SITE_URL: v.optional(v.string()),
