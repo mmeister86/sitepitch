@@ -203,3 +203,10 @@ const designCritiqueIndexes = (schema.tables.auditDesignCritiques as any).indexe
 )
 assert.ok(designCritiqueIndexes.includes("by_auditId"))
 assert.ok(designCritiqueIndexes.includes("by_workspaceId_and_auditId"))
+
+const leadsIndexes = (schema.tables.leads as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(leadsIndexes.includes("by_workspaceId"))
+assert.ok(leadsIndexes.includes("by_workspaceId_and_status"))
+assert.ok(leadsIndexes.includes("by_workspaceId_and_sourceProvider_and_sourceId"))

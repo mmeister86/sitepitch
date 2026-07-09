@@ -1,9 +1,10 @@
 ---
 id: TASK-4.11
 title: Build MVP lead search and lead list
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-07-03 20:03'
+updated_date: '2026-07-08 20:08'
 labels:
   - mvp
   - lead-search
@@ -15,7 +16,7 @@ documentation:
   - .docs/PRD-SitePitch.md
 parent_task_id: TASK-4
 priority: medium
-ordinal: 15000
+ordinal: 1000
 ---
 
 ## Description

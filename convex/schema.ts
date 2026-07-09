@@ -134,6 +134,9 @@ export default defineSchema({
     country: v.optional(v.string()),
     address: v.optional(v.string()),
     phone: v.optional(v.string()),
+    businessEmail: v.optional(v.string()),
+    latitude: v.optional(v.number()),
+    longitude: v.optional(v.number()),
     sourceProvider: leadSourceProviderValidator,
     sourceId: v.optional(v.string()),
     status: leadStatusValidator,
@@ -146,6 +149,7 @@ export default defineSchema({
     .index("by_workspaceId_and_city", ["workspaceId", "city"])
     .index("by_workspaceId_and_category", ["workspaceId", "category"])
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
+    .index("by_workspaceId_and_sourceProvider_and_sourceId", ["workspaceId", "sourceProvider", "sourceId"])
     .index("by_sourceProvider_and_sourceId", ["sourceProvider", "sourceId"]),
 
   audits: defineTable({

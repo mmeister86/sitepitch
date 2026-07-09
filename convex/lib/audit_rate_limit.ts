@@ -43,6 +43,14 @@ export async function checkAuditStartLimits(
   if (!byWorkspace.ok) throwRateLimited(byWorkspace.retryAfter)
 }
 
+export async function checkLeadSearchLimit(
+  ctx: AnyCtx,
+  args: { workspaceId: string },
+): Promise<void> {
+  const result = await auditRateLimiter.limit(ctx, "leadSearchByWorkspace", { key: args.workspaceId })
+  if (!result.ok) throwRateLimited(result.retryAfter)
+}
+
 export async function checkProviderLimit(
   ctx: AnyCtx,
   args: { kind: ProviderLimitKind; provider: string },

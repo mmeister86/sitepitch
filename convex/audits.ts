@@ -141,11 +141,19 @@ export const createQueuedAudit = internalMutation({
     auditType: v.union(v.literal("standard"), v.literal("local"), v.literal("quick")),
     reportLanguage: v.union(v.literal("de"), v.literal("en")),
     idempotencyKey: v.string(),
+    leadId: v.optional(v.id("leads")),
   },
   handler: async (ctx, args) => {
     const workspace = await ctx.db.get(args.workspaceId)
     if (!workspace || workspace.ownerUserId !== args.userId) {
       throw new ConvexError({ code: "FORBIDDEN", message: "Workspace access denied" })
+    }
+
+    if (args.leadId) {
+      const lead = await ctx.db.get(args.leadId)
+      if (!lead || lead.workspaceId !== args.workspaceId) {
+        throw new ConvexError({ code: "FORBIDDEN", message: "Workspace access denied" })
+      }
     }
 
     const existing: Doc<"audits"> | null = await ctx.db
@@ -155,14 +163,20 @@ export const createQueuedAudit = internalMutation({
       )
       .unique()
 
+    const now = Date.now()
+
     if (existing) {
+      if (args.leadId && existing.leadId !== args.leadId) {
+        await ctx.db.patch(existing._id, { leadId: args.leadId, updatedAt: now })
+        await ctx.db.patch(args.leadId, { auditId: existing._id, status: "audited", updatedAt: now })
+      }
       return toAuditStartResult(existing)
     }
 
-    const now = Date.now()
     const publicSlug = generatePublicSlug()
     const auditId = await ctx.db.insert("audits", {
       workspaceId: args.workspaceId,
+      leadId: args.leadId,
       createdByUserId: args.userId,
       url: args.url,
       normalizedUrl: args.normalizedUrl,
@@ -188,6 +202,10 @@ export const createQueuedAudit = internalMutation({
       attemptCount: 0,
       updatedAt: now,
     })
+
+    if (args.leadId) {
+      await ctx.db.patch(args.leadId, { auditId, status: "audited", updatedAt: now })
+    }
 
     await reserveWorkspaceCredit(ctx, args.workspaceId, args.userId, auditId, args.idempotencyKey)
 
@@ -229,6 +247,7 @@ export const startAudit = action({
     auditType: v.union(v.literal("standard"), v.literal("local"), v.literal("quick")),
     reportLanguage: v.union(v.literal("de"), v.literal("en")),
     idempotencyKey: v.string(),
+    leadId: v.optional(v.id("leads")),
   },
   handler: async (ctx, args): Promise<AuditStartResult> => {
     const workspaceBootstrap = await ctx.runMutation(api.workspaces.ensureCurrentWorkspace)
@@ -289,6 +308,7 @@ export const startAudit = action({
       auditType: args.auditType,
       reportLanguage: args.reportLanguage,
       idempotencyKey: args.idempotencyKey,
+      leadId: args.leadId,
     })
   },
 })
