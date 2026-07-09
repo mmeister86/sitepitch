@@ -25,3 +25,9 @@ Beispiel-Tonalität (Englisch):
 > Hi team, I came across your website and took a quick look at how well it's currently set up for new enquiries.
 
 Keine erfundenen Namen, falls kein Kontaktname vorhanden: „Hallo Team" / „Hi team".
+
+## GTM Opportunity
+
+Nutze genau eine konkrete GTM-Opportunity aus den Findings, aus `persona-review` oder aus `critique`.
+
+Keine Mass-Mail-Tonalität, keine künstliche Dringlichkeit, keine beschämende Sprache.

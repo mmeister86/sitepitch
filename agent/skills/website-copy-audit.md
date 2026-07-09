@@ -32,3 +32,12 @@ Wichtig:
 - Keine Geschmacksurteile wie "schlechte Texte", "unprofessionell" oder "langweilig".
 - Keine Conversion-Garantien.
 - Formuliere konstruktiv: "Das Nutzenversprechen könnte schneller erkennbar werden" statt "Die Headline ist schlecht".
+
+## GTM Lens
+
+Bewerte Copy auch als GTM-Signal:
+- Zielgruppe klar erkennbar?
+- Angebot spezifisch genug?
+- Proof oder Vertrauenselemente sichtbar?
+- CTA klar und niedrigschwellig?
+- Wichtigste Aussagen schnell scanbar?

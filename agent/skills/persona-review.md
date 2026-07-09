@@ -31,3 +31,7 @@ Erzeuge pro Persona genau eine strukturierte Review mit:
 - Keine Rechts-, Security- oder Conversion-Garantie-Claims
 - Keine beschämende Sprache, keine Geschmacksurteile
 - Konstruktiv und konkret formulieren
+
+## Pflichtlauf
+
+Diese Persona-Review ist Bestandteil jedes SitePitch-Audits.

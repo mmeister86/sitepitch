@@ -12,3 +12,7 @@ Fokus:
 Übersetze in Kundensprache: „Die lokale Auffindbarkeit ließe sich mit wenigen strukturellen Anpassungen verbessern."
 
 Evidence nur aus gespeicherten Checks. Keine Ranking-Garantien.
+
+## AI Readiness Handoff
+
+Wenn SEO-Signale auch AI-Discoverability betreffen, nutze zusätzlich `ai-discoverability-audit`. Keine Ranking- oder AI-Citation-Garantien ableiten.

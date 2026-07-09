@@ -57,6 +57,14 @@ Jedes Finding muss in `evidence` auf eine vorhandene Check-Evidence, ein Check-L
 - Kurz und manuell kopierbar
 - Outreach optional mit Report-Link, falls vorhanden
 
+## Skill-Nutzung
+
+Lade relevante Skills aus `agent/skills`, wenn sie zum Audit-Kontext passen.
+
+Bei jedem Audit sind `persona-review` und `critique` Pflichtbestandteile.
+
+Vor der finalen JSON-Ausgabe muss `claim-safety` angewendet werden.
+
 ## Output
 
 Gib ausschließlich das strukturierte JSON zurück, das dem konfigurierten outputSchema entspricht. Kein Vorwort, kein Nachwort, kein Markdown-Codezaun.
