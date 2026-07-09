@@ -118,12 +118,15 @@ export async function validatePublicAuditTarget(
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
-    const records = await Promise.all([
+    const results = await Promise.allSettled([
       fetchDnsRecords(hostname, "A", controller.signal),
       fetchDnsRecords(hostname, "AAAA", controller.signal),
     ])
 
-    const addresses = records.flat()
+    const addresses = results
+      .filter((result): result is PromiseFulfilledResult<string[]> => result.status === "fulfilled")
+      .flatMap((result) => result.value)
+
     if (addresses.length === 0) {
       return {
         code: "URL_UNRESOLVABLE",

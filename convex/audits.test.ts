@@ -256,6 +256,37 @@ describe("audit URL helpers", () => {
       assert.equal(result.code, "UNSAFE_URL")
     }
   })
+
+  test("tolerates a failed DNS lookup when the other resolves to public addresses", async () => {
+    mocks.fetch.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input))
+      const type = url.searchParams.get("type")
+      if (type === "A") {
+        return dnsResponse(["93.184.216.34"])
+      }
+      throw new Error("DNS_QUERY_FAILED:500")
+    })
+
+    const result = await validatePublicAuditTarget("example.com")
+
+    assert.equal("ok" in result, true)
+    if ("ok" in result) {
+      assert.deepEqual(result.addresses, ["93.184.216.34"])
+    }
+  })
+
+  test("returns URL_UNRESOLVABLE when both DNS lookups fail", async () => {
+    mocks.fetch.mockImplementation(async () => {
+      throw new Error("DNS_QUERY_FAILED:500")
+    })
+
+    const result = await validatePublicAuditTarget("example.com")
+
+    assert.equal("code" in result, true)
+    if ("code" in result) {
+      assert.equal(result.code, "URL_UNRESOLVABLE")
+    }
+  })
 })
 
 describe("audit start flow", () => {
