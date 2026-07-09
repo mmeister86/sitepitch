@@ -71,15 +71,27 @@ export function normalizeLeadWebsiteUrl(value?: string): string | undefined {
 }
 
 type RapidApiBusinessCandidate = {
+  business_id?: string
+  businessId?: string
+  place_id?: string
+  google_place_id?: string
+  google_id?: string
+  googleId?: string
   id?: string
   name?: string
+  business_name?: string
+  title?: string
   address?: string
   full_address?: string
+  formatted_address?: string
   city?: string
   country?: string
   website?: string
+  site?: string
+  url?: string
   phone?: string
   phone_number?: string
+  telephone?: string
   full_phone_number?: string
   international_phone_number?: string
   formatted_phone_number?: string
@@ -88,10 +100,16 @@ type RapidApiBusinessCandidate = {
   emails?: string[]
   business_email?: string
   business_emails?: string[]
+  contact_emails?: unknown
+  contacts?: unknown
+  emails_and_contacts?: Record<string, unknown> | null
   types?: string[]
+  subtypes?: string[]
   categories?: string[]
+  category?: string | string[]
   business_type?: string
   type?: string
+  primary_type?: string
   latitude?: number | string
   longitude?: number | string
   lat?: number | string
@@ -102,8 +120,8 @@ type RapidApiBusinessCandidate = {
 }
 
 type RapidApiBusinessPayload = {
-  data?: RapidApiBusinessCandidate[]
-  results?: RapidApiBusinessCandidate[]
+  data?: unknown
+  results?: unknown
 }
 
 type GooglePlacesCandidate = {
@@ -151,6 +169,54 @@ function firstNonEmpty(...values: Array<string | string[] | undefined | null>): 
   return undefined
 }
 
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function collectStringValues(value: unknown, output: string[]): void {
+  if (typeof value === "string" && value.trim() !== "") {
+    output.push(value.trim())
+    return
+  }
+
+  if (!Array.isArray(value)) return
+
+  for (const item of value) {
+    if (typeof item === "string" && item.trim() !== "") {
+      output.push(item.trim())
+      continue
+    }
+
+    const itemObject = objectValue(item)
+    if (!itemObject) continue
+
+    for (const key of ["email", "value", "email_address", "mail"]) {
+      const nested = itemObject[key]
+      if (typeof nested === "string" && nested.trim() !== "") {
+        output.push(nested.trim())
+        break
+      }
+    }
+  }
+}
+
+function collectNormalizedEmails(...values: unknown[]): string[] {
+  const rawEmails: string[] = []
+  for (const value of values) {
+    collectStringValues(value, rawEmails)
+  }
+
+  const seen = new Set<string>()
+  const emails: string[] = []
+  for (const rawEmail of rawEmails) {
+    const email = normalizeBusinessEmail(rawEmail)
+    if (!email || seen.has(email)) continue
+    seen.add(email)
+    emails.push(email)
+  }
+  return emails
+}
+
 function toNumber(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value
   if (typeof value === "string") {
@@ -193,6 +259,7 @@ function extractRapidApiPhone(c: RapidApiBusinessCandidate): string | undefined 
   return firstNonEmpty(
     c.phone,
     c.phone_number,
+    c.telephone,
     c.full_phone_number,
     c.international_phone_number,
     c.formatted_phone_number,
@@ -201,8 +268,55 @@ function extractRapidApiPhone(c: RapidApiBusinessCandidate): string | undefined 
 }
 
 function extractRapidApiEmail(c: RapidApiBusinessCandidate): string | undefined {
-  return normalizeBusinessEmail(
-    firstNonEmpty(c.business_email, c.email, c.business_emails, c.emails),
+  const emailsAndContacts = objectValue(c.emails_and_contacts)
+  return collectNormalizedEmails(
+    c.business_email,
+    c.email,
+    c.business_emails,
+    c.emails,
+    c.contact_emails,
+    c.contacts,
+    emailsAndContacts?.emails,
+  )[0]
+}
+
+function isRapidApiBusinessCandidate(value: unknown): value is RapidApiBusinessCandidate {
+  return value !== null && typeof value === "object"
+}
+
+function extractRapidApiBusinesses(payload: unknown): RapidApiBusinessCandidate[] {
+  const body = payload as RapidApiBusinessPayload
+
+  if (Array.isArray(body.data)) {
+    return body.data.filter(isRapidApiBusinessCandidate)
+  }
+
+  const dataObject = objectValue(body.data)
+  if (dataObject) {
+    for (const key of ["businesses", "results", "items"]) {
+      const value = dataObject[key]
+      if (Array.isArray(value)) {
+        return value.filter(isRapidApiBusinessCandidate)
+      }
+    }
+  }
+
+  if (Array.isArray(body.results)) {
+    return body.results.filter(isRapidApiBusinessCandidate)
+  }
+
+  return []
+}
+
+function extractRapidApiSourceId(candidate: RapidApiBusinessCandidate): string | undefined {
+  return firstNonEmpty(
+    candidate.business_id,
+    candidate.businessId,
+    candidate.place_id,
+    candidate.google_place_id,
+    candidate.google_id,
+    candidate.googleId,
+    candidate.id,
   )
 }
 
@@ -217,13 +331,17 @@ function extractRapidApiCoordinates(c: RapidApiBusinessCandidate): { latitude?: 
 }
 
 function mapRapidApiCandidate(candidate: RapidApiBusinessCandidate): LeadSearchResult {
-  const websiteUrl = candidate.website?.trim() || undefined
+  const websiteUrl = firstNonEmpty(candidate.website, candidate.site, candidate.url)
   const normalizedWebsiteUrl = normalizeLeadWebsiteUrl(websiteUrl)
-  const businessName = candidate.name?.trim() || "Unbekanntes Unternehmen"
+  const businessName = firstNonEmpty(candidate.name, candidate.business_name, candidate.title) || "Unbekanntes Unternehmen"
   const category =
     pickFirstCategory(candidate.types) ??
+    pickFirstCategory(candidate.subtypes) ??
     pickFirstCategory(candidate.categories) ??
+    pickFirstCategory(Array.isArray(candidate.category) ? candidate.category : undefined) ??
+    (typeof candidate.category === "string" ? candidate.category.trim() : undefined) ??
     candidate.business_type?.trim() ??
+    candidate.primary_type?.trim() ??
     candidate.type?.trim() ??
     undefined
   const coords = extractRapidApiCoordinates(candidate)
@@ -233,7 +351,7 @@ function mapRapidApiCandidate(candidate: RapidApiBusinessCandidate): LeadSearchR
     websiteUrl,
     normalizedWebsiteUrl,
     category,
-    address: (candidate.address ?? candidate.full_address)?.trim() || undefined,
+    address: firstNonEmpty(candidate.full_address, candidate.address, candidate.formatted_address),
     phone: extractRapidApiPhone(candidate),
     businessEmail: extractRapidApiEmail(candidate),
     city: candidate.city?.trim() || undefined,
@@ -241,7 +359,7 @@ function mapRapidApiCandidate(candidate: RapidApiBusinessCandidate): LeadSearchR
     latitude: coords.latitude,
     longitude: coords.longitude,
     sourceProvider: "rapidapi",
-    sourceId: candidate.id?.trim() || undefined,
+    sourceId: extractRapidApiSourceId(candidate),
     sourceLabel: "Local Business Data",
     auditReady: Boolean(normalizedWebsiteUrl),
   }
@@ -275,8 +393,7 @@ function mapGooglePlacesCandidate(candidate: GooglePlacesCandidate): LeadSearchR
 }
 
 export function normalizeRapidApiResults(payload: unknown, limit: number): LeadSearchResult[] {
-  const body = payload as RapidApiBusinessPayload
-  const candidates = body.data ?? body.results ?? []
+  const candidates = extractRapidApiBusinesses(payload)
   return candidates
     .slice(0, limit)
     .map(mapRapidApiCandidate)

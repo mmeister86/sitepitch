@@ -111,6 +111,9 @@ async function searchRapidApiLocalBusinessData(
   const url = new URL("https://local-business-data.p.rapidapi.com/search")
   url.searchParams.set("query", query)
   url.searchParams.set("limit", String(limit))
+  url.searchParams.set("language", "de")
+  url.searchParams.set("region", "de")
+  url.searchParams.set("extract_emails_and_contacts", "true")
 
   const response = await fetchProviderJson(
     url.toString(),

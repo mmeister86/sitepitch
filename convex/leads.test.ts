@@ -341,6 +341,39 @@ describe("lead search pure helpers", () => {
     assert.equal(results[1].businessEmail, "info@apo-alt.de")
   })
 
+  test("normalizeRapidApiResults extracts Local Business Data contact email fields", () => {
+    const payload = {
+      data: {
+        businesses: [
+          {
+            business_id: "nested-1",
+            name: "Zahnarzt Nested",
+            emails_and_contacts: {
+              emails: [" INFO@Zahnarzt-Nested.de ", "info@zahnarzt-nested.de"],
+            },
+          },
+          {
+            business_id: "nested-2",
+            name: "Apotheke Contact",
+            contact_emails: ["not-an-email", "OFFICE@Apo-Contact.de"],
+          },
+          {
+            business_id: "nested-3",
+            name: "Praxis Contacts",
+            contacts: [{ email: "Team@Praxis-Contacts.de" }, { value: "service@praxis-contacts.de" }],
+          },
+        ],
+      },
+    }
+
+    const results = normalizeRapidApiResults(payload, 10)
+    assert.equal(results.length, 3)
+    assert.equal(results[0].sourceId, "nested-1")
+    assert.equal(results[0].businessEmail, "info@zahnarzt-nested.de")
+    assert.equal(results[1].businessEmail, "office@apo-contact.de")
+    assert.equal(results[2].businessEmail, "team@praxis-contacts.de")
+  })
+
   test("normalizeRapidApiResults extracts alternative coordinate formats", () => {
     const payload = {
       data: [
