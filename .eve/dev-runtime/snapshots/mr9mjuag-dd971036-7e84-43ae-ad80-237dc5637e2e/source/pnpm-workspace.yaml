@@ -1,5 +1,0 @@
-minimumReleaseAge: 0
-strictDepBuilds: false
-allowBuilds:
-  esbuild: true
-  sharp: true

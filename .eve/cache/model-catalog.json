@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-07-06T19:40:06.011Z",
+  "fetchedAt": "2026-07-08T13:30:16.122Z",
   "kind": "eve-model-catalog-cache",
   "models": [
     {
@@ -9,7 +9,11 @@
           "provider": "deepinfra",
           "providerModelId": "Qwen/Qwen3-14B",
           "contextWindowTokens": 40960,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -20,19 +24,29 @@
           "provider": "deepinfra",
           "providerModelId": "Qwen/Qwen3-235B-A22B-Instruct-2507",
           "contextWindowTokens": 40960,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "tool-use"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "qwen/qwen3-235b-a22b-instruct-2507",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "qwen/qwen3-235b-a22b-instruct-2507-maas",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -43,7 +57,11 @@
           "provider": "deepinfra",
           "providerModelId": "Qwen/Qwen3-30B-A3B",
           "contextWindowTokens": 40960,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -54,25 +72,42 @@
           "provider": "alibaba",
           "providerModelId": "qwen3-32b",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "bedrock",
           "providerModelId": "qwen.qwen3-32b-v1:0",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "Qwen/Qwen3-32B",
           "contextWindowTokens": 40960,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "groq",
           "providerModelId": "qwen/qwen3-32b",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 40960
+          "maxOutputTokens": 40960,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -83,7 +118,12 @@
           "provider": "alibaba",
           "providerModelId": "qwen3.6-max-preview",
           "contextWindowTokens": 240000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -94,19 +134,34 @@
           "provider": "alibaba",
           "providerModelId": "qwen3-vl-235b-a22b-thinking",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "vision",
+            "reasoning",
+            "tool-use",
+            "file-input"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "Qwen/Qwen3-235B-A22B-Thinking-2507",
           "contextWindowTokens": 262114,
-          "maxOutputTokens": 262114
+          "maxOutputTokens": 262114,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "qwen/qwen3-vl-235b-a22b-thinking",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -117,25 +172,40 @@
           "provider": "alibaba",
           "providerModelId": "qwen3-coder-480b-a35b-instruct",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 65536
+          "maxOutputTokens": 65536,
+          "tags": [
+            "implicit-caching",
+            "tool-use"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "Qwen/Qwen3-Coder-480B-A35B-Instruct",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 66536
+          "maxOutputTokens": 66536,
+          "tags": [
+            "implicit-caching",
+            "tool-use"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "qwen/qwen3-coder-480b-a35b-instruct",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 65536
+          "maxOutputTokens": 65536,
+          "tags": [
+            "tool-use"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "qwen/qwen3-coder-480b-a35b-instruct-maas",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "implicit-caching",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -146,13 +216,19 @@
           "provider": "bedrock",
           "providerModelId": "qwen.qwen3-coder-30b-a3b-v1:0",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "tool-use"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "qwen/qwen3-coder-30b-a3b-instruct",
           "contextWindowTokens": 160000,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -163,13 +239,19 @@
           "provider": "bedrock",
           "providerModelId": "qwen.qwen3-coder-next",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 256000
+          "maxOutputTokens": 256000,
+          "tags": [
+            "tool-use"
+          ]
         },
         {
           "provider": "togetherai",
           "providerModelId": "Qwen/Qwen3-Coder-Next-FP8",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 256000
+          "maxOutputTokens": 256000,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -180,7 +262,11 @@
           "provider": "alibaba",
           "providerModelId": "qwen3-coder-plus-2025-09-23",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 65536
+          "maxOutputTokens": 65536,
+          "tags": [
+            "implicit-caching",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -224,13 +310,20 @@
           "provider": "alibaba",
           "providerModelId": "qwen3-max",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "qwen/qwen3-max",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 65536
+          "maxOutputTokens": 65536,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -241,7 +334,11 @@
           "provider": "alibaba",
           "providerModelId": "qwen3-max-preview",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -252,7 +349,12 @@
           "provider": "alibaba",
           "providerModelId": "qwen3-max-2026-01-23",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 65536
+          "maxOutputTokens": 65536,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -263,25 +365,37 @@
           "provider": "alibaba",
           "providerModelId": "qwen3-next-80b-a3b-instruct",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "tool-use"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "Qwen/Qwen3-Next-80B-A3B-Instruct",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "tool-use"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "qwen/qwen3-next-80b-a3b-instruct",
           "contextWindowTokens": 65536,
-          "maxOutputTokens": 65536
+          "maxOutputTokens": 65536,
+          "tags": [
+            "tool-use"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "qwen/qwen3-next-80b-a3b-instruct-maas",
           "contextWindowTokens": 262114,
-          "maxOutputTokens": 262114
+          "maxOutputTokens": 262114,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -292,19 +406,31 @@
           "provider": "alibaba",
           "providerModelId": "qwen3-next-80b-a3b-thinking",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "qwen/qwen3-next-80b-a3b-thinking",
           "contextWindowTokens": 65536,
-          "maxOutputTokens": 65536
+          "maxOutputTokens": 65536,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "qwen/qwen3-next-80b-a3b-thinking-maas",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 262144
+          "maxOutputTokens": 262144,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -315,13 +441,22 @@
           "provider": "alibaba",
           "providerModelId": "qwen3-vl-235b-a22b-instruct",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 129024
+          "maxOutputTokens": 129024,
+          "tags": [
+            "tool-use",
+            "vision"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "Qwen/Qwen3-VL-235B-A22B-Instruct",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 262144
+          "maxOutputTokens": 262144,
+          "tags": [
+            "implicit-caching",
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -332,19 +467,32 @@
           "provider": "alibaba",
           "providerModelId": "qwen3-vl-235b-a22b-instruct",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 129024
+          "maxOutputTokens": 129024,
+          "tags": [
+            "tool-use",
+            "vision"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "Qwen/Qwen3-VL-235B-A22B-Instruct",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 262144
+          "maxOutputTokens": 262144,
+          "tags": [
+            "implicit-caching",
+            "tool-use",
+            "vision"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "qwen/qwen3-vl-235b-a22b-instruct",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -355,13 +503,23 @@
           "provider": "alibaba",
           "providerModelId": "qwen3-vl-235b-a22b-thinking",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "vision",
+            "reasoning",
+            "tool-use",
+            "file-input"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "qwen/qwen3-vl-235b-a22b-thinking",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -372,7 +530,14 @@
           "provider": "alibaba",
           "providerModelId": "qwen3.5-flash",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "vision",
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -383,7 +548,14 @@
           "provider": "alibaba",
           "providerModelId": "qwen3.5-plus",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "vision",
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -394,7 +566,13 @@
           "provider": "alibaba",
           "providerModelId": "qwen3.6-27b",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 256000
+          "maxOutputTokens": 256000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "file-input",
+            "vision"
+          ]
         }
       ]
     },
@@ -405,19 +583,39 @@
           "provider": "alibaba",
           "providerModelId": "qwen3.6-plus",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "vision",
+            "file-input"
+          ]
         },
         {
           "provider": "fireworks",
           "providerModelId": "accounts/fireworks/models/qwen3p6-plus",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision"
+          ]
         },
         {
           "provider": "togetherai",
           "providerModelId": "Qwen/Qwen3.6-Plus",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "vision",
+            "file-input"
+          ]
         }
       ]
     },
@@ -428,7 +626,12 @@
           "provider": "alibaba",
           "providerModelId": "qwen3.7-max",
           "contextWindowTokens": 991000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -439,19 +642,39 @@
           "provider": "alibaba",
           "providerModelId": "qwen3.7-plus",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision"
+          ]
         },
         {
           "provider": "fireworks",
           "providerModelId": "accounts/fireworks/models/qwen3p7-plus",
-          "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000
+          "contextWindowTokens": 262000,
+          "maxOutputTokens": 64000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision"
+          ]
         },
         {
           "provider": "togetherai",
           "providerModelId": "Qwen/Qwen3.7-Plus",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "file-input",
+            "vision"
+          ]
         }
       ]
     },
@@ -522,13 +745,41 @@
       ]
     },
     {
+      "slug": "alibaba/wan-v2.7-r2v",
+      "providers": [
+        {
+          "provider": "alibaba",
+          "providerModelId": "wan2.7-r2v",
+          "contextWindowTokens": 0,
+          "maxOutputTokens": 0
+        }
+      ]
+    },
+    {
+      "slug": "alibaba/wan-v2.7-t2v",
+      "providers": [
+        {
+          "provider": "alibaba",
+          "providerModelId": "wan2.7-t2v",
+          "contextWindowTokens": 0,
+          "maxOutputTokens": 0
+        }
+      ]
+    },
+    {
       "slug": "amazon/nova-2-lite",
       "providers": [
         {
           "provider": "bedrock",
           "providerModelId": "us.amazon.nova-2-lite-v1:0",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 1000000
+          "maxOutputTokens": 1000000,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -539,7 +790,12 @@
           "provider": "bedrock",
           "providerModelId": "us.amazon.nova-lite-v1:0",
           "contextWindowTokens": 300000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "file-input",
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -550,7 +806,10 @@
           "provider": "bedrock",
           "providerModelId": "us.amazon.nova-micro-v1:0",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -561,7 +820,12 @@
           "provider": "bedrock",
           "providerModelId": "us.amazon.nova-pro-v1:0",
           "contextWindowTokens": 300000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "file-input",
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -583,13 +847,23 @@
           "provider": "bedrock",
           "providerModelId": "us.anthropic.claude-3-haiku-20240307-v1:0",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 4096
+          "maxOutputTokens": 4096,
+          "tags": [
+            "tool-use",
+            "vision",
+            "explicit-caching"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "claude-3-haiku@20240307",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 4096
+          "maxOutputTokens": 4096,
+          "tags": [
+            "explicit-caching",
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -600,13 +874,25 @@
           "provider": "bedrock",
           "providerModelId": "us.anthropic.claude-3-5-haiku-20241022-v1:0",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "file-input",
+            "tool-use",
+            "vision",
+            "explicit-caching"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "claude-3-5-haiku@20241022",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "file-input",
+            "tool-use",
+            "vision",
+            "explicit-caching"
+          ]
         }
       ]
     },
@@ -617,13 +903,27 @@
           "provider": "anthropic",
           "providerModelId": "claude-fable-5",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "explicit-caching",
+            "file-input",
+            "vision"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "claude-fable-5",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "explicit-caching",
+            "file-input",
+            "vision"
+          ]
         }
       ]
     },
@@ -634,19 +934,43 @@
           "provider": "anthropic",
           "providerModelId": "claude-haiku-4-5-20251001",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "explicit-caching",
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "bedrock",
           "providerModelId": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "explicit-caching",
+            "web-search"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "claude-haiku-4-5@20251001",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "explicit-caching",
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -657,19 +981,40 @@
           "provider": "anthropic",
           "providerModelId": "claude-opus-4-20250514",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 32000
+          "maxOutputTokens": 32000,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "explicit-caching"
+          ]
         },
         {
           "provider": "bedrock",
           "providerModelId": "us.anthropic.claude-opus-4-20250514-v1:0",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "explicit-caching"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "claude-opus-4@20250514",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "explicit-caching"
+          ]
         }
       ]
     },
@@ -680,19 +1025,40 @@
           "provider": "anthropic",
           "providerModelId": "claude-opus-4-1-20250805",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 32000
+          "maxOutputTokens": 32000,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "explicit-caching"
+          ]
         },
         {
           "provider": "bedrock",
           "providerModelId": "us.anthropic.claude-opus-4-1-20250805-v1:0",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 32000
+          "maxOutputTokens": 32000,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "explicit-caching"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "claude-opus-4-1@20250805",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 32000
+          "maxOutputTokens": 32000,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "explicit-caching"
+          ]
         }
       ]
     },
@@ -703,19 +1069,42 @@
           "provider": "anthropic",
           "providerModelId": "claude-opus-4-5-20251101",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "explicit-caching",
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "bedrock",
           "providerModelId": "global.anthropic.claude-opus-4-5-20251101-v1:0",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "explicit-caching",
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "claude-opus-4-5@20251101",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "explicit-caching",
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -726,19 +1115,43 @@
           "provider": "anthropic",
           "providerModelId": "claude-opus-4-6",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "tool-use",
+            "reasoning",
+            "vision",
+            "file-input",
+            "explicit-caching",
+            "web-search"
+          ]
         },
         {
           "provider": "bedrock",
           "providerModelId": "global.anthropic.claude-opus-4-6-v1",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "tool-use",
+            "reasoning",
+            "vision",
+            "file-input",
+            "explicit-caching",
+            "web-search"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "claude-opus-4-6",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "tool-use",
+            "reasoning",
+            "vision",
+            "file-input",
+            "web-search",
+            "explicit-caching"
+          ]
         }
       ]
     },
@@ -749,19 +1162,43 @@
           "provider": "anthropic",
           "providerModelId": "claude-opus-4-7",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "tool-use",
+            "reasoning",
+            "vision",
+            "file-input",
+            "explicit-caching",
+            "web-search"
+          ]
         },
         {
           "provider": "bedrock",
           "providerModelId": "global.anthropic.claude-opus-4-7",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "explicit-caching",
+            "vision",
+            "file-input",
+            "web-search"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "claude-opus-4-7",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "explicit-caching",
+            "file-input",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -772,19 +1209,43 @@
           "provider": "anthropic",
           "providerModelId": "claude-opus-4-8",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "tool-use",
+            "reasoning",
+            "vision",
+            "file-input",
+            "explicit-caching",
+            "web-search"
+          ]
         },
         {
           "provider": "bedrock",
           "providerModelId": "global.anthropic.claude-opus-4-8",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "explicit-caching",
+            "vision",
+            "file-input",
+            "web-search"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "claude-opus-4-8",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "explicit-caching",
+            "file-input",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -795,19 +1256,40 @@
           "provider": "anthropic",
           "providerModelId": "claude-sonnet-4-20250514",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "explicit-caching"
+          ]
         },
         {
           "provider": "bedrock",
           "providerModelId": "us.anthropic.claude-sonnet-4-20250514-v1:0",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "explicit-caching"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "claude-sonnet-4@20250514",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "explicit-caching"
+          ]
         }
       ]
     },
@@ -818,19 +1300,43 @@
           "provider": "anthropic",
           "providerModelId": "claude-sonnet-4-5-20250929",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "explicit-caching",
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "bedrock",
           "providerModelId": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "explicit-caching",
+            "web-search"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "claude-sonnet-4-5@20250929",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "explicit-caching",
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -841,19 +1347,43 @@
           "provider": "anthropic",
           "providerModelId": "claude-sonnet-4-6",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "explicit-caching",
+            "web-search"
+          ]
         },
         {
           "provider": "bedrock",
           "providerModelId": "global.anthropic.claude-sonnet-4-6",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "tool-use",
+            "reasoning",
+            "vision",
+            "file-input",
+            "explicit-caching",
+            "web-search"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "claude-sonnet-4-6",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "tool-use",
+            "reasoning",
+            "vision",
+            "file-input",
+            "explicit-caching",
+            "web-search"
+          ]
         }
       ]
     },
@@ -864,19 +1394,43 @@
           "provider": "anthropic",
           "providerModelId": "claude-sonnet-5",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "explicit-caching",
+            "file-input",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "bedrock",
           "providerModelId": "global.anthropic.claude-sonnet-5",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "explicit-caching",
+            "file-input",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "claude-sonnet-5",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "explicit-caching",
+            "file-input",
+            "web-search",
+            "vision"
+          ]
         }
       ]
     },
@@ -887,7 +1441,10 @@
           "provider": "arcee-ai",
           "providerModelId": "trinity-large-preview",
           "contextWindowTokens": 131000,
-          "maxOutputTokens": 131000
+          "maxOutputTokens": 131000,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -898,7 +1455,11 @@
           "provider": "arcee-ai",
           "providerModelId": "trinity-large-thinking",
           "contextWindowTokens": 262100,
-          "maxOutputTokens": 80000
+          "maxOutputTokens": 80000,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -909,7 +1470,10 @@
           "provider": "arcee-ai",
           "providerModelId": "trinity-mini",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -920,7 +1484,10 @@
           "provider": "bfl",
           "providerModelId": "flux-2-flex",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -931,7 +1498,10 @@
           "provider": "bfl",
           "providerModelId": "flux-2-klein-4b",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -942,7 +1512,10 @@
           "provider": "bfl",
           "providerModelId": "flux-2-klein-9b-preview",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -953,7 +1526,10 @@
           "provider": "bfl",
           "providerModelId": "flux-2-max",
           "contextWindowTokens": 67300,
-          "maxOutputTokens": 67300
+          "maxOutputTokens": 67300,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -964,7 +1540,10 @@
           "provider": "bfl",
           "providerModelId": "flux-2-pro-preview",
           "contextWindowTokens": 67300,
-          "maxOutputTokens": 67300
+          "maxOutputTokens": 67300,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -975,7 +1554,10 @@
           "provider": "bfl",
           "providerModelId": "flux-kontext-max",
           "contextWindowTokens": 512,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -986,13 +1568,19 @@
           "provider": "bfl",
           "providerModelId": "flux-kontext-pro",
           "contextWindowTokens": 512,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         },
         {
           "provider": "prodia",
           "providerModelId": "inference.flux-kontext.pro.txt2img.v2",
           "contextWindowTokens": 512,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -1003,7 +1591,10 @@
           "provider": "bfl",
           "providerModelId": "flux-pro-1.0-fill",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -1014,7 +1605,10 @@
           "provider": "bfl",
           "providerModelId": "flux-pro-1.1",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -1025,7 +1619,10 @@
           "provider": "bfl",
           "providerModelId": "flux-pro-1.1-ultra",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -1036,7 +1633,13 @@
           "provider": "bytedance",
           "providerModelId": "ep-20260106022440-82vp4",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 32000
+          "maxOutputTokens": 32000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -1047,7 +1650,13 @@
           "provider": "bytedance",
           "providerModelId": "ep-20260113010502-rl889",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -1058,7 +1667,10 @@
           "provider": "bytedance",
           "providerModelId": "dreamina-seedance-2-0-260128",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "vision"
+          ]
         }
       ]
     },
@@ -1069,7 +1681,10 @@
           "provider": "bytedance",
           "providerModelId": "dreamina-seedance-2-0-fast-260128",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "vision"
+          ]
         }
       ]
     },
@@ -1113,7 +1728,10 @@
           "provider": "bytedance",
           "providerModelId": "ep-20260308024352-m8qrz",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -1124,7 +1742,10 @@
           "provider": "bytedance",
           "providerModelId": "ep-20260308024445-dq5h7",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -1135,7 +1756,10 @@
           "provider": "bytedance",
           "providerModelId": "ep-20260308024243-qt2d5",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -1146,7 +1770,10 @@
           "provider": "cohere",
           "providerModelId": "command-a-03-2025",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 8000
+          "maxOutputTokens": 8000,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -1207,13 +1834,22 @@
           "provider": "bedrock",
           "providerModelId": "us.deepseek.r1-v1:0",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "deepseek-ai/DeepSeek-R1-0528",
           "contextWindowTokens": 160000,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -1224,7 +1860,11 @@
           "provider": "novita",
           "providerModelId": "deepseek/deepseek-v3-0324",
           "contextWindowTokens": 163840,
-          "maxOutputTokens": 163840
+          "maxOutputTokens": 163840,
+          "tags": [
+            "implicit-caching",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -1235,25 +1875,42 @@
           "provider": "deepinfra",
           "providerModelId": "deepseek-ai/DeepSeek-V3.1",
           "contextWindowTokens": 163840,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "deepseek/deepseek-v3-0324",
           "contextWindowTokens": 163840,
-          "maxOutputTokens": 163840
+          "maxOutputTokens": 163840,
+          "tags": [
+            "implicit-caching",
+            "tool-use"
+          ]
         },
         {
           "provider": "sambanova",
           "providerModelId": "DeepSeek-V3.1",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "togetherai",
           "providerModelId": "deepseek-ai/DeepSeek-V3.1",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -1264,7 +1921,12 @@
           "provider": "novita",
           "providerModelId": "deepseek/deepseek-v3.1-terminus",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 65536
+          "maxOutputTokens": 65536,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -1275,25 +1937,40 @@
           "provider": "bedrock",
           "providerModelId": "deepseek.v3.2",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 8000
+          "maxOutputTokens": 8000,
+          "tags": [
+            "tool-use"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "deepseek-ai/DeepSeek-V3.2",
           "contextWindowTokens": 163842,
-          "maxOutputTokens": 8000
+          "maxOutputTokens": 8000,
+          "tags": [
+            "implicit-caching",
+            "tool-use"
+          ]
         },
         {
           "provider": "deepseek",
           "providerModelId": "deepseek-chat",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 8000
+          "maxOutputTokens": 8000,
+          "tags": [
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "deepseek/deepseek-v3.2",
           "contextWindowTokens": 163840,
-          "maxOutputTokens": 65536
+          "maxOutputTokens": 65536,
+          "tags": [
+            "implicit-caching",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -1304,25 +1981,41 @@
           "provider": "bedrock",
           "providerModelId": "deepseek.v3.2",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 8000
+          "maxOutputTokens": 8000,
+          "tags": [
+            "tool-use"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "deepseek-ai/DeepSeek-V3.2",
           "contextWindowTokens": 163842,
-          "maxOutputTokens": 8000
+          "maxOutputTokens": 8000,
+          "tags": [
+            "implicit-caching",
+            "tool-use"
+          ]
         },
         {
           "provider": "fireworks",
           "providerModelId": "accounts/fireworks/models/deepseek-v3p2",
           "contextWindowTokens": 163000,
-          "maxOutputTokens": 163000
+          "maxOutputTokens": 163000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "deepseek/deepseek-v3.2",
           "contextWindowTokens": 163840,
-          "maxOutputTokens": 65536
+          "maxOutputTokens": 65536,
+          "tags": [
+            "implicit-caching",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -1333,31 +2026,55 @@
           "provider": "azure",
           "providerModelId": "DeepSeek-V4-Flash",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "deepseek-ai/DeepSeek-V4-Flash",
           "contextWindowTokens": 1048576,
-          "maxOutputTokens": 1048576
+          "maxOutputTokens": 1048576,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "deepseek",
           "providerModelId": "deepseek-v4-flash",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 384000
+          "maxOutputTokens": 384000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "fireworks",
           "providerModelId": "accounts/fireworks/models/deepseek-v4-flash",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 384000
+          "maxOutputTokens": 384000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "deepseek/deepseek-v4-flash",
           "contextWindowTokens": 1048576,
-          "maxOutputTokens": 393216
+          "maxOutputTokens": 393216,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -1368,43 +2085,77 @@
           "provider": "azure",
           "providerModelId": "DeepSeek-V4-Pro",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "baseten",
           "providerModelId": "deepseek-ai/DeepSeek-V4-Pro",
           "contextWindowTokens": 1048600,
-          "maxOutputTokens": 1048600
+          "maxOutputTokens": 1048600,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "deepseek-ai/DeepSeek-V4-Pro",
           "contextWindowTokens": 65536,
-          "maxOutputTokens": 65536
+          "maxOutputTokens": 65536,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "deepseek",
           "providerModelId": "deepseek-v4-pro",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 384000
+          "maxOutputTokens": 384000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "fireworks",
           "providerModelId": "accounts/fireworks/models/deepseek-v4-pro",
           "contextWindowTokens": 1048600,
-          "maxOutputTokens": 1048600
+          "maxOutputTokens": 1048600,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "deepseek/deepseek-v4-pro",
           "contextWindowTokens": 1048576,
-          "maxOutputTokens": 393216
+          "maxOutputTokens": 393216,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "togetherai",
           "providerModelId": "deepseek-ai/DeepSeek-V4-Pro",
           "contextWindowTokens": 1048600,
-          "maxOutputTokens": 1048600
+          "maxOutputTokens": 1048600,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -1415,13 +2166,29 @@
           "provider": "google",
           "providerModelId": "gemini-2.5-flash",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "gemini-2.5-flash",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 65536
+          "maxOutputTokens": 65536,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -1432,13 +2199,23 @@
           "provider": "google",
           "providerModelId": "gemini-2.5-flash-image",
           "contextWindowTokens": 32768,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "image-generation",
+            "implicit-caching",
+            "web-search"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "gemini-2.5-flash-image",
           "contextWindowTokens": 32768,
-          "maxOutputTokens": 65536
+          "maxOutputTokens": 65536,
+          "tags": [
+            "image-generation",
+            "implicit-caching",
+            "web-search"
+          ]
         }
       ]
     },
@@ -1449,13 +2226,29 @@
           "provider": "google",
           "providerModelId": "gemini-2.5-flash-lite",
           "contextWindowTokens": 1048576,
-          "maxOutputTokens": 65536
+          "maxOutputTokens": 65536,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "gemini-2.5-flash-lite",
           "contextWindowTokens": 1048576,
-          "maxOutputTokens": 65536
+          "maxOutputTokens": 65536,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -1466,13 +2259,29 @@
           "provider": "google",
           "providerModelId": "gemini-2.5-pro",
           "contextWindowTokens": 1048576,
-          "maxOutputTokens": 65536
+          "maxOutputTokens": 65536,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "gemini-2.5-pro",
           "contextWindowTokens": 1048576,
-          "maxOutputTokens": 65536
+          "maxOutputTokens": 65536,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -1483,13 +2292,29 @@
           "provider": "google",
           "providerModelId": "gemini-3-flash-preview",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "reasoning",
+            "file-input",
+            "vision",
+            "tool-use",
+            "web-search",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "gemini-3-flash-preview",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 65000
+          "maxOutputTokens": 65000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "file-input",
+            "vision",
+            "web-search",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -1500,13 +2325,23 @@
           "provider": "google",
           "providerModelId": "gemini-3-pro-image",
           "contextWindowTokens": 65536,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "image-generation",
+            "web-search",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "gemini-3-pro-image",
           "contextWindowTokens": 65536,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "image-generation",
+            "web-search",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -1517,13 +2352,29 @@
           "provider": "google",
           "providerModelId": "gemini-3.1-pro-preview-customtools",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "file-input",
+            "tool-use",
+            "reasoning",
+            "vision",
+            "web-search",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "gemini-3.1-pro-preview",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "file-input",
+            "tool-use",
+            "reasoning",
+            "vision",
+            "web-search",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -1534,13 +2385,27 @@
           "provider": "google",
           "providerModelId": "gemini-3.1-flash-image",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "image-generation",
+            "implicit-caching",
+            "reasoning",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "gemini-3.1-flash-image",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "image-generation",
+            "implicit-caching",
+            "reasoning",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -1551,13 +2416,27 @@
           "provider": "google",
           "providerModelId": "gemini-3.1-flash-image-preview",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "image-generation",
+            "implicit-caching",
+            "reasoning",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "gemini-3.1-flash-image-preview",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "image-generation",
+            "implicit-caching",
+            "reasoning",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -1568,13 +2447,29 @@
           "provider": "google",
           "providerModelId": "gemini-3.1-flash-lite",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 65000
+          "maxOutputTokens": 65000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "gemini-3.1-flash-lite",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 65000
+          "maxOutputTokens": 65000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -1585,13 +2480,27 @@
           "provider": "google",
           "providerModelId": "gemini-3.1-flash-lite-image",
           "contextWindowTokens": 65536,
-          "maxOutputTokens": 4096
+          "maxOutputTokens": 4096,
+          "tags": [
+            "image-generation",
+            "implicit-caching",
+            "reasoning",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "gemini-3.1-flash-lite-image",
           "contextWindowTokens": 65536,
-          "maxOutputTokens": 4096
+          "maxOutputTokens": 4096,
+          "tags": [
+            "image-generation",
+            "implicit-caching",
+            "reasoning",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -1602,13 +2511,29 @@
           "provider": "google",
           "providerModelId": "gemini-3.1-flash-lite-preview",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 65000
+          "maxOutputTokens": 65000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "gemini-3.1-flash-lite-preview",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 65000
+          "maxOutputTokens": 65000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "vision",
+            "file-input",
+            "web-search"
+          ]
         }
       ]
     },
@@ -1619,13 +2544,29 @@
           "provider": "google",
           "providerModelId": "gemini-3.1-pro-preview-customtools",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "file-input",
+            "tool-use",
+            "reasoning",
+            "vision",
+            "web-search",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "gemini-3.1-pro-preview",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "file-input",
+            "tool-use",
+            "reasoning",
+            "vision",
+            "web-search",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -1636,13 +2577,29 @@
           "provider": "google",
           "providerModelId": "gemini-3.5-flash",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "reasoning",
+            "file-input",
+            "vision",
+            "tool-use",
+            "web-search",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "gemini-3.5-flash",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "reasoning",
+            "file-input",
+            "vision",
+            "tool-use",
+            "web-search",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -1681,19 +2638,36 @@
           "provider": "novita",
           "providerModelId": "google/gemma-4-26b-a4b-it",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         },
         {
           "provider": "parasail",
           "providerModelId": "google/gemma-4-26B-A4B-it",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "tool-use",
+            "vision"
+          ]
         },
         {
           "provider": "vertex",
           "providerModelId": "google/gemma-4-26b-a4b-it-maas",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -1704,19 +2678,34 @@
           "provider": "cerebras",
           "providerModelId": "gemma-4-31b",
           "contextWindowTokens": 131000,
-          "maxOutputTokens": 40000
+          "maxOutputTokens": 40000,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "google/gemma-4-31b-it",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         },
         {
           "provider": "parasail",
           "providerModelId": "google/gemma-4-31B-it",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -1727,7 +2716,10 @@
           "provider": "vertex",
           "providerModelId": "imagen-4.0-fast-generate-001",
           "contextWindowTokens": 480,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -1738,7 +2730,10 @@
           "provider": "vertex",
           "providerModelId": "imagen-4.0-generate-001",
           "contextWindowTokens": 480,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -1749,7 +2744,10 @@
           "provider": "vertex",
           "providerModelId": "imagen-4.0-ultra-generate-001",
           "contextWindowTokens": 480,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -1826,7 +2824,12 @@
           "provider": "inception",
           "providerModelId": "mercury-2",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -1837,7 +2840,10 @@
           "provider": "inception",
           "providerModelId": "mercury-coder-small",
           "contextWindowTokens": 32000,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -1848,7 +2854,13 @@
           "provider": "interfaze",
           "providerModelId": "interfaze-beta",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 32000
+          "maxOutputTokens": 32000,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -1857,7 +2869,7 @@
       "providers": [
         {
           "provider": "klingai",
-          "providerModelId": "kling-v2.5-turbo-t2v",
+          "providerModelId": "kling-v2.5-turbo-i2v",
           "contextWindowTokens": 0,
           "maxOutputTokens": 0
         }
@@ -1947,7 +2959,10 @@
           "provider": "novita",
           "providerModelId": "kwaipilot/kat-coder-pro",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 32000
+          "maxOutputTokens": 32000,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -1958,7 +2973,12 @@
           "provider": "streamlake",
           "providerModelId": "KAT-Coder-Pro-V2",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 256000
+          "maxOutputTokens": 256000,
+          "tags": [
+            "tool-use",
+            "reasoning",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -1969,7 +2989,10 @@
           "provider": "meituan",
           "providerModelId": "LongCat-Flash-Chat",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 100000
+          "maxOutputTokens": 100000,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -1980,7 +3003,11 @@
           "provider": "meituan",
           "providerModelId": "LongCat-Flash-Thinking-2601",
           "contextWindowTokens": 32768,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -1991,13 +3018,19 @@
           "provider": "bedrock",
           "providerModelId": "us.meta.llama3-1-70b-instruct-v1:0",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "tool-use"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "meta-llama/Meta-Llama-3.1-70B-Instruct",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -2008,25 +3041,38 @@
           "provider": "bedrock",
           "providerModelId": "us.meta.llama3-1-8b-instruct-v1:0",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "tool-use"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "meta-llama/Meta-Llama-3.1-8B-Instruct",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "tool-use"
+          ]
         },
         {
           "provider": "groq",
           "providerModelId": "llama-3.1-8b-instant",
           "contextWindowTokens": 131000,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "implicit-caching",
+            "tool-use"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "meta-llama/llama-3.1-8b-instruct",
           "contextWindowTokens": 16384,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -2037,7 +3083,11 @@
           "provider": "bedrock",
           "providerModelId": "us.meta.llama3-2-11b-instruct-v1:0",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -2070,7 +3120,11 @@
           "provider": "bedrock",
           "providerModelId": "us.meta.llama3-2-90b-instruct-v1:0",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -2081,13 +3135,19 @@
           "provider": "bedrock",
           "providerModelId": "us.meta.llama3-3-70b-instruct-v1:0",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "tool-use"
+          ]
         },
         {
           "provider": "groq",
           "providerModelId": "llama-3.3-70b-versatile",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -2098,13 +3158,21 @@
           "provider": "bedrock",
           "providerModelId": "us.meta.llama4-maverick-17b-instruct-v1:0",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "tool-use",
+            "vision"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -2115,19 +3183,31 @@
           "provider": "bedrock",
           "providerModelId": "us.meta.llama4-scout-17b-instruct-v1:0",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "tool-use",
+            "vision"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "meta-llama/Llama-4-Scout-17B-16E-Instruct",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "tool-use",
+            "vision"
+          ]
         },
         {
           "provider": "groq",
           "providerModelId": "meta-llama/llama-4-scout-17b-16e-instruct",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -2138,13 +3218,23 @@
           "provider": "minimax",
           "providerModelId": "MiniMax-M2-Stable",
           "contextWindowTokens": 205000,
-          "maxOutputTokens": 205000
+          "maxOutputTokens": 205000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "minimax/minimax-m2",
           "contextWindowTokens": 204800,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -2155,19 +3245,34 @@
           "provider": "bedrock",
           "providerModelId": "minimax.minimax-m2.1",
           "contextWindowTokens": 204800,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "minimax",
           "providerModelId": "MiniMax-M2.1",
           "contextWindowTokens": 204800,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "minimax/minimax-m2.1",
           "contextWindowTokens": 204800,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -2178,7 +3283,12 @@
           "provider": "minimax",
           "providerModelId": "MiniMax-M2.1-lightning",
           "contextWindowTokens": 204800,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -2189,37 +3299,63 @@
           "provider": "bedrock",
           "providerModelId": "minimax.minimax-m2.5",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "blackbox",
           "providerModelId": "blackboxai/minimax/minimax-m2.5",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "MiniMaxAI/MiniMax-M2.5",
           "contextWindowTokens": 196608,
-          "maxOutputTokens": 131000
+          "maxOutputTokens": 131000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "minimax",
           "providerModelId": "MiniMax-M2.5",
           "contextWindowTokens": 204800,
-          "maxOutputTokens": 131000
+          "maxOutputTokens": 131000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "nebius",
           "providerModelId": "MiniMaxAI/MiniMax-M2.5",
           "contextWindowTokens": 196000,
-          "maxOutputTokens": 196000
+          "maxOutputTokens": 196000,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "parasail",
           "providerModelId": "MiniMaxAI/MiniMax-M2.5",
           "contextWindowTokens": 196608,
-          "maxOutputTokens": 131000
+          "maxOutputTokens": 131000,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -2230,13 +3366,23 @@
           "provider": "minimax",
           "providerModelId": "minimax-m2.5-highspeed",
           "contextWindowTokens": 204800,
-          "maxOutputTokens": 131000
+          "maxOutputTokens": 131000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "minimax/minimax-m2.5-highspeed",
           "contextWindowTokens": 204800,
-          "maxOutputTokens": 131100
+          "maxOutputTokens": 131100,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -2247,31 +3393,55 @@
           "provider": "blackbox",
           "providerModelId": "blackboxai/minimax/minimax-m2.7",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 8200
+          "maxOutputTokens": 8200,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "fireworks",
           "providerModelId": "accounts/fireworks/models/minimax-m2p7",
           "contextWindowTokens": 196000,
-          "maxOutputTokens": 131000
+          "maxOutputTokens": 131000,
+          "tags": [
+            "tool-use",
+            "reasoning",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "minimax",
           "providerModelId": "minimax-m2.7",
           "contextWindowTokens": 204800,
-          "maxOutputTokens": 131000
+          "maxOutputTokens": 131000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "minimax/minimax-m2.7",
           "contextWindowTokens": 204800,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "togetherai",
           "providerModelId": "MiniMaxAI/MiniMax-M2.7",
           "contextWindowTokens": 196600,
-          "maxOutputTokens": 131000
+          "maxOutputTokens": 131000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -2282,7 +3452,12 @@
           "provider": "minimax",
           "providerModelId": "minimax-m2.7-highspeed",
           "contextWindowTokens": 204800,
-          "maxOutputTokens": 131100
+          "maxOutputTokens": 131100,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -2293,13 +3468,26 @@
           "provider": "fireworks",
           "providerModelId": "accounts/fireworks/models/minimax-m3",
           "contextWindowTokens": 512000,
-          "maxOutputTokens": 512000
+          "maxOutputTokens": 512000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "vision",
+            "file-input",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "minimax",
           "providerModelId": "MiniMax-M3",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 1000000
+          "maxOutputTokens": 1000000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -2310,7 +3498,10 @@
           "provider": "mistral",
           "providerModelId": "codestral-latest",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 4000
+          "maxOutputTokens": 4000,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -2332,7 +3523,10 @@
           "provider": "mistral",
           "providerModelId": "devstral-2512",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 256000
+          "maxOutputTokens": 256000,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -2343,7 +3537,10 @@
           "provider": "mistral",
           "providerModelId": "devstral-small-2507",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -2354,7 +3551,11 @@
           "provider": "mistral",
           "providerModelId": "labs-devstral-small-2512",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 256000
+          "maxOutputTokens": 256000,
+          "tags": [
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -2365,7 +3566,12 @@
           "provider": "mistral",
           "providerModelId": "magistral-medium-2509",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -2376,7 +3582,12 @@
           "provider": "mistral",
           "providerModelId": "magistral-small-2509",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -2387,7 +3598,12 @@
           "provider": "mistral",
           "providerModelId": "ministral-14b-latest",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 256000
+          "maxOutputTokens": 256000,
+          "tags": [
+            "file-input",
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -2398,7 +3614,10 @@
           "provider": "mistral",
           "providerModelId": "ministral-3b-latest",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 4000
+          "maxOutputTokens": 4000,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -2409,7 +3628,10 @@
           "provider": "mistral",
           "providerModelId": "ministral-8b-latest",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 4000
+          "maxOutputTokens": 4000,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -2431,7 +3653,11 @@
           "provider": "mistral",
           "providerModelId": "mistral-large-latest",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 256000
+          "maxOutputTokens": 256000,
+          "tags": [
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -2442,7 +3668,11 @@
           "provider": "mistral",
           "providerModelId": "mistral-medium-2508",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -2453,7 +3683,12 @@
           "provider": "mistral",
           "providerModelId": "mistral-medium-3-5",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 256000
+          "maxOutputTokens": 256000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -2464,19 +3699,28 @@
           "provider": "deepinfra",
           "providerModelId": "mistralai/Mistral-Nemo-Instruct-2407",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "tool-use"
+          ]
         },
         {
           "provider": "mistral",
           "providerModelId": "open-mistral-nemo-2407",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "tool-use"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "mistralai/mistral-nemo",
           "contextWindowTokens": 60288,
-          "maxOutputTokens": 16000
+          "maxOutputTokens": 16000,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -2487,7 +3731,11 @@
           "provider": "mistral",
           "providerModelId": "mistral-small-latest",
           "contextWindowTokens": 32000,
-          "maxOutputTokens": 4000
+          "maxOutputTokens": 4000,
+          "tags": [
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -2498,7 +3746,11 @@
           "provider": "mistral",
           "providerModelId": "pixtral-12b-2409",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 4000
+          "maxOutputTokens": 4000,
+          "tags": [
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -2509,7 +3761,11 @@
           "provider": "mistral",
           "providerModelId": "pixtral-large-latest",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 4000
+          "maxOutputTokens": 4000,
+          "tags": [
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -2520,7 +3776,10 @@
           "provider": "novita",
           "providerModelId": "moonshotai/kimi-k2-instruct",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -2531,7 +3790,12 @@
           "provider": "deepinfra",
           "providerModelId": "moonshotai/Kimi-K2-Thinking",
           "contextWindowTokens": 216144,
-          "maxOutputTokens": 216144
+          "maxOutputTokens": 216144,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -2542,31 +3806,60 @@
           "provider": "baseten",
           "providerModelId": "moonshotai/Kimi-K2.5",
           "contextWindowTokens": 262114,
-          "maxOutputTokens": 262114
+          "maxOutputTokens": 262114,
+          "tags": [
+            "reasoning",
+            "vision",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "bedrock",
           "providerModelId": "moonshotai.kimi-k2.5",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 256000
+          "maxOutputTokens": 256000,
+          "tags": [
+            "reasoning",
+            "vision",
+            "tool-use"
+          ]
         },
         {
           "provider": "fireworks",
           "providerModelId": "accounts/fireworks/models/kimi-k2p5",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 256000
+          "maxOutputTokens": 256000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "vision",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "moonshotai",
           "providerModelId": "kimi-k2.5",
           "contextWindowTokens": 262114,
-          "maxOutputTokens": 262114
+          "maxOutputTokens": 262114,
+          "tags": [
+            "reasoning",
+            "vision",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "moonshotai/kimi-k2.5",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 262144
+          "maxOutputTokens": 262144,
+          "tags": [
+            "reasoning",
+            "vision",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -2577,31 +3870,61 @@
           "provider": "baseten",
           "providerModelId": "moonshotai/Kimi-K2.6",
           "contextWindowTokens": 262000,
-          "maxOutputTokens": 262000
+          "maxOutputTokens": 262000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         },
         {
           "provider": "fireworks",
           "providerModelId": "accounts/fireworks/models/kimi-k2p6",
           "contextWindowTokens": 262000,
-          "maxOutputTokens": 262000
+          "maxOutputTokens": 262000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         },
         {
           "provider": "moonshotai",
           "providerModelId": "kimi-k2.6",
           "contextWindowTokens": 262000,
-          "maxOutputTokens": 262000
+          "maxOutputTokens": 262000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "moonshotai/kimi-k2.6",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 262144
+          "maxOutputTokens": 262144,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         },
         {
           "provider": "togetherai",
           "providerModelId": "moonshotai/Kimi-K2.6",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 256000
+          "maxOutputTokens": 256000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -2612,25 +3935,53 @@
           "provider": "baseten",
           "providerModelId": "moonshotai/Kimi-K2.7-Code",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "moonshotai/Kimi-K2.7-Code",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision"
+          ]
         },
         {
           "provider": "fireworks",
           "providerModelId": "accounts/fireworks/models/kimi-k2p7-code",
           "contextWindowTokens": 262000,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision"
+          ]
         },
         {
           "provider": "moonshotai",
           "providerModelId": "kimi-k2.7-code",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision"
+          ]
         }
       ]
     },
@@ -2641,13 +3992,27 @@
           "provider": "fireworks",
           "providerModelId": "accounts/fireworks/models/kimi-k2p7-code",
           "contextWindowTokens": 262000,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision"
+          ]
         },
         {
           "provider": "moonshotai",
           "providerModelId": "kimi-k2.7-code-highspeed",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "vision",
+            "file-input",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -2680,7 +4045,11 @@
           "provider": "deepinfra",
           "providerModelId": "nvidia/Nemotron-3-Nano-30B-A3B",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 262144
+          "maxOutputTokens": 262144,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -2691,13 +4060,22 @@
           "provider": "baseten",
           "providerModelId": "nvidia/Nemotron-120B-A12B",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 32000
+          "maxOutputTokens": 32000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "bedrock",
           "providerModelId": "nvidia.nemotron-super-3-120b",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 32000
+          "maxOutputTokens": 32000,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -2708,25 +4086,45 @@
           "provider": "baseten",
           "providerModelId": "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 65000
+          "maxOutputTokens": 65000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "blackbox",
           "providerModelId": "blackboxai/nvidia/nemotron-3-ultra",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 65000
+          "maxOutputTokens": 65000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 65000
+          "maxOutputTokens": 65000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "togetherai",
           "providerModelId": "nvidia/nemotron-3-ultra-550b-a55b",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 65000
+          "maxOutputTokens": 65000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -2737,13 +4135,23 @@
           "provider": "bedrock",
           "providerModelId": "nvidia.nemotron-nano-12b-v2",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "vision",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "nvidia/NVIDIA-Nemotron-Nano-12B-v2-VL",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -2754,13 +4162,21 @@
           "provider": "bedrock",
           "providerModelId": "nvidia.nemotron-nano-9b-v2",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "nvidia/NVIDIA-Nemotron-Nano-9B-v2",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -2771,7 +4187,10 @@
           "provider": "openai",
           "providerModelId": "gpt-3.5-turbo",
           "contextWindowTokens": 16385,
-          "maxOutputTokens": 4096
+          "maxOutputTokens": 4096,
+          "tags": [
+            "tool-use"
+          ]
         }
       ]
     },
@@ -2793,7 +4212,11 @@
           "provider": "openai",
           "providerModelId": "gpt-4-turbo",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 4096
+          "maxOutputTokens": 4096,
+          "tags": [
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -2804,13 +4227,27 @@
           "provider": "azure",
           "providerModelId": "gpt-4.1",
           "contextWindowTokens": 1047576,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-4.1",
           "contextWindowTokens": 1047576,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "file-input",
+            "tool-use",
+            "vision",
+            "implicit-caching",
+            "web-search"
+          ]
         }
       ]
     },
@@ -2821,13 +4258,27 @@
           "provider": "azure",
           "providerModelId": "gpt-4.1-mini",
           "contextWindowTokens": 1047576,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-4.1-mini",
           "contextWindowTokens": 1047576,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "file-input",
+            "tool-use",
+            "vision",
+            "implicit-caching",
+            "web-search"
+          ]
         }
       ]
     },
@@ -2838,13 +4289,27 @@
           "provider": "azure",
           "providerModelId": "gpt-4.1-nano",
           "contextWindowTokens": 1047576,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-4.1-nano",
           "contextWindowTokens": 1047576,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "file-input",
+            "tool-use",
+            "vision",
+            "implicit-caching",
+            "web-search"
+          ]
         }
       ]
     },
@@ -2855,13 +4320,27 @@
           "provider": "azure",
           "providerModelId": "gpt-4o",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-4o",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "file-input",
+            "tool-use",
+            "vision",
+            "implicit-caching",
+            "web-search"
+          ]
         }
       ]
     },
@@ -2872,13 +4351,27 @@
           "provider": "azure",
           "providerModelId": "gpt-4o-mini",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-4o-mini",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "file-input",
+            "tool-use",
+            "vision",
+            "implicit-caching",
+            "web-search"
+          ]
         }
       ]
     },
@@ -2889,7 +4382,10 @@
           "provider": "openai",
           "providerModelId": "gpt-4o-mini-search-preview",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "web-search"
+          ]
         }
       ]
     },
@@ -2922,13 +4418,30 @@
           "provider": "azure",
           "providerModelId": "gpt-5",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "image-generation",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5-2025-08-07",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -2939,13 +4452,27 @@
           "provider": "azure",
           "providerModelId": "gpt-5-chat",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5-chat-latest",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -2956,13 +4483,29 @@
           "provider": "azure",
           "providerModelId": "gpt-5-codex",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5-codex",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -2973,13 +4516,29 @@
           "provider": "azure",
           "providerModelId": "gpt-5-mini",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5-mini-2025-08-07",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -2990,13 +4549,29 @@
           "provider": "azure",
           "providerModelId": "gpt-5-nano",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5-nano-2025-08-07",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -3007,7 +4582,14 @@
           "provider": "openai",
           "providerModelId": "gpt-5-pro",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 272000
+          "maxOutputTokens": 272000,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -3018,13 +4600,29 @@
           "provider": "azure",
           "providerModelId": "gpt-5.1-codex",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5.1-codex",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "tool-use",
+            "reasoning",
+            "vision",
+            "web-search",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -3035,13 +4633,29 @@
           "provider": "azure",
           "providerModelId": "gpt-5.1-codex-max",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5.1-codex-max",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "file-input",
+            "tool-use",
+            "vision",
+            "web-search",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -3052,13 +4666,29 @@
           "provider": "azure",
           "providerModelId": "gpt-5.1-codex-mini",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5.1-codex-mini",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "file-input",
+            "vision",
+            "tool-use",
+            "web-search",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -3069,13 +4699,27 @@
           "provider": "azure",
           "providerModelId": "gpt-5.1-chat",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5.1-chat-latest",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -3086,13 +4730,29 @@
           "provider": "azure",
           "providerModelId": "gpt-5.1",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5.1",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "reasoning",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -3103,13 +4763,29 @@
           "provider": "azure",
           "providerModelId": "gpt-5.2",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5.2",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "tool-use",
+            "vision",
+            "file-input",
+            "reasoning",
+            "implicit-caching",
+            "web-search"
+          ]
         }
       ]
     },
@@ -3120,13 +4796,27 @@
           "provider": "azure",
           "providerModelId": "gpt-5.2-chat",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5.2-chat-latest",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -3137,13 +4827,29 @@
           "provider": "azure",
           "providerModelId": "gpt-5.2-codex",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5.2-codex",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "tool-use",
+            "reasoning",
+            "vision",
+            "web-search",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -3154,7 +4860,14 @@
           "provider": "openai",
           "providerModelId": "gpt-5.2-pro",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "tool-use",
+            "vision",
+            "reasoning",
+            "file-input",
+            "web-search"
+          ]
         }
       ]
     },
@@ -3165,7 +4878,14 @@
           "provider": "openai",
           "providerModelId": "gpt-5.3-chat-latest",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -3176,13 +4896,29 @@
           "provider": "azure",
           "providerModelId": "gpt-5.3-codex",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5.3-codex",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "file-input",
+            "vision",
+            "web-search",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -3193,13 +4929,30 @@
           "provider": "azure",
           "providerModelId": "gpt-5.4",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5.4",
           "contextWindowTokens": 1050000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "vision",
+            "file-input",
+            "implicit-caching",
+            "web-search",
+            "websocket-realtime"
+          ]
         }
       ]
     },
@@ -3210,13 +4963,29 @@
           "provider": "azure",
           "providerModelId": "gpt-5.4-mini",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5.4-mini",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "vision",
+            "file-input",
+            "implicit-caching",
+            "web-search"
+          ]
         }
       ]
     },
@@ -3227,13 +4996,29 @@
           "provider": "azure",
           "providerModelId": "gpt-5.4-nano",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5.4-nano",
           "contextWindowTokens": 400000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "web-search",
+            "vision",
+            "file-input"
+          ]
         }
       ]
     },
@@ -3244,13 +5029,28 @@
           "provider": "azure",
           "providerModelId": "gpt-5.4-pro",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5.4-pro",
           "contextWindowTokens": 1050000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "vision",
+            "file-input",
+            "web-search"
+          ]
         }
       ]
     },
@@ -3261,19 +5061,44 @@
           "provider": "azure",
           "providerModelId": "gpt-5.5",
           "contextWindowTokens": 272000,
-          "maxOutputTokens": 272000
+          "maxOutputTokens": 272000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "bedrock",
           "providerModelId": "openai.gpt-5.5",
           "contextWindowTokens": 272000,
-          "maxOutputTokens": 272000
+          "maxOutputTokens": 272000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "web-search",
+            "implicit-caching",
+            "file-input",
+            "vision"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "gpt-5.5",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search",
+            "websocket-realtime"
+          ]
         }
       ]
     },
@@ -3284,7 +5109,14 @@
           "provider": "openai",
           "providerModelId": "gpt-5.5-pro",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "file-input",
+            "web-search",
+            "vision"
+          ]
         }
       ]
     },
@@ -3295,7 +5127,11 @@
           "provider": "openai",
           "providerModelId": "gpt-image-1",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -3306,7 +5142,11 @@
           "provider": "openai",
           "providerModelId": "gpt-image-1-mini",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -3317,7 +5157,11 @@
           "provider": "openai",
           "providerModelId": "gpt-image-1.5",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -3328,7 +5172,11 @@
           "provider": "openai",
           "providerModelId": "gpt-image-2",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -3339,49 +5187,84 @@
           "provider": "baseten",
           "providerModelId": "openai/gpt-oss-120b",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "bedrock",
           "providerModelId": "openai.gpt-oss-120b-1:0",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "cerebras",
           "providerModelId": "gpt-oss-120b",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 131000
+          "maxOutputTokens": 131000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "fireworks",
           "providerModelId": "accounts/fireworks/models/gpt-oss-120b",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "groq",
           "providerModelId": "openai/gpt-oss-120b",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "nebius",
           "providerModelId": "openai/gpt-oss-120b",
           "contextWindowTokens": 131000,
-          "maxOutputTokens": 131000
+          "maxOutputTokens": 131000,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "parasail",
           "providerModelId": "parasail-gpt-oss-120b",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 131000
+          "maxOutputTokens": 131000,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "togetherai",
           "providerModelId": "openai/gpt-oss-120b",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -3392,43 +5275,73 @@
           "provider": "bedrock",
           "providerModelId": "openai.gpt-oss-20b-1:0",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "openai/gpt-oss-20b",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "fireworks",
           "providerModelId": "accounts/fireworks/models/gpt-oss-20b",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "groq",
           "providerModelId": "openai/gpt-oss-20b",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "openai/gpt-oss-20b",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 32768
+          "maxOutputTokens": 32768,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "parasail",
           "providerModelId": "openai/gpt-oss-20b",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "togetherai",
           "providerModelId": "openai/gpt-oss-20b",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 8192
+          "maxOutputTokens": 8192,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -3439,7 +5352,12 @@
           "provider": "groq",
           "providerModelId": "openai/gpt-oss-safeguard-20b",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 65536
+          "maxOutputTokens": 65536,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -3461,7 +5379,10 @@
           "provider": "openai",
           "providerModelId": "gpt-realtime-2",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "websocket-realtime"
+          ]
         }
       ]
     },
@@ -3483,13 +5404,27 @@
           "provider": "azure",
           "providerModelId": "o1",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 100000
+          "maxOutputTokens": 100000,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "o1",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 100000
+          "maxOutputTokens": 100000,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -3500,7 +5435,15 @@
           "provider": "openai",
           "providerModelId": "o3",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 100000
+          "maxOutputTokens": 100000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -3511,7 +5454,15 @@
           "provider": "openai",
           "providerModelId": "o3-deep-research",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 100000
+          "maxOutputTokens": 100000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -3522,13 +5473,23 @@
           "provider": "azure",
           "providerModelId": "o3-mini",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 100000
+          "maxOutputTokens": 100000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "o3-mini",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 100000
+          "maxOutputTokens": 100000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -3539,7 +5500,14 @@
           "provider": "openai",
           "providerModelId": "o3-pro-2025-06-10",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 100000
+          "maxOutputTokens": 100000,
+          "tags": [
+            "reasoning",
+            "vision",
+            "file-input",
+            "tool-use",
+            "web-search"
+          ]
         }
       ]
     },
@@ -3550,13 +5518,29 @@
           "provider": "azure",
           "providerModelId": "o4-mini",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 100000
+          "maxOutputTokens": 100000,
+          "tags": [
+            "file-input",
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "web-search"
+          ]
         },
         {
           "provider": "openai",
           "providerModelId": "o4-mini",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 100000
+          "maxOutputTokens": 100000,
+          "tags": [
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "vision",
+            "implicit-caching",
+            "web-search"
+          ]
         }
       ]
     },
@@ -3651,7 +5635,11 @@
           "provider": "perplexity",
           "providerModelId": "sonar",
           "contextWindowTokens": 127000,
-          "maxOutputTokens": 8000
+          "maxOutputTokens": 8000,
+          "tags": [
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -3662,7 +5650,11 @@
           "provider": "perplexity",
           "providerModelId": "sonar-pro",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 8000
+          "maxOutputTokens": 8000,
+          "tags": [
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -3673,7 +5665,11 @@
           "provider": "perplexity",
           "providerModelId": "sonar-reasoning-pro",
           "contextWindowTokens": 127000,
-          "maxOutputTokens": 8000
+          "maxOutputTokens": 8000,
+          "tags": [
+            "reasoning",
+            "web-search"
+          ]
         }
       ]
     },
@@ -3684,7 +5680,10 @@
           "provider": "prodia",
           "providerModelId": "inference.flux-fast.schnell.txt2img.v2",
           "contextWindowTokens": 512,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -3695,7 +5694,10 @@
           "provider": "quiverai",
           "providerModelId": "arrow-1.1",
           "contextWindowTokens": 131072,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -3706,7 +5708,10 @@
           "provider": "recraft",
           "providerModelId": "recraftv2",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -3717,7 +5722,10 @@
           "provider": "recraft",
           "providerModelId": "recraftv3",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -3728,7 +5736,10 @@
           "provider": "recraft",
           "providerModelId": "recraftv4",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -3739,7 +5750,10 @@
           "provider": "recraft",
           "providerModelId": "recraftv4_pro",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -3750,7 +5764,10 @@
           "provider": "recraft",
           "providerModelId": "recraftv4_1",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -3761,7 +5778,10 @@
           "provider": "recraft",
           "providerModelId": "recraftv4_1_pro",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -3772,7 +5792,10 @@
           "provider": "recraft",
           "providerModelId": "recraftv4_1_utility",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -3783,7 +5806,10 @@
           "provider": "recraft",
           "providerModelId": "recraftv4_1_utility_pro",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -3794,7 +5820,12 @@
           "provider": "sakana",
           "providerModelId": "fugu-ultra",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 1000000
+          "maxOutputTokens": 1000000,
+          "tags": [
+            "vision",
+            "tool-use",
+            "reasoning"
+          ]
         }
       ]
     },
@@ -3805,7 +5836,12 @@
           "provider": "deepinfra",
           "providerModelId": "stepfun-ai/Step-3.5-Flash",
           "contextWindowTokens": 262114,
-          "maxOutputTokens": 262114
+          "maxOutputTokens": 262114,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -3816,7 +5852,13 @@
           "provider": "stepfun",
           "providerModelId": "step-3.7-flash",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 256000
+          "maxOutputTokens": 256000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -3959,7 +6001,13 @@
           "provider": "vertex",
           "providerModelId": "xai/grok-4.1-fast-non-reasoning",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 1000000
+          "maxOutputTokens": 1000000,
+          "tags": [
+            "tool-use",
+            "file-input",
+            "vision",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -3970,7 +6018,14 @@
           "provider": "vertex",
           "providerModelId": "xai/grok-4.1-fast-reasoning",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 1000000
+          "maxOutputTokens": 1000000,
+          "tags": [
+            "reasoning",
+            "file-input",
+            "vision",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -3981,7 +6036,15 @@
           "provider": "xai",
           "providerModelId": "grok-4.20-multi-agent-0309",
           "contextWindowTokens": 2000000,
-          "maxOutputTokens": 2000000
+          "maxOutputTokens": 2000000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "vision",
+            "file-input",
+            "web-search"
+          ]
         }
       ]
     },
@@ -3992,7 +6055,15 @@
           "provider": "xai",
           "providerModelId": "grok-4.20-multi-agent-beta-0309",
           "contextWindowTokens": 2000000,
-          "maxOutputTokens": 2000000
+          "maxOutputTokens": 2000000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "vision",
+            "file-input",
+            "web-search"
+          ]
         }
       ]
     },
@@ -4003,13 +6074,26 @@
           "provider": "vertex",
           "providerModelId": "xai/grok-4.20-non-reasoning",
           "contextWindowTokens": 2000000,
-          "maxOutputTokens": 2000000
+          "maxOutputTokens": 2000000,
+          "tags": [
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision"
+          ]
         },
         {
           "provider": "xai",
           "providerModelId": "grok-4.20-0309-non-reasoning",
           "contextWindowTokens": 2000000,
-          "maxOutputTokens": 2000000
+          "maxOutputTokens": 2000000,
+          "tags": [
+            "tool-use",
+            "implicit-caching",
+            "vision",
+            "file-input",
+            "web-search"
+          ]
         }
       ]
     },
@@ -4020,7 +6104,14 @@
           "provider": "xai",
           "providerModelId": "grok-4.20-beta-0309-non-reasoning",
           "contextWindowTokens": 2000000,
-          "maxOutputTokens": 2000000
+          "maxOutputTokens": 2000000,
+          "tags": [
+            "tool-use",
+            "implicit-caching",
+            "vision",
+            "file-input",
+            "web-search"
+          ]
         }
       ]
     },
@@ -4031,13 +6122,29 @@
           "provider": "vertex",
           "providerModelId": "xai/grok-4.20-reasoning",
           "contextWindowTokens": 2000000,
-          "maxOutputTokens": 2000000
+          "maxOutputTokens": 2000000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "vision",
+            "file-input",
+            "web-search"
+          ]
         },
         {
           "provider": "xai",
           "providerModelId": "grok-4.20-0309-reasoning",
           "contextWindowTokens": 2000000,
-          "maxOutputTokens": 2000000
+          "maxOutputTokens": 2000000,
+          "tags": [
+            "reasoning",
+            "vision",
+            "tool-use",
+            "file-input",
+            "implicit-caching",
+            "web-search"
+          ]
         }
       ]
     },
@@ -4048,7 +6155,15 @@
           "provider": "xai",
           "providerModelId": "grok-4.20-beta-0309-reasoning",
           "contextWindowTokens": 2000000,
-          "maxOutputTokens": 2000000
+          "maxOutputTokens": 2000000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "vision",
+            "file-input",
+            "implicit-caching",
+            "web-search"
+          ]
         }
       ]
     },
@@ -4059,13 +6174,28 @@
           "provider": "vertex",
           "providerModelId": "xai/grok-4.3",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 1000000
+          "maxOutputTokens": 1000000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision"
+          ]
         },
         {
           "provider": "xai",
           "providerModelId": "grok-4.3",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 1000000
+          "maxOutputTokens": 1000000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision",
+            "web-search"
+          ]
         }
       ]
     },
@@ -4076,7 +6206,14 @@
           "provider": "xai",
           "providerModelId": "grok-build-0.1",
           "contextWindowTokens": 256000,
-          "maxOutputTokens": 256000
+          "maxOutputTokens": 256000,
+          "tags": [
+            "reasoning",
+            "implicit-caching",
+            "vision",
+            "tool-use",
+            "web-search"
+          ]
         }
       ]
     },
@@ -4087,7 +6224,10 @@
           "provider": "xai",
           "providerModelId": "grok-imagine-image",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
         }
       ]
     },
@@ -4164,7 +6304,12 @@
           "provider": "xiaomi",
           "providerModelId": "mimo-v2-flash",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 32000
+          "maxOutputTokens": 32000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -4175,7 +6320,12 @@
           "provider": "xiaomi",
           "providerModelId": "mimo-v2-pro",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -4186,13 +6336,27 @@
           "provider": "deepinfra",
           "providerModelId": "XiaomiMiMo/MiMo-V2.5",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 131100
+          "maxOutputTokens": 131100,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision"
+          ]
         },
         {
           "provider": "xiaomi",
           "providerModelId": "mimo-v2.5",
           "contextWindowTokens": 1050000,
-          "maxOutputTokens": 131100
+          "maxOutputTokens": 131100,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision"
+          ]
         }
       ]
     },
@@ -4203,13 +6367,24 @@
           "provider": "deepinfra",
           "providerModelId": "XiaomiMiMo/MiMo-V2.5-Pro",
           "contextWindowTokens": 1048576,
-          "maxOutputTokens": 1048576
+          "maxOutputTokens": 1048576,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "file-input",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "xiaomi",
           "providerModelId": "mimo-v2.5-pro",
           "contextWindowTokens": 1050000,
-          "maxOutputTokens": 131000
+          "maxOutputTokens": 131000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -4220,7 +6395,12 @@
           "provider": "zai",
           "providerModelId": "glm-4.5",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 96000
+          "maxOutputTokens": 96000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -4231,7 +6411,12 @@
           "provider": "zai",
           "providerModelId": "glm-4.5-air",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 96000
+          "maxOutputTokens": 96000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -4242,13 +6427,25 @@
           "provider": "novita",
           "providerModelId": "zai-org/glm-4.5v",
           "contextWindowTokens": 65536,
-          "maxOutputTokens": 16384
+          "maxOutputTokens": 16384,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         },
         {
           "provider": "zai",
           "providerModelId": "glm-4.5v",
           "contextWindowTokens": 66000,
-          "maxOutputTokens": 16000
+          "maxOutputTokens": 16000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use",
+            "vision"
+          ]
         }
       ]
     },
@@ -4259,19 +6456,34 @@
           "provider": "deepinfra",
           "providerModelId": "zai-org/GLM-4.6",
           "contextWindowTokens": 202752,
-          "maxOutputTokens": 202752
+          "maxOutputTokens": 202752,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "zai-org/glm-4.6",
           "contextWindowTokens": 204800,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "zai",
           "providerModelId": "glm-4.6",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 96000
+          "maxOutputTokens": 96000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -4282,7 +6494,14 @@
           "provider": "zai",
           "providerModelId": "glm-4.6v",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 24000
+          "maxOutputTokens": 24000,
+          "tags": [
+            "vision",
+            "file-input",
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -4293,7 +6512,14 @@
           "provider": "zai",
           "providerModelId": "GLM-4.6v-flash",
           "contextWindowTokens": 128000,
-          "maxOutputTokens": 24000
+          "maxOutputTokens": 24000,
+          "tags": [
+            "vision",
+            "reasoning",
+            "file-input",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -4304,37 +6530,66 @@
           "provider": "baseten",
           "providerModelId": "zai-org/GLM-4.7",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 120000
+          "maxOutputTokens": 120000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "bedrock",
           "providerModelId": "zai.glm-4.7",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 120000
+          "maxOutputTokens": 120000,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "cerebras",
           "providerModelId": "zai-glm-4.7",
           "contextWindowTokens": 131000,
-          "maxOutputTokens": 40000
+          "maxOutputTokens": 40000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "zai-org/GLM-4.7",
           "contextWindowTokens": 202752,
-          "maxOutputTokens": 120000
+          "maxOutputTokens": 120000,
+          "tags": [
+            "reasoning",
+            "implicit-caching",
+            "tool-use"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "zai-org/glm-4.7",
           "contextWindowTokens": 204800,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "zai",
           "providerModelId": "glm-4.7",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 120000
+          "maxOutputTokens": 120000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -4345,13 +6600,22 @@
           "provider": "bedrock",
           "providerModelId": "zai.glm-4.7-flash",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 131000
+          "maxOutputTokens": 131000,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "zai",
           "providerModelId": "glm-4.7-flash",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 131000
+          "maxOutputTokens": 131000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         }
       ]
     },
@@ -4362,7 +6626,12 @@
           "provider": "zai",
           "providerModelId": "GLM-4.7-FlashX",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -4373,37 +6642,66 @@
           "provider": "baseten",
           "providerModelId": "zai-org/GLM-5",
           "contextWindowTokens": 202800,
-          "maxOutputTokens": 131100
+          "maxOutputTokens": 131100,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "bedrock",
           "providerModelId": "zai.glm-5",
           "contextWindowTokens": 202800,
-          "maxOutputTokens": 131100
+          "maxOutputTokens": 131100,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "zai-org/GLM-5",
           "contextWindowTokens": 202800,
-          "maxOutputTokens": 131100
+          "maxOutputTokens": 131100,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "zai-org/glm-5",
           "contextWindowTokens": 202800,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "reasoning",
+            "implicit-caching",
+            "tool-use"
+          ]
         },
         {
           "provider": "parasail",
           "providerModelId": "zai-org/GLM-5",
           "contextWindowTokens": 202800,
-          "maxOutputTokens": 131100
+          "maxOutputTokens": 131100,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "zai",
           "providerModelId": "glm-5",
           "contextWindowTokens": 202800,
-          "maxOutputTokens": 131100
+          "maxOutputTokens": 131100,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -4414,7 +6712,12 @@
           "provider": "zai",
           "providerModelId": "glm-5-turbo",
           "contextWindowTokens": 202800,
-          "maxOutputTokens": 131100
+          "maxOutputTokens": 131100,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -4425,37 +6728,66 @@
           "provider": "baseten",
           "providerModelId": "zai-org/GLM-5.1",
           "contextWindowTokens": 202000,
-          "maxOutputTokens": 202000
+          "maxOutputTokens": 202000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "zai-org/GLM-5.1",
           "contextWindowTokens": 202752,
-          "maxOutputTokens": 202752
+          "maxOutputTokens": 202752,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "fireworks",
           "providerModelId": "accounts/fireworks/models/glm-5p1",
           "contextWindowTokens": 202000,
-          "maxOutputTokens": 202000
+          "maxOutputTokens": 202000,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "novita",
           "providerModelId": "zai-org/glm-5.1",
           "contextWindowTokens": 204800,
-          "maxOutputTokens": 131072
+          "maxOutputTokens": 131072,
+          "tags": [
+            "implicit-caching",
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "togetherai",
           "providerModelId": "zai-org/GLM-5.1",
           "contextWindowTokens": 202000,
-          "maxOutputTokens": 202000
+          "maxOutputTokens": 202000,
+          "tags": [
+            "reasoning",
+            "tool-use"
+          ]
         },
         {
           "provider": "zai",
           "providerModelId": "glm-5.1",
           "contextWindowTokens": 202800,
-          "maxOutputTokens": 64000
+          "maxOutputTokens": 64000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -4466,37 +6798,67 @@
           "provider": "baseten",
           "providerModelId": "zai-org/GLM-5.2",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "deepinfra",
           "providerModelId": "zai-org/GLM-5.2",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "fireworks",
           "providerModelId": "accounts/fireworks/models/glm-5p2",
           "contextWindowTokens": 1040000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "parasail",
           "providerModelId": "zai-org/GLM-5.2",
           "contextWindowTokens": 262144,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "wafer",
           "providerModelId": "GLM5.2-Turbo",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "zai",
           "providerModelId": "GLM-5.2",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -4507,13 +6869,23 @@
           "provider": "fireworks",
           "providerModelId": "accounts/fireworks/routers/glm-5p2-fast",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         },
         {
           "provider": "wafer",
           "providerModelId": "GLM5.2-Turbo",
           "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -4524,7 +6896,14 @@
           "provider": "zai",
           "providerModelId": "glm-5v-turbo",
           "contextWindowTokens": 200000,
-          "maxOutputTokens": 128000
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "vision",
+            "file-input"
+          ]
         }
       ]
     }
