@@ -9,6 +9,8 @@ export type View =
   | { name: "audit"; id: string }
   | { name: "leads" }
   | { name: "campaigns" }
+  | { name: "newCampaign" }
+  | { name: "campaign"; id: string }
   | { name: "settings" }
 
 function parsePath(pathname: string): View {
@@ -19,6 +21,8 @@ function parsePath(pathname: string): View {
   }
   if (parts[0] === "audits") return { name: "audits" }
   if (parts[0] === "leads") return { name: "leads" }
+  if (parts[0] === "campaigns" && parts[1] === "new") return { name: "newCampaign" }
+  if (parts[0] === "campaigns" && parts[1]) return { name: "campaign", id: decodeURIComponent(parts[1]) }
   if (parts[0] === "campaigns") return { name: "campaigns" }
   if (parts[0] === "settings") return { name: "settings" }
   return { name: "dashboard" }
@@ -30,6 +34,10 @@ function viewToPath(view: View): string {
       return "/app"
     case "audit":
       return `/app/audits/${encodeURIComponent(view.id)}`
+    case "newCampaign":
+      return "/app/campaigns/new"
+    case "campaign":
+      return `/app/campaigns/${encodeURIComponent(view.id)}`
     default:
       return `/app/${view.name}`
   }

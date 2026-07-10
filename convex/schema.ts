@@ -9,6 +9,9 @@ import {
   auditAssetTypeValidator,
   auditCheckCategoryValidator,
   auditCheckStatusValidator,
+  campaignLeadStatusValidator,
+  campaignOfferTypeValidator,
+  campaignStatusValidator,
   auditFindingCategoryValidator,
   auditFindingSeverityValidator,
   auditPerformanceStrategyValidator,
@@ -16,6 +19,7 @@ import {
   auditStatusValidator,
   auditTypeValidator,
   creditLedgerTypeValidator,
+  leadActivityTypeValidator,
   leadSourceProviderValidator,
   leadStatusValidator,
   personaConfidenceValidator,
@@ -551,4 +555,54 @@ export default defineSchema({
     .index("by_workspaceId", ["workspaceId"])
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
     .index("by_auditId", ["auditId"]),
+
+  campaigns: defineTable({
+    workspaceId: v.id("workspaces"),
+    name: v.string(),
+    targetIndustry: v.string(),
+    targetCity: v.string(),
+    targetCountry: v.string(),
+    offerType: campaignOfferTypeValidator,
+    language: reportLanguageValidator,
+    status: campaignStatusValidator,
+    createdByUserId: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_status", ["workspaceId", "status"])
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"]),
+
+  campaignLeads: defineTable({
+    workspaceId: v.id("workspaces"),
+    campaignId: v.id("campaigns"),
+    leadId: v.id("leads"),
+    status: campaignLeadStatusValidator,
+    note: v.optional(v.string()),
+    noteUpdatedAt: v.optional(v.number()),
+    followUpAt: v.optional(v.number()),
+    lastContactedAt: v.optional(v.number()),
+    outcomeReason: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_campaignId", ["campaignId"])
+    .index("by_campaignId_and_status", ["campaignId", "status"])
+    .index("by_campaignId_and_followUpAt", ["campaignId", "followUpAt"])
+    .index("by_campaignId_and_leadId", ["campaignId", "leadId"])
+    .index("by_workspaceId_and_leadId", ["workspaceId", "leadId"]),
+
+  leadActivities: defineTable({
+    workspaceId: v.id("workspaces"),
+    campaignId: v.id("campaigns"),
+    campaignLeadId: v.optional(v.id("campaignLeads")),
+    leadId: v.optional(v.id("leads")),
+    type: leadActivityTypeValidator,
+    message: v.string(),
+    createdByUserId: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_campaignId_and_createdAt", ["campaignId", "createdAt"])
+    .index("by_campaignLeadId_and_createdAt", ["campaignLeadId", "createdAt"])
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"]),
 })

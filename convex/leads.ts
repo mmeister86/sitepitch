@@ -5,6 +5,7 @@ import type { Id, Doc } from "./_generated/dataModel"
 import { api, internal } from "./_generated/api"
 import { findAppUser, getWorkspaceByOwner, requireExistingAppUser } from "./lib/workspace"
 import { normalizeLeadWebsiteUrl } from "./lib/lead_search"
+import { attachLeadToCampaign } from "./lib/campaigns"
 
 export type LeadListItem = {
   _id: Id<"leads">
@@ -121,12 +122,27 @@ export const saveLeadFromSearch = mutation({
     ),
     sourceId: v.optional(v.string()),
     sourceLabel: v.optional(v.string()),
+    campaignId: v.optional(v.id("campaigns")),
   },
   handler: async (ctx, args): Promise<Id<"leads">> => {
     const user = await requireExistingAppUser(ctx)
     const workspace = await getWorkspaceByOwner(ctx, user.userId)
     if (!workspace) {
       throw new ConvexError({ code: "WORKSPACE_NOT_READY", message: "Workspace not ready" })
+    }
+
+    let campaignId: Id<"campaigns"> | undefined = args.campaignId
+    if (campaignId) {
+      const campaign = await ctx.db.get(campaignId)
+      if (!campaign || campaign.workspaceId !== workspace._id) {
+        throw new ConvexError({ code: "NOT_FOUND", message: "Kampagne nicht gefunden." })
+      }
+      if (campaign.status === "archived") {
+        throw new ConvexError({ code: "VALIDATION_ERROR", message: "Archivierte Kampagnen können nicht bearbeitet werden." })
+      }
+      if (campaign.status === "paused") {
+        throw new ConvexError({ code: "VALIDATION_ERROR", message: "Pausierte Kampagnen können keine neuen Leads aufnehmen." })
+      }
     }
 
     const businessName = args.businessName.trim()
@@ -172,11 +188,22 @@ export const saveLeadFromSearch = mutation({
           patch.normalizedWebsiteUrl = normalizedWebsiteUrl
         }
         await ctx.db.patch(existing._id, patch)
+
+        if (campaignId) {
+          await attachLeadToCampaign(ctx, {
+            workspaceId: workspace._id,
+            campaignId,
+            leadId: existing._id,
+            userId: user.userId,
+          })
+          await ctx.db.patch(campaignId, { updatedAt: now })
+        }
+
         return existing._id
       }
     }
 
-    return await ctx.db.insert("leads", {
+    const leadId = await ctx.db.insert("leads", {
       workspaceId: workspace._id,
       businessName,
       websiteUrl: args.websiteUrl,
@@ -195,6 +222,18 @@ export const saveLeadFromSearch = mutation({
       createdAt: now,
       updatedAt: now,
     })
+
+    if (campaignId) {
+      await attachLeadToCampaign(ctx, {
+        workspaceId: workspace._id,
+        campaignId,
+        leadId,
+        userId: user.userId,
+      })
+      await ctx.db.patch(campaignId, { updatedAt: now })
+    }
+
+    return leadId
   },
 })
 
@@ -261,6 +300,22 @@ export const deleteLead = mutation({
           updatedAt: Date.now(),
         })
       }
+    }
+
+    const campaignLeads = await ctx.db
+      .query("campaignLeads")
+      .withIndex("by_workspaceId_and_leadId", (q) => q.eq("workspaceId", workspace._id).eq("leadId", args.leadId))
+      .collect()
+
+    for (const cl of campaignLeads) {
+      const activities = await ctx.db
+        .query("leadActivities")
+        .withIndex("by_campaignLeadId_and_createdAt", (q) => q.eq("campaignLeadId", cl._id))
+        .collect()
+      for (const activity of activities) {
+        await ctx.db.delete(activity._id)
+      }
+      await ctx.db.delete(cl._id)
     }
 
     await ctx.db.delete(args.leadId)

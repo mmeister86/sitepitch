@@ -1,5 +1,5 @@
 import { CampaignsView } from "@/views/campaigns"
 
-export default function AppCampaignsPage() {
+export default function CampaignsPage() {
   return <CampaignsView />
 }

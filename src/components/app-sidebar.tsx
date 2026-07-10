@@ -75,7 +75,8 @@ export function AppSidebar() {
 
   const isActive = (v: View) =>
     v.name === view.name ||
-    (v.name === "audits" && view.name === "audit")
+    (v.name === "audits" && view.name === "audit") ||
+    (v.name === "campaigns" && (view.name === "campaign" || view.name === "newCampaign"))
 
   async function signOut() {
     await authClient.signOut()

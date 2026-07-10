@@ -16,7 +16,9 @@ export { isPaidPlan, providerToLimitKind, throwRateLimited }
 export type { ProviderLimitKind, SubscriptionPlan }
 
 export const auditRateLimiter = new RateLimiter(components.rateLimiter, {
-  auditStartsFree: { kind: "fixed window", rate: 3, period: HOUR },
+  // Pre-billing free tier: aligned with paid limit so test users can run QA.
+  // Revisit once Task 4.9 (billing & plan gates) ships; production has no free plan.
+  auditStartsFree: { kind: "fixed window", rate: 10, period: HOUR },
   auditStartsPaid: { kind: "fixed window", rate: 10, period: HOUR },
   auditStartsByWorkspace: { kind: "fixed window", rate: 10, period: HOUR },
   demoAuditByIp: { kind: "fixed window", rate: 1, period: DAY },

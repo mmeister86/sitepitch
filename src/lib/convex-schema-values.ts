@@ -49,6 +49,41 @@ export const leadSourceProviderValidator = v.union(
   v.literal("apify"),
 )
 
+export const campaignOfferTypeValidator = v.union(
+  v.literal("relaunch"),
+  v.literal("maintenance"),
+  v.literal("seo"),
+  v.literal("conversion"),
+  v.literal("performance"),
+  v.literal("custom"),
+)
+
+export const campaignStatusValidator = v.union(
+  v.literal("draft"),
+  v.literal("active"),
+  v.literal("paused"),
+  v.literal("archived"),
+)
+
+export const campaignLeadStatusValidator = v.union(
+  v.literal("new"),
+  v.literal("audited"),
+  v.literal("contacted"),
+  v.literal("follow_up"),
+  v.literal("interested"),
+  v.literal("won"),
+  v.literal("lost"),
+)
+
+export const leadActivityTypeValidator = v.union(
+  v.literal("lead_added"),
+  v.literal("status_changed"),
+  v.literal("note_updated"),
+  v.literal("follow_up_scheduled"),
+  v.literal("follow_up_cleared"),
+  v.literal("campaign_status_changed"),
+)
+
 export const leadStatusValidator = v.union(
   v.literal("new"),
   v.literal("audited"),

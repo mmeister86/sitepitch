@@ -30,8 +30,11 @@ assert.deepEqual(tableNames, [
   "auditScores",
   "auditSummaries",
   "audits",
+  "campaignLeads",
+  "campaigns",
   "creditBalances",
   "creditLedger",
+  "leadActivities",
   "leads",
   "outreachDrafts",
   "providerCalls",
@@ -141,6 +144,32 @@ assert.ok(
     (index: { indexDescriptor: string }) => index.indexDescriptor === "by_workspaceId_and_createdAt",
   ),
 )
+
+const campaignsTable = schema.tables.campaigns as any
+const campaignIndexes = campaignsTable.indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(campaignIndexes.includes("by_workspaceId"))
+assert.ok(campaignIndexes.includes("by_workspaceId_and_status"))
+assert.ok(campaignIndexes.includes("by_workspaceId_and_createdAt"))
+
+const campaignLeadsTable = schema.tables.campaignLeads as any
+const campaignLeadsIndexes = campaignLeadsTable.indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(campaignLeadsIndexes.includes("by_campaignId"))
+assert.ok(campaignLeadsIndexes.includes("by_campaignId_and_status"))
+assert.ok(campaignLeadsIndexes.includes("by_campaignId_and_followUpAt"))
+assert.ok(campaignLeadsIndexes.includes("by_campaignId_and_leadId"))
+assert.ok(campaignLeadsIndexes.includes("by_workspaceId_and_leadId"))
+
+const leadActivitiesTable = schema.tables.leadActivities as any
+const leadActivitiesIndexes = leadActivitiesTable.indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(leadActivitiesIndexes.includes("by_campaignId_and_createdAt"))
+assert.ok(leadActivitiesIndexes.includes("by_campaignLeadId_and_createdAt"))
+assert.ok(leadActivitiesIndexes.includes("by_workspaceId_and_createdAt"))
 
 const pipelineIndexes = (schema.tables.auditPipelineStates as any).indexes.map(
   (index: { indexDescriptor: string }) => index.indexDescriptor,

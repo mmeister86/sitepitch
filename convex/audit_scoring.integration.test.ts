@@ -41,6 +41,8 @@ type SeedIds = {
   auditId: Id<"audits">
 }
 
+let auditWorkspaceId: Id<"workspaces">
+
 function seedBaseAudit(t: ReturnType<typeof createTest>): Promise<SeedIds> {
   return t.mutation(async (ctx) => {
     const now = Date.now()
@@ -139,6 +141,7 @@ function seedBaseAudit(t: ReturnType<typeof createTest>): Promise<SeedIds> {
       createdAt: now,
     })
 
+    auditWorkspaceId = workspaceId
     return { workspaceId, auditId }
   })
 }
@@ -179,7 +182,85 @@ describe("processDeterministicScoring", () => {
     const audit = await t.query((ctx) => ctx.db.get(auditId))
     assert.ok(audit)
     assert.equal(audit!.status, "generating_findings")
-    assert.equal(audit!.overallScore, score!.overallScore)
+    assert.equal(audit!.overallScore, undefined)
+  })
+
+  test("finalizes scores after analyses and writes overall score", async () => {
+    const t = createTest()
+    const { auditId } = await seedBaseAudit(t)
+
+    await t.mutation(internal.audit_scoring.processDeterministicScoring, {
+      auditId,
+    })
+
+    await t.mutation((ctx) =>
+      ctx.db.insert("auditPersonaReviews", {
+        workspaceId: auditWorkspaceId,
+        auditId,
+        personaId: "mobile_customer",
+        personaName: "Mobile Kundin",
+        lens: "Unterwegs schnell informieren",
+        verdict: "Die Seite ist auf Mobilgeräten schwer nutzbar.",
+        positives: ["Schnelle Ladezeit"],
+        frictionPoints: ["Zu viel Text", "CTA zu weit unten", "Menü unübersichtlich"],
+        topRecommendation: "Hero auf Mobilgeräten kürzen und CTA sticky platzieren.",
+        evidenceRefs: ["Mobile Screenshot verfügbar"],
+        confidence: "high",
+        sortOrder: 0,
+        createdAt: Date.now(),
+      }),
+    )
+
+    await t.mutation((ctx) =>
+      ctx.db.insert("auditDesignCritiques", {
+        workspaceId: auditWorkspaceId,
+        auditId,
+        designHealthScore: 18,
+        ratingBand: "Ausbaufähig",
+        overallImpression: "Visuell okay, aber die Informationshierarchie schwächelt.",
+        heuristicScores: Array.from({ length: 10 }, () => ({
+          name: "Beispiel-Heuristik",
+          score: 2,
+          keyIssue: "Zu viel visueller Lärm",
+        })),
+        cognitiveLoadFailedCount: 4,
+        cognitiveLoadLevel: "high",
+        cognitiveLoadNotes: "Zu viele parallele Aktionen im Hero-Bereich.",
+        antiPatternVerdict: "Hier und da Anti-Patterns erkennbar.",
+        whatsWorking: ["Farben wirken konsistent"],
+        priorityIssues: [
+          {
+            severity: "P1",
+            title: "CTA nicht prominent",
+            whyItMatters: "Nutzer finden den Kontakt nicht sofort.",
+            fix: "CTA in den Hero- und Header-Bereich platzieren.",
+            evidenceRefs: ["Primärer Call-to-Action sichtbar"],
+          },
+        ],
+        recommendations: ["Hero-Bereich auf Mobilgeräten kürzen"],
+        evidenceRefs: ["Mobile Screenshot verfügbar"],
+        createdAt: Date.now(),
+      }),
+    )
+
+    await t.mutation(internal.audit_scoring.finalizeAuditScoresWithAnalyses, {
+      auditId,
+    })
+
+    const audit = await t.query((ctx) => ctx.db.get(auditId))
+    assert.ok(audit)
+    assert.equal(audit!.status, "calculating_scores")
+    assert.ok(audit!.overallScore !== undefined)
+
+    const score = await t.query((ctx) =>
+      ctx.db
+        .query("auditScores")
+        .withIndex("by_auditId", (q) => q.eq("auditId", auditId))
+        .unique(),
+    )
+    assert.ok(score)
+    assert.equal(score!.overallScore, audit!.overallScore)
+    assert.ok(score!.mobileUxScore < 80)
   })
 
   test("is idempotent when re-run", async () => {

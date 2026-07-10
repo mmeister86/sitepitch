@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 import { describe, test } from "vitest"
 
 import {
+  applyQualitativeScoringAdjustments,
   CATEGORY_WEIGHTS,
   SCORING_VERSION,
   clampScore,
@@ -15,10 +16,52 @@ import {
   summarizeCategoryScores,
   type AuditCheckData,
   type CheckInput,
+  type DesignCritiqueScoringInput,
+  type PersonaScoringInput,
+  type QualitativeScoringInput,
 } from "./lib/audit_scoring"
 
 function check(category: CheckInput["category"], key: string, status: CheckInput["status"], weight?: number): CheckInput {
   return { category, key, label: key, status, weight }
+}
+
+function baseScores() {
+  return {
+    conversion: 60,
+    seo: 70,
+    local_seo: 55,
+    performance: 65,
+    mobile: 50,
+    trust: 60,
+  }
+}
+
+function designCritique(overrides: Partial<DesignCritiqueScoringInput> = {}): DesignCritiqueScoringInput {
+  return {
+    designHealthScore: 20,
+    heuristicScores: Array.from({ length: 10 }, () => ({ score: 2 })),
+    cognitiveLoadLevel: "moderate",
+    priorityIssues: [{ severity: "P1" }, { severity: "P2" }],
+    ...overrides,
+  }
+}
+
+function persona(overrides: Partial<PersonaScoringInput> = {}): PersonaScoringInput {
+  return {
+    personaId: "busy_owner",
+    positives: ["Klar strukturiert"],
+    frictionPoints: ["CTA zu spät", "Kein Vertrauenssignal"],
+    confidence: "high",
+    ...overrides,
+  }
+}
+
+function qualitativeInput(overrides: Partial<QualitativeScoringInput> = {}): QualitativeScoringInput {
+  return {
+    personas: [persona()],
+    designCritique: designCritique(),
+    ...overrides,
+  }
 }
 
 const baseData: AuditCheckData = {
@@ -155,6 +198,104 @@ describe("score labels", () => {
 
   test("scoring version is stable and documented", () => {
     assert.ok(SCORING_VERSION.length > 0)
+  })
+})
+
+describe("applyQualitativeScoringAdjustments", () => {
+  test("leaves seo, local_seo and performance unchanged", () => {
+    const scores = baseScores()
+    const adjusted = applyQualitativeScoringAdjustments(scores, qualitativeInput())
+
+    assert.equal(adjusted.seo, scores.seo)
+    assert.equal(adjusted.local_seo, scores.local_seo)
+    assert.equal(adjusted.performance, scores.performance)
+  })
+
+  test("lowers conversion, mobile and trust when design critique is weak", () => {
+    const scores = baseScores()
+    const adjusted = applyQualitativeScoringAdjustments(
+      scores,
+      qualitativeInput({
+        designCritique: designCritique({
+          designHealthScore: 10,
+          heuristicScores: Array.from({ length: 10 }, () => ({ score: 1 })),
+          cognitiveLoadLevel: "high",
+          priorityIssues: [{ severity: "P0" }, { severity: "P1" }],
+        }),
+      }),
+    )
+
+    assert.ok(adjusted.conversion < scores.conversion)
+    assert.ok(adjusted.mobile < scores.mobile)
+    assert.ok(adjusted.trust < scores.trust)
+  })
+
+  test("mobile_customer persona penalizes mobile more than conversion", () => {
+    const scores = baseScores()
+    const adjusted = applyQualitativeScoringAdjustments(
+      scores,
+      qualitativeInput({
+        designCritique: null,
+        personas: [persona({ personaId: "mobile_customer", frictionPoints: ["a", "b", "c"], positives: [] })],
+      }),
+    )
+
+    const mobileDelta = scores.mobile - adjusted.mobile
+    const conversionDelta = scores.conversion - adjusted.conversion
+    assert.ok(mobileDelta > conversionDelta)
+  })
+
+  test("skeptical_buyer persona penalizes trust more than conversion", () => {
+    const scores = baseScores()
+    const adjusted = applyQualitativeScoringAdjustments(
+      scores,
+      qualitativeInput({
+        designCritique: null,
+        personas: [persona({ personaId: "skeptical_buyer", frictionPoints: ["a", "b", "c"], positives: [] })],
+      }),
+    )
+
+    const trustDelta = scores.trust - adjusted.trust
+    const conversionDelta = scores.conversion - adjusted.conversion
+    assert.ok(trustDelta > conversionDelta)
+  })
+
+  test("low confidence personas have smaller impact", () => {
+    const high = applyQualitativeScoringAdjustments(
+      baseScores(),
+      qualitativeInput({
+        personas: [persona({ confidence: "high", frictionPoints: ["a", "b", "c"], positives: [] })],
+        designCritique: null,
+      }),
+    )
+
+    const low = applyQualitativeScoringAdjustments(
+      baseScores(),
+      qualitativeInput({
+        personas: [persona({ confidence: "low", frictionPoints: ["a", "b", "c"], positives: [] })],
+        designCritique: null,
+      }),
+    )
+
+    assert.ok(high.conversion < low.conversion)
+  })
+
+  test("all adjusted scores remain between 0 and 100", () => {
+    const adjusted = applyQualitativeScoringAdjustments(
+      baseScores(),
+      qualitativeInput({
+        designCritique: designCritique({
+          designHealthScore: 0,
+          heuristicScores: Array.from({ length: 10 }, () => ({ score: 0 })),
+          cognitiveLoadLevel: "high",
+          priorityIssues: Array.from({ length: 10 }, () => ({ severity: "P0" as const })),
+        }),
+      }),
+    )
+
+    assert.ok(adjusted.conversion >= 0 && adjusted.conversion <= 100)
+    assert.ok(adjusted.mobile >= 0 && adjusted.mobile <= 100)
+    assert.ok(adjusted.trust >= 0 && adjusted.trust <= 100)
   })
 })
 

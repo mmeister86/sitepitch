@@ -5,13 +5,145 @@ import type { MutationCtx } from "./_generated/server"
 import { internalMutation, internalQuery } from "./_generated/server"
 import { internal } from "./_generated/api"
 import {
+  applyQualitativeScoringAdjustments,
   evaluateChecks,
   summarizeCategoryScores,
   computeOverallScore,
   SCORING_VERSION,
   type AuditCheckData,
+  type CategoryScores,
 } from "./lib/audit_scoring"
 import { llmWorkpool } from "./workpools"
+
+export const finalizeAuditScoresWithAnalyses = internalMutation({
+  args: {
+    auditId: v.id("audits"),
+  },
+  handler: async (ctx, args) => {
+    console.log("[audit_scoring] finalizeAuditScoresWithAnalyses started", {
+      auditId: args.auditId,
+    })
+
+    const audit = await ctx.db.get(args.auditId)
+    if (!audit) {
+      console.warn("[audit_scoring] audit not found", { auditId: args.auditId })
+      return null
+    }
+
+    if (audit.status === "completed" || audit.status === "failed" || audit.status === "cancelled") {
+      console.log("[audit_scoring] skipping terminal audit", { auditId: args.auditId, status: audit.status })
+      return null
+    }
+
+    const current = now()
+    await ctx.db.patch(audit._id, {
+      status: "calculating_scores",
+      statusMessage: "Checks, Persona-Perspektiven und Design-Kritik werden zum finalen Score zusammengeführt",
+      updatedAt: current,
+    })
+
+    const score = await ctx.db
+      .query("auditScores")
+      .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+      .unique()
+
+    let baseScores: CategoryScores
+
+    if (score) {
+      baseScores = {
+        conversion: score.conversionScore,
+        seo: score.seoBasicsScore,
+        local_seo: score.localSeoScore,
+        performance: score.performanceScore,
+        mobile: score.mobileUxScore,
+        trust: score.trustScore,
+      }
+    } else {
+      const data = await gatherAuditCheckData(ctx, audit)
+      const checks = evaluateChecks(data)
+      baseScores = summarizeCategoryScores(checks)
+    }
+
+    const personaDocs = await ctx.db
+      .query("auditPersonaReviews")
+      .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+      .collect()
+
+    const designDoc = await ctx.db
+      .query("auditDesignCritiques")
+      .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+      .unique()
+
+    const qualitativeInput = {
+      personas: personaDocs.map((review) => ({
+        personaId: review.personaId,
+        positives: review.positives,
+        frictionPoints: review.frictionPoints,
+        confidence: review.confidence as "low" | "medium" | "high",
+      })),
+      designCritique: designDoc
+        ? {
+            designHealthScore: designDoc.designHealthScore,
+            heuristicScores: designDoc.heuristicScores,
+            cognitiveLoadLevel: designDoc.cognitiveLoadLevel as "low" | "moderate" | "high",
+            priorityIssues: designDoc.priorityIssues,
+          }
+        : null,
+    }
+
+    const finalCategoryScores = applyQualitativeScoringAdjustments(baseScores, qualitativeInput)
+    const finalOverallScore = computeOverallScore(finalCategoryScores)
+
+    console.log("[audit_scoring] computed final scores", {
+      auditId: args.auditId,
+      baseScores,
+      finalCategoryScores,
+      finalOverallScore,
+    })
+
+    const scoreValues = {
+      conversionScore: finalCategoryScores.conversion,
+      seoBasicsScore: finalCategoryScores.seo,
+      localSeoScore: finalCategoryScores.local_seo,
+      performanceScore: finalCategoryScores.performance,
+      mobileUxScore: finalCategoryScores.mobile,
+      trustScore: finalCategoryScores.trust,
+      overallScore: finalOverallScore,
+      scoringVersion: SCORING_VERSION,
+    }
+
+    if (score) {
+      await ctx.db.patch(score._id, {
+        ...scoreValues,
+        createdAt: current,
+      })
+    } else {
+      await ctx.db.insert("auditScores", {
+        workspaceId: audit.workspaceId,
+        auditId: args.auditId,
+        ...scoreValues,
+        createdAt: current,
+      })
+    }
+
+    await ctx.db.patch(audit._id, {
+      overallScore: finalOverallScore,
+      status: "calculating_scores",
+      statusMessage: "Finale Scores wurden berechnet",
+      updatedAt: current,
+    })
+
+    console.log("[audit_scoring] finalizeAuditScoresWithAnalyses completed", {
+      auditId: args.auditId,
+      finalOverallScore,
+    })
+
+    return {
+      auditId: args.auditId,
+      overallScore: finalOverallScore,
+    }
+  },
+})
 
 function now() {
   return Date.now()
@@ -179,7 +311,7 @@ export const processDeterministicScoring = internalMutation({
 
     const current = now()
     await ctx.db.patch(audit._id, {
-      status: "calculating_scores",
+      status: "running_deterministic_checks",
       statusMessage: "Deterministische Checks und Scores werden berechnet",
       updatedAt: current,
     })
@@ -275,7 +407,6 @@ export const processDeterministicScoring = internalMutation({
 
     const finishedAt = now()
     await ctx.db.patch(audit._id, {
-      overallScore,
       status: "generating_findings",
       statusMessage: "Findings werden vorbereitet",
       updatedAt: finishedAt,

@@ -131,6 +131,108 @@ export function scoreOpportunity(score: number): string {
   }
 }
 
+export interface PersonaScoringInput {
+  personaId: string
+  positives: string[]
+  frictionPoints: string[]
+  confidence: "low" | "medium" | "high"
+}
+
+export interface DesignCritiqueScoringInput {
+  designHealthScore: number
+  heuristicScores: Array<{ score: number }>
+  cognitiveLoadLevel: "low" | "moderate" | "high"
+  priorityIssues: Array<{ severity: "P0" | "P1" | "P2" | "P3" }>
+}
+
+export interface QualitativeScoringInput {
+  personas: PersonaScoringInput[]
+  designCritique: DesignCritiqueScoringInput | null
+}
+
+function blendScore(base: number, signal: number, weight: number): number {
+  return clampScore(base * (1 - weight) + signal * weight)
+}
+
+export function applyQualitativeScoringAdjustments(
+  baseScores: CategoryScores,
+  input: QualitativeScoringInput,
+): CategoryScores {
+  const adjusted = { ...baseScores }
+
+  if (input.designCritique) {
+    const designHealth100 = clampScore(input.designCritique.designHealthScore * 2.5)
+
+    const heuristicAverage =
+      input.designCritique.heuristicScores.length > 0
+        ? input.designCritique.heuristicScores.reduce((sum, item) => sum + item.score, 0) /
+          input.designCritique.heuristicScores.length
+        : 2
+
+    const heuristic100 = clampScore((heuristicAverage / 4) * 100)
+    const designComposite = clampScore(designHealth100 * 0.7 + heuristic100 * 0.3)
+
+    adjusted.conversion = blendScore(adjusted.conversion, designComposite, 0.12)
+    adjusted.mobile = blendScore(adjusted.mobile, designComposite, 0.12)
+    adjusted.trust = blendScore(adjusted.trust, designComposite, 0.08)
+
+    const severityPenalty = Math.min(
+      10,
+      input.designCritique.priorityIssues.reduce((sum, issue) => {
+        if (issue.severity === "P0") return sum + 6
+        if (issue.severity === "P1") return sum + 4
+        if (issue.severity === "P2") return sum + 2
+        return sum + 1
+      }, 0),
+    )
+
+    adjusted.conversion = clampScore(adjusted.conversion - severityPenalty)
+    adjusted.mobile = clampScore(adjusted.mobile - Math.ceil(severityPenalty * 0.4))
+    adjusted.trust = clampScore(adjusted.trust - Math.ceil(severityPenalty * 0.3))
+
+    if (input.designCritique.cognitiveLoadLevel === "high") {
+      adjusted.conversion = clampScore(adjusted.conversion - 6)
+      adjusted.mobile = clampScore(adjusted.mobile - 4)
+    } else if (input.designCritique.cognitiveLoadLevel === "moderate") {
+      adjusted.conversion = clampScore(adjusted.conversion - 3)
+      adjusted.mobile = clampScore(adjusted.mobile - 2)
+    }
+  }
+
+  const confidenceWeight = {
+    high: 1,
+    medium: 0.65,
+    low: 0.35,
+  } as const
+
+  let conversionPenalty = 0
+  let mobilePenalty = 0
+  let trustPenalty = 0
+
+  for (const persona of input.personas) {
+    const pressure = Math.max(
+      0,
+      persona.frictionPoints.length - persona.positives.length * 0.4,
+    ) * confidenceWeight[persona.confidence]
+
+    if (persona.personaId === "mobile_customer") {
+      mobilePenalty += pressure * 2.5
+      conversionPenalty += pressure * 0.8
+    } else if (persona.personaId === "skeptical_buyer") {
+      trustPenalty += pressure * 2.2
+      conversionPenalty += pressure * 0.6
+    } else {
+      conversionPenalty += pressure
+    }
+  }
+
+  adjusted.conversion = clampScore(adjusted.conversion - Math.min(8, Math.round(conversionPenalty)))
+  adjusted.mobile = clampScore(adjusted.mobile - Math.min(6, Math.round(mobilePenalty)))
+  adjusted.trust = clampScore(adjusted.trust - Math.min(6, Math.round(trustPenalty)))
+
+  return adjusted
+}
+
 export function clampScore(score: number): number {
   if (!Number.isFinite(score)) {
     return NEUTRAL_CATEGORY_SCORE

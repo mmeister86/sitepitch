@@ -924,6 +924,10 @@ export const processAuditAgentOutputs = internalAction({
 
     await runDesignCritique(ctx, agentContext, args.auditId)
 
+    await ctx.runMutation(internal.audit_scoring.finalizeAuditScoresWithAnalyses, {
+      auditId: args.auditId,
+    })
+
     await ctx.runMutation(internal.audit_agent.completeAuditFromAgent, {
       auditId: args.auditId,
     })
