@@ -168,7 +168,17 @@ export function CampaignDetailView({ id }: { id: string }) {
   }) {
     try {
       await saveLead({
-        ...result,
+        businessName: result.businessName,
+        websiteUrl: result.websiteUrl,
+        normalizedWebsiteUrl: result.normalizedWebsiteUrl,
+        category: result.category,
+        city: result.city,
+        country: result.country,
+        address: result.address,
+        phone: result.phone,
+        businessEmail: result.businessEmail,
+        latitude: result.latitude,
+        longitude: result.longitude,
         sourceProvider: result.sourceProvider as
           | "rapidapi"
           | "google_places"
@@ -176,6 +186,8 @@ export function CampaignDetailView({ id }: { id: string }) {
           | "serpapi"
           | "dataforseo"
           | "apify",
+        sourceId: result.sourceId,
+        sourceLabel: result.sourceLabel,
         campaignId,
       })
       toast.success("Lead zur Kampagne hinzugefügt")

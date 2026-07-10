@@ -1,5 +1,5 @@
-import { CampaignNewView } from "@/views/campaign-new"
+import { redirect } from "next/navigation"
 
 export default function CampaignNewPage() {
-  return <CampaignNewView />
+  redirect("/app/campaigns")
 }

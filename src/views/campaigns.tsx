@@ -2,11 +2,11 @@
 
 import { useRouter } from "@/lib/router"
 import { useQuery } from "convex/react"
-import { Megaphone, Plus } from "lucide-react"
+import { Megaphone } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
+import { CampaignSetupForm } from "@/components/campaign-setup-form"
 import { api } from "../../convex/_generated/api"
 import { campaignStatusLabel, type CampaignStatus } from "../../convex/lib/campaigns"
 
@@ -41,18 +41,14 @@ export function CampaignsView() {
 
   return (
     <div className="mx-auto w-full max-w-[1100px] space-y-5 p-4 md:p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Kampagnen</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Lokale Akquise nach Zielgruppe steuern
-          </p>
-        </div>
-        <Button onClick={() => navigate({ name: "newCampaign" })} className="gap-2">
-          <Plus className="size-4" />
-          Neue Kampagne
-        </Button>
+      <div>
+        <h2 className="text-2xl font-semibold tracking-tight">Kampagnen</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Lokale Akquise nach Zielgruppe steuern
+        </p>
       </div>
+
+      <CampaignSetupForm onCreated={(id) => navigate({ name: "campaign", id })} />
 
       <Card className="gap-0 py-0">
         <CardHeader className="gap-3 border-b py-4">
@@ -73,7 +69,7 @@ export function CampaignsView() {
               <div>
                 <p className="text-sm font-medium">Noch keine Kampagnen</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Lege eine Zielgruppe fest, finde passende Unternehmen und behalte Audit, Outreach und Follow-ups im Blick.
+                  Lege oben eine Zielgruppe fest und starte deine erste Kampagne.
                 </p>
               </div>
             </div>
@@ -94,16 +90,7 @@ export function CampaignsView() {
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <CampaignStatusBadge status={campaign.status} />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        navigate({ name: "campaign", id: campaign._id })
-                      }}
-                    >
-                      Öffnen
-                    </Button>
+                    <span className="text-sm font-medium text-muted-foreground">Öffnen</span>
                   </div>
                 </div>
               ))}
