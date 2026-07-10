@@ -6,6 +6,8 @@ import { personaPanelOutputSchema, safeParsePersonaPanel, validatePersonaEvidenc
 import { PERSONA_DEFINITIONS, PERSONA_IDS, type PersonaId } from "./lib/audit_personas"
 import { buildPersonaSystemPrompt } from "./lib/audit_persona_prompt"
 import { reviewTextsClaimSafety } from "./lib/audit_agent_claim_safety"
+import { generateDeterministicPersonaPanel } from "./lib/audit_persona_fallback"
+import type { AuditAgentContext } from "./audit_agent"
 import { buildEvidenceRefs } from "./lib/audit_agent_evidence"
 import type { CheckInput } from "./lib/audit_scoring"
 
@@ -141,5 +143,91 @@ describe("persona prompt builder", () => {
     const prompt = buildPersonaSystemPrompt("de")
     assert.ok(prompt.includes("Claim Safety"))
     assert.ok(prompt.includes("evidenceRefs"))
+  })
+})
+
+describe("generateDeterministicPersonaPanel", () => {
+  function baseContext(overrides: Partial<AuditAgentContext> = {}): AuditAgentContext {
+    return {
+      auditId: "audit1",
+      workspaceId: "workspace1",
+      domain: "example.com",
+      normalizedUrl: "https://example.com/",
+      reportLanguage: "de",
+      publicSlug: "example",
+      isPublic: false,
+      overallScore: 58,
+      workspace: { name: "Seed Studio" },
+      categoryScores: {
+        conversion: 40,
+        seo: 55,
+        local_seo: 60,
+        performance: 70,
+        mobile: 65,
+        trust: 80,
+      },
+      scoringVersion: "2026.07.1",
+      checks: [
+        { category: "conversion", key: "primary_cta", label: "Primärer CTA", status: "failed", evidence: "Kein CTA" },
+        { category: "seo", key: "title_length", label: "Title-Länge", status: "warning", evidence: "20 Zeichen" },
+        { category: "trust", key: "imprint", label: "Impressum", status: "passed", evidence: "Vorhanden" },
+      ],
+      signals: {},
+      business: undefined,
+      performance: {},
+      screenshots: {},
+      ...overrides,
+    } as AuditAgentContext
+  }
+
+  test("produces one review per persona", () => {
+    const output = generateDeterministicPersonaPanel(baseContext())
+    assert.equal(output.reviews.length, 4)
+    assert.deepEqual(
+      output.reviews.map((r) => r.personaId),
+      PERSONA_IDS,
+    )
+  })
+
+  test("produces reviews that pass schema validation", () => {
+    const output = generateDeterministicPersonaPanel(baseContext())
+    const parsed = personaPanelOutputSchema.safeParse(output)
+    assert.ok(parsed.success, JSON.stringify(parsed.error?.issues))
+  })
+
+  test("uses reportLanguage for persona names and lenses", () => {
+    const de = generateDeterministicPersonaPanel(baseContext({ reportLanguage: "de" }))
+    const en = generateDeterministicPersonaPanel(baseContext({ reportLanguage: "en" }))
+    assert.ok(de.reviews[0]!.personaName.includes("Geschäftsinhaber"))
+    assert.ok(en.reviews[0]!.personaName.includes("business owner"))
+  })
+
+  test("references at least one stored check per review", () => {
+    const output = generateDeterministicPersonaPanel(baseContext())
+    for (const review of output.reviews) {
+      assert.ok(review.evidenceRefs.length > 0, `${review.personaId} has no evidenceRefs`)
+    }
+  })
+
+  test("adapts friction and confidence based on category scores", () => {
+    const lowTrust = generateDeterministicPersonaPanel(
+      baseContext({
+        categoryScores: { ...baseContext().categoryScores, trust: 30 },
+      }),
+    )
+    const skeptical = lowTrust.reviews.find((r) => r.personaId === "skeptical_buyer")!
+    assert.equal(skeptical.confidence, "low")
+    assert.ok(skeptical.frictionPoints.length > 0)
+  })
+
+  test("uses cautious, claim-safe language", () => {
+    const output = generateDeterministicPersonaPanel(baseContext({ reportLanguage: "en" }))
+    const allText = output.reviews
+      .flatMap((r) => [r.verdict, r.topRecommendation, ...r.frictionPoints, ...r.positives])
+      .join(" ")
+    const safety = reviewTextsClaimSafety([
+      { text: allText, path: "fallback" },
+    ])
+    assert.ok(safety.ok, JSON.stringify(safety.issues))
   })
 })

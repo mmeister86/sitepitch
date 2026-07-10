@@ -17,11 +17,13 @@ import {
 } from "./lib/audit_agent_fallback"
 import { buildSystemPrompt, buildUserPrompt } from "./lib/audit_agent_prompt"
 import { buildPersonaSystemPrompt, buildPersonaUserPrompt } from "./lib/audit_persona_prompt"
+import { generateDeterministicPersonaPanel } from "./lib/audit_persona_fallback"
 import {
   personaPanelOutputSchema,
   safeParsePersonaPanel,
   validatePersonaEvidence,
   type PersonaPanelOutput,
+  type PersonaReviewOutput,
 } from "./lib/audit_persona_schemas"
 import { buildCopyReviewSystemPrompt, buildCopyReviewUserPrompt } from "./lib/audit_copy_review_prompt"
 import {
@@ -293,6 +295,40 @@ async function runPersonaPanel(
     skillVersions: { "persona-review": SKILL_VERSIONS["persona-review"] },
   })
 
+  const evidenceRefs = buildEvidenceRefs(
+    agentContext.checks.map((check) => ({
+      category: check.category,
+      key: check.key,
+      label: check.label,
+      status: check.status,
+      evidence: check.evidence,
+      source: check.source,
+      weight: check.weight,
+    })),
+  )
+
+  const saveWithFallback = async (reviews: PersonaReviewOutput[], usedFallback: boolean) => {
+    await ctx.runMutation(internal.audit_agent.saveAuditPersonaReviews, {
+      auditId,
+      reviews,
+    })
+
+    if (usedFallback) {
+      const fallbackRunId = await ctx.runMutation(internal.audit_agent.startAuditAgentRun, {
+        workspaceId: agentContext.workspaceId as Id<"workspaces">,
+        auditId,
+        provider: FALLBACK_PROVIDER,
+        model: FALLBACK_MODEL,
+        purpose: "qa",
+        skillVersions: { "persona-review": SKILL_VERSIONS["persona-review"] },
+      })
+      await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+        auditAgentRunId: fallbackRunId,
+        status: "completed",
+      })
+    }
+  }
+
   try {
     await checkProviderLimit(ctx, { kind: "llm", provider: "openrouter" })
 
@@ -300,32 +336,40 @@ async function runPersonaPanel(
 
     const parsed = safeParsePersonaPanel(output)
     if (!parsed.ok) {
+      console.warn("[audit_agent] persona panel parse failed, using deterministic fallback", {
+        auditId,
+        reason: parsed.error,
+      })
       await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
         auditAgentRunId: runId,
         status: "failed",
         errorMessage: parsed.error,
       })
+      const fallbackOutput = generateDeterministicPersonaPanel(agentContext)
+      await saveWithFallback(fallbackOutput.reviews, true)
+      console.log("[audit_agent] persona panel completed (deterministic fallback)", {
+        auditId,
+        reviewsCount: fallbackOutput.reviews.length,
+      })
       return
     }
 
-    const evidenceRefs = buildEvidenceRefs(
-      agentContext.checks.map((check) => ({
-        category: check.category,
-        key: check.key,
-        label: check.label,
-        status: check.status,
-        evidence: check.evidence,
-        source: check.source,
-        weight: check.weight,
-      })),
-    )
-
     const safety = validatePersonaSafety(parsed.data, evidenceRefs)
     if (!safety.ok) {
+      console.warn("[audit_agent] persona panel safety check failed, using deterministic fallback", {
+        auditId,
+        reason: safety.reason,
+      })
       await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
         auditAgentRunId: runId,
         status: "failed",
         errorMessage: safety.reason,
+      })
+      const fallbackOutput = generateDeterministicPersonaPanel(agentContext)
+      await saveWithFallback(fallbackOutput.reviews, true)
+      console.log("[audit_agent] persona panel completed (deterministic fallback)", {
+        auditId,
+        reviewsCount: fallbackOutput.reviews.length,
       })
       return
     }
@@ -348,11 +392,22 @@ async function runPersonaPanel(
     })
   } catch (error) {
     const detail = describeError(error)
-    console.warn("[audit_agent] persona panel failed", { auditId, detail })
+    console.warn("[audit_agent] persona panel failed, using deterministic fallback", {
+      auditId,
+      detail,
+    })
     await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
       auditAgentRunId: runId,
       status: "failed",
       errorMessage: detail.slice(0, 500),
+    })
+
+    const fallbackOutput = generateDeterministicPersonaPanel(agentContext)
+    await saveWithFallback(fallbackOutput.reviews, true)
+
+    console.log("[audit_agent] persona panel completed (deterministic fallback)", {
+      auditId,
+      reviewsCount: fallbackOutput.reviews.length,
     })
   }
 }

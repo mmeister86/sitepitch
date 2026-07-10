@@ -29,6 +29,7 @@ import type * as lib_audit_copy_review_schemas from "../lib/audit_copy_review_sc
 import type * as lib_audit_design_critique_fallback from "../lib/audit_design_critique_fallback.js";
 import type * as lib_audit_design_critique_prompt from "../lib/audit_design_critique_prompt.js";
 import type * as lib_audit_design_critique_schemas from "../lib/audit_design_critique_schemas.js";
+import type * as lib_audit_persona_fallback from "../lib/audit_persona_fallback.js";
 import type * as lib_audit_persona_prompt from "../lib/audit_persona_prompt.js";
 import type * as lib_audit_persona_schemas from "../lib/audit_persona_schemas.js";
 import type * as lib_audit_personas from "../lib/audit_personas.js";
@@ -74,6 +75,7 @@ declare const fullApi: ApiFromModules<{
   "lib/audit_design_critique_fallback": typeof lib_audit_design_critique_fallback;
   "lib/audit_design_critique_prompt": typeof lib_audit_design_critique_prompt;
   "lib/audit_design_critique_schemas": typeof lib_audit_design_critique_schemas;
+  "lib/audit_persona_fallback": typeof lib_audit_persona_fallback;
   "lib/audit_persona_prompt": typeof lib_audit_persona_prompt;
   "lib/audit_persona_schemas": typeof lib_audit_persona_schemas;
   "lib/audit_personas": typeof lib_audit_personas;
