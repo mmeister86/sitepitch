@@ -1,10 +1,10 @@
 ---
 id: TASK-4.11
 title: Build MVP lead search and lead list
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-03 20:03'
-updated_date: '2026-07-08 20:08'
+updated_date: '2026-07-10 17:23'
 labels:
   - mvp
   - lead-search
@@ -29,10 +29,10 @@ This task should keep the business-data provider replaceable, avoid personal ema
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 User can search local businesses by industry, city, country, and optional keyword or radius.
-- [ ] #2 Search results show business name, website when available, category, address, phone when available, provider/source metadata, and whether the result is audit-ready.
-- [ ] #3 Results without a website can be saved but cannot start an audit until a website URL is added.
-- [ ] #4 User can save a lead and start an audit from a lead without re-entering the URL.
-- [ ] #5 Provider errors and plan or credit/limit restrictions are shown clearly without losing existing leads.
-- [ ] #6 No personal email enrichment, automated contact, or legal-contact-validity claim is introduced.
+- [x] #1 User can search local businesses by industry, city, country, and optional keyword or radius.
+- [x] #2 Search results show business name, website when available, category, address, phone when available, provider/source metadata, and whether the result is audit-ready.
+- [x] #3 Results without a website can be saved but cannot start an audit until a website URL is added.
+- [x] #4 User can save a lead and start an audit from a lead without re-entering the URL.
+- [x] #5 Provider errors and plan or credit/limit restrictions are shown clearly without losing existing leads.
+- [x] #6 No personal email enrichment, automated contact, or legal-contact-validity claim is introduced.
 <!-- AC:END -->
