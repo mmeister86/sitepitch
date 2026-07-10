@@ -1,12 +1,11 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { useMutation, useQuery } from "convex/react"
 import { useRouter } from "@/lib/router"
 import {
   ArrowLeft,
   Archive,
-  Calendar,
   Check,
   Loader2,
   Megaphone,
@@ -40,12 +39,8 @@ import { LeadSearchPanel } from "@/components/lead-search"
 import { CampaignLeadTable } from "@/components/campaign-lead-table"
 import { api } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
-import type { CampaignActivityItem } from "../../convex/campaigns"
 import type { CampaignOfferType, CampaignStatus } from "../../convex/lib/campaigns"
-import {
-  campaignStatusLabel,
-  offerTypeLabel,
-} from "../../convex/lib/campaigns"
+import { campaignStatusLabel, offerTypeLabel } from "../../convex/lib/campaigns"
 
 function CampaignStatusBadge({ status }: { status: CampaignStatus }) {
   const classes: Record<CampaignStatus, string> = {
@@ -189,11 +184,9 @@ export function CampaignDetailView({ id }: { id: string }) {
     }
   }
 
-  const activity = useMemo(() => data?.activity ?? [], [data?.activity])
-
   if (data === undefined) {
     return (
-      <div className="mx-auto flex min-h-[40vh] w-full max-w-[1400px] items-center justify-center p-4 md:p-6">
+      <div className="mx-auto flex min-h-[40vh] w-full max-w-[1100px] items-center justify-center p-4 md:p-6">
         <Spinner className="size-6 text-primary" />
       </div>
     )
@@ -201,7 +194,7 @@ export function CampaignDetailView({ id }: { id: string }) {
 
   if (!campaign || !metrics) {
     return (
-      <div className="mx-auto w-full max-w-[1400px] space-y-5 p-4 md:p-6">
+      <div className="mx-auto w-full max-w-[1100px] space-y-5 p-4 md:p-6">
         <button
           onClick={() => navigate({ name: "campaigns" })}
           className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
@@ -222,7 +215,7 @@ export function CampaignDetailView({ id }: { id: string }) {
   const canDelete = campaign.status === "draft" || campaign.status === "archived"
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] space-y-5 p-4 md:p-6">
+    <div className="mx-auto w-full max-w-[1100px] space-y-5 p-4 md:p-6">
       <button
         onClick={() => navigate({ name: "campaigns" })}
         className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
@@ -232,24 +225,20 @@ export function CampaignDetailView({ id }: { id: string }) {
       </button>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-full bg-muted">
-              <Megaphone className="size-5 text-muted-foreground" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-semibold tracking-tight">{campaign.name}</h2>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                <CampaignStatusBadge status={campaign.status} />
-                <span>{offerTypeLabel(campaign.offerType)}</span>
-                <span>·</span>
-                <span>{campaign.language === "de" ? "Deutsch" : "English"}</span>
-                <span>·</span>
-                <span>
-                  {campaign.targetIndustry}, {campaign.targetCity}, {campaign.targetCountry}
-                </span>
-              </div>
-            </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <Megaphone className="size-5 text-muted-foreground" />
+            <h2 className="text-2xl font-semibold tracking-tight">{campaign.name}</h2>
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <CampaignStatusBadge status={campaign.status} />
+            <span>{offerTypeLabel(campaign.offerType)}</span>
+            <span>·</span>
+            <span>{campaign.language === "de" ? "Deutsch" : "English"}</span>
+            <span>·</span>
+            <span>
+              {campaign.targetIndustry}, {campaign.targetCity}, {campaign.targetCountry}
+            </span>
           </div>
         </div>
 
@@ -319,7 +308,7 @@ export function CampaignDetailView({ id }: { id: string }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+      <div className="flex flex-wrap items-center gap-3 text-sm">
         {[
           { label: "Leads", value: metrics.leads },
           { label: "Audits", value: metrics.audits },
@@ -329,61 +318,42 @@ export function CampaignDetailView({ id }: { id: string }) {
           { label: "Lost", value: metrics.lost },
           { label: "Fällig", value: metrics.followUpsDue },
         ].map((m) => (
-          <Card key={m.label}>
-            <CardContent className="p-4 text-center">
-              <p className="text-xl font-semibold tabular-nums">{m.value}</p>
-              <p className="text-[11px] text-muted-foreground">{m.label}</p>
-            </CardContent>
-          </Card>
+          <div key={m.label} className="flex items-center gap-1.5 rounded-md border bg-card px-3 py-1.5">
+            <span className="font-semibold tabular-nums">{m.value}</span>
+            <span className="text-xs text-muted-foreground">{m.label}</span>
+          </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-5">
-          <LeadSearchPanel
-            campaignId={campaignId}
-            defaultIndustry={campaign.targetIndustry}
-            defaultCity={campaign.targetCity}
-            defaultCountry={campaign.targetCountry}
-            onSave={handleSaveLeadFromSearch}
-            saveLabel="Zur Kampagne hinzufügen"
-            disabled={campaign.status !== "active"}
-          />
+      <div className="space-y-5">
+        <LeadSearchPanel
+          campaignId={campaignId}
+          defaultIndustry={campaign.targetIndustry}
+          defaultCity={campaign.targetCity}
+          defaultCountry={campaign.targetCountry}
+          onSave={handleSaveLeadFromSearch}
+          saveLabel="Zur Kampagne hinzufügen"
+          disabled={campaign.status !== "active"}
+        />
 
-          <Card className="p-0">
-            <CardHeader className="border-b py-4">
-              <h3 className="text-sm font-semibold">Kampagnen-Leads</h3>
-            </CardHeader>
-            <CardContent className="p-4">
-              <CampaignLeadTable
-                campaignId={campaignId}
-                campaignStatus={campaign.status}
-                leads={data.leads}
-              />
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="space-y-5">
-          <Card>
-            <CardHeader className="border-b py-4">
-              <h3 className="text-sm font-semibold">Letzte Aktivität</h3>
-            </CardHeader>
-            <CardContent className="p-0">
-              {activity.length === 0 ? (
-                <div className="py-8 text-center text-sm text-muted-foreground">
-                  Noch keine Aktivität
-                </div>
-              ) : (
-                <ul className="divide-y">
-                  {activity.map((item) => (
-                    <ActivityItem key={item._id} item={item} />
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        <Card className="gap-0 py-0">
+          <CardHeader className="border-b py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Megaphone className="size-4 text-muted-foreground" />
+                <h3 className="text-sm font-semibold">Kampagnen-Leads</h3>
+              </div>
+              <span className="text-xs text-muted-foreground">{data.leads.length} gesamt</span>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <CampaignLeadTable
+              campaignId={campaignId}
+              campaignStatus={campaign.status}
+              leads={data.leads}
+            />
+          </CardContent>
+        </Card>
       </div>
 
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
@@ -497,29 +467,5 @@ export function CampaignDetailView({ id }: { id: string }) {
         </DialogContent>
       </Dialog>
     </div>
-  )
-}
-
-function ActivityItem({ item }: { item: CampaignActivityItem }) {
-  return (
-    <li className="flex items-start gap-3 px-4 py-3">
-      <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-muted">
-        <Calendar className="size-3 text-muted-foreground" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-sm">{item.message}</p>
-        {item.leadName && (
-          <p className="text-xs text-muted-foreground">Bei {item.leadName}</p>
-        )}
-        <p className="text-xs text-muted-foreground">
-          {new Date(item.createdAt).toLocaleString("de-DE", {
-            day: "2-digit",
-            month: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </p>
-      </div>
-    </li>
   )
 }

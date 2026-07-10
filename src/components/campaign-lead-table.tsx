@@ -4,13 +4,13 @@ import { useMemo, useRef, useState } from "react"
 import { useAction, useMutation } from "convex/react"
 import { useRouter } from "@/lib/router"
 import {
+  Building2,
   Calendar,
   Check,
   ChevronDown,
   FileText,
   Globe,
   Loader2,
-  MessageSquare,
   MoreHorizontal,
   Trash2,
   X,
@@ -48,12 +48,12 @@ import {
   ExpandableTrigger,
 } from "@/components/ui/expandable"
 import { toast } from "@/components/ui/sonner"
+import { LeadDetailPanel } from "@/components/lead-common"
 import { api } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
 import type { CampaignLeadListItem } from "../../convex/campaigns"
 import type { CampaignLeadStatus, CampaignStatus } from "../../convex/lib/campaigns"
 import { campaignLeadStatusLabel, isTerminalStatus } from "../../convex/lib/campaigns"
-import { LeadDetailPanel, LeadSummary } from "@/components/lead-common"
 
 const statusOptions: CampaignLeadStatus[] = [
   "new",
@@ -91,6 +91,44 @@ function CampaignLeadStatusBadge({ status }: { status: CampaignLeadStatus }) {
     >
       {campaignLeadStatusLabel(status)}
     </span>
+  )
+}
+
+function LeadAuditBadge({ lead }: { lead: CampaignLeadListItem }) {
+  if (!lead.auditReady) {
+    return (
+      <span className="inline-flex rounded-md border px-2 py-0.5 text-xs text-muted-foreground">
+        Website fehlt
+      </span>
+    )
+  }
+  return (
+    <span
+      className={`inline-flex rounded-md border px-2 py-0.5 text-xs ${lead.audit ? "text-score-strong" : "text-muted-foreground"}`}
+    >
+      <Globe className="mr-1 size-3" />
+      {lead.audit ? "Auditiert" : "Audit-ready"}
+    </span>
+  )
+}
+
+function CampaignLeadSummary({ lead }: { lead: CampaignLeadListItem }) {
+  return (
+    <div className="flex flex-1 flex-wrap items-center gap-x-4 gap-y-1">
+      <div className="min-w-0">
+        <span className="font-medium">{lead.businessName}</span>
+        {lead.category && (
+          <span className="ml-2 text-xs text-muted-foreground">{lead.category}</span>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <LeadAuditBadge lead={lead} />
+        <CampaignLeadStatusBadge status={lead.status} />
+        {lead.city && (
+          <span className="hidden text-xs text-muted-foreground sm:inline">{lead.city}</span>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -140,7 +178,6 @@ export function CampaignLeadTable({
   const [filter, setFilter] = useState("")
   const [statusFilter, setStatusFilter] = useState<CampaignLeadStatus | "all">("all")
   const [sortBy, setSortBy] = useState<"updated" | "name" | "score">("updated")
-  const [expanded, setExpanded] = useState<string | null>(null)
   const [removingId, setRemovingId] = useState<Id<"campaignLeads"> | null>(null)
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({})
   const [savingNoteId, setSavingNoteId] = useState<Id<"campaignLeads"> | null>(null)
@@ -280,14 +317,14 @@ export function CampaignLeadTable({
 
   if (leads.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
+      <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
         <div className="flex size-12 items-center justify-center rounded-full bg-muted">
-          <MessageSquare className="size-5 text-muted-foreground" />
+          <Building2 className="size-5 text-muted-foreground" />
         </div>
-        <div className="max-w-sm">
+        <div>
           <p className="text-sm font-medium">Noch keine Leads in dieser Kampagne</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Nutze die Suche, um lokale Unternehmen zu finden und direkt hinzuzufügen.
+            Nutze die Suche oben, um lokale Unternehmen zu finden und direkt hinzuzufügen.
           </p>
         </div>
       </div>
@@ -295,8 +332,8 @@ export function CampaignLeadTable({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div className="space-y-4 p-0">
+      <div className="flex flex-col gap-3 px-6 pt-4 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <Select
             value={statusFilter}
@@ -335,48 +372,46 @@ export function CampaignLeadTable({
         </Select>
       </div>
 
-      <div className="text-xs text-muted-foreground">
+      <div className="px-6 text-xs text-muted-foreground">
         {filtered.length} {filtered.length === 1 ? "Lead" : "Leads"}
       </div>
 
-      <Expandable
-        type="single"
-        collapsible
-        value={expanded ?? undefined}
-        onValueChange={(v) => setExpanded(v ?? null)}
-      >
+      <Expandable type="single" collapsible className="divide-y">
         {filtered.map((lead) => (
           <ExpandableItem
             key={lead.campaignLeadId}
             value={lead.campaignLeadId}
-            className="rounded-lg border px-4 py-3"
+            className="px-6"
           >
-            <ExpandableTrigger className="items-center">
-              <div className="flex flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{lead.businessName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {[lead.category, lead.city].filter(Boolean).join(" · ")}
-                  </p>
+            <ExpandableTrigger
+              className="items-center"
+              action={
+                <div className="shrink-0 group-data-[state=closed]:block group-data-[state=open]:hidden">
+                  <Button
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={
+                      auditStartingId === lead.campaignLeadId || campaignStatus !== "active"
+                    }
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void handleStartAudit(lead.campaignLeadId, lead.audit?._id)
+                    }}
+                  >
+                    {auditStartingId === lead.campaignLeadId ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Globe className="size-3.5" />
+                    )}
+                    {lead.audit ? "Zum Audit" : "Audit starten"}
+                  </Button>
                 </div>
-                <div className="flex items-center gap-3">
-                  {lead.audit?.overallScore !== undefined && (
-                    <span className="text-sm font-semibold tabular-nums">
-                      {lead.audit.overallScore}
-                    </span>
-                  )}
-                  <CampaignLeadStatusBadge status={lead.status} />
-                  {lead.followUpAt !== undefined && lead.status === "follow_up" && (
-                    <span className="hidden text-xs text-muted-foreground sm:inline">
-                      bis {formatDateTime(lead.followUpAt)}
-                    </span>
-                  )}
-                  <ChevronDown className="size-4 text-muted-foreground" />
-                </div>
-              </div>
+              }
+            >
+              <CampaignLeadSummary lead={lead} />
             </ExpandableTrigger>
 
-            <ExpandableContent className="pb-1 pt-4">
+            <ExpandableContent>
               <LeadDetailPanel
                 lead={lead}
                 action={
