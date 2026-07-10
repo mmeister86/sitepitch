@@ -863,6 +863,150 @@ export const recordPublicReportPdfExport = mutation({
 })
 
 // ---------------------------------------------------------------------------
+// Dashboard: getDashboardSummary
+// ---------------------------------------------------------------------------
+
+export interface DashboardSummaryAudit {
+  _id: Id<"audits">
+  domain: string
+  normalizedUrl: string
+  status: string
+  overallScore: number | null
+  createdAt: number
+  businessName: string | null
+  viewCount: number
+  isPublic: boolean
+  hasOutreach: boolean
+}
+
+export interface DashboardSummaryResult {
+  auditsThisMonth: number
+  completedAudits: number
+  reportViews: number
+  hasPublicReport: boolean
+  hasOutreachCopy: boolean
+  recentAudits: DashboardSummaryAudit[]
+}
+
+function monthStartTs(localNowTs: number): number {
+  const localDate = new Date(localNowTs)
+  const localYear = localDate.getFullYear()
+  const localMonth = localDate.getMonth()
+  return Date.UTC(localYear, localMonth, 1, 0, 0, 0, 0)
+}
+
+export const getDashboardSummary = query({
+  args: {
+    tzOffsetMinutes: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<DashboardSummaryResult | null> => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+
+    const user = await findAppUser(ctx, identity.tokenIdentifier)
+    if (!user) return null
+
+    const workspace = await getWorkspaceByOwner(ctx, user._id)
+    if (!workspace) return null
+
+    const tzOffsetMin = args.tzOffsetMinutes ?? 0
+    const now = Date.now()
+    const localNow = now + tzOffsetMin * 60_000
+    const startTs = monthStartTs(localNow)
+    const utcStartTs = startTs - tzOffsetMin * 60_000
+
+    const allAudits = await ctx.db
+      .query("audits")
+      .withIndex("by_workspaceId_and_createdAt", (q) =>
+        q.eq("workspaceId", workspace._id),
+      )
+      .order("desc")
+      .take(500)
+
+    let completedAudits = 0
+    let hasPublicReport = false
+    const recentSlice = allAudits.slice(0, 5)
+    const recentAuditIds: Id<"audits">[] = recentSlice.map((a) => a._id)
+    const recentLeadIds: Id<"leads">[] = []
+    for (const audit of recentSlice) {
+      if (audit.status === "completed") completedAudits++
+      if (audit.isPublic) hasPublicReport = true
+      if (audit.leadId) recentLeadIds.push(audit.leadId)
+    }
+
+    const auditsThisMonth = allAudits.filter((a) => a.createdAt >= utcStartTs).length
+
+    const reportViews = await ctx.db
+      .query("reportViews")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspace._id))
+      .take(500)
+
+    const usageEvents = await ctx.db
+      .query("usageEvents")
+      .withIndex("by_workspaceId_and_event", (q) =>
+        q.eq("workspaceId", workspace._id).eq("event", "outreach_copied"),
+      )
+      .take(1)
+    const hasOutreachCopy = usageEvents.length > 0
+
+    const leadNames = new Map<Id<"leads">, string>()
+    for (const leadId of recentLeadIds) {
+      const lead = await ctx.db.get(leadId)
+      if (lead?.businessName) {
+        leadNames.set(leadId, lead.businessName)
+      }
+    }
+
+    const viewCounts = new Map<Id<"audits">, number>()
+    for (const auditId of recentAuditIds) {
+      const views = await ctx.db
+        .query("reportViews")
+        .withIndex("by_workspaceId_and_auditId", (q) =>
+          q.eq("workspaceId", workspace._id).eq("auditId", auditId),
+        )
+        .take(100)
+      viewCounts.set(auditId, views.length)
+    }
+
+    const outreachCounts = new Map<Id<"audits">, number>()
+    for (const auditId of recentAuditIds) {
+      const outreach = await ctx.db
+        .query("outreachDrafts")
+        .withIndex("by_workspaceId_and_auditId", (q) =>
+          q.eq("workspaceId", workspace._id).eq("auditId", auditId),
+        )
+        .take(1)
+      outreachCounts.set(auditId, outreach.length)
+    }
+
+    const recentAudits: DashboardSummaryAudit[] = recentSlice.map((audit) => {
+      const scoreDoc = audit.overallScore !== undefined ? audit.overallScore : null
+      return {
+        _id: audit._id,
+        domain: audit.domain,
+        normalizedUrl: audit.normalizedUrl,
+        status: audit.status,
+        overallScore: scoreDoc,
+        createdAt: audit.createdAt,
+        businessName: audit.leadId ? (leadNames.get(audit.leadId) ?? null) : null,
+        viewCount: viewCounts.get(audit._id) ?? 0,
+        isPublic: audit.isPublic,
+        hasOutreach: (outreachCounts.get(audit._id) ?? 0) > 0,
+      }
+    })
+
+    return {
+      auditsThisMonth,
+      completedAudits,
+      reportViews: reportViews.length,
+      hasPublicReport,
+      hasOutreachCopy,
+      recentAudits,
+    }
+  },
+})
+
+// ---------------------------------------------------------------------------
 // Dashboard: getDashboardEngagement
 // ---------------------------------------------------------------------------
 

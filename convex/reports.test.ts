@@ -890,3 +890,190 @@ describe("getDashboardEngagement", () => {
     assert.equal(viewed!.businessName, "Acme Bakery")
   })
 })
+
+// ---------------------------------------------------------------------------
+// getDashboardSummary
+// ---------------------------------------------------------------------------
+
+describe("getDashboardSummary", () => {
+  test("returns null without authentication", async () => {
+    const t = createTest()
+    await seedCompletedReport(t)
+
+    const result = await t.query(api.reports.getDashboardSummary, {
+      tzOffsetMinutes: 0,
+    })
+
+    assert.equal(result, null)
+  })
+
+  test("returns empty state for a fresh workspace", async () => {
+    const t = createTest()
+    await seedCompletedReport(t)
+
+    const result = await t
+      .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+      .query(api.reports.getDashboardSummary, { tzOffsetMinutes: 0 })
+
+    assert.ok(result)
+    assert.equal(result!.auditsThisMonth, 1)
+    assert.equal(result!.completedAudits, 1)
+    assert.equal(result!.reportViews, 0)
+    assert.equal(result!.hasPublicReport, true)
+    assert.equal(result!.hasOutreachCopy, false)
+    assert.equal(result!.recentAudits.length, 1)
+  })
+
+  test("counts only completed audits as completed", async () => {
+    const t = createTest()
+    const { workspaceId } = await seedCompletedReport(t, { status: "queued" })
+
+    await t.mutation(async (ctx) => {
+      const now = Date.now()
+      await ctx.db.insert("audits", {
+        workspaceId,
+        createdByUserId: await ctx.db
+          .query("users")
+          .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", "report-test-token"))
+          .unique()
+          .then((u) => u!._id),
+        url: "https://other.com/",
+        normalizedUrl: "https://other.com/",
+        domain: "other.com",
+        auditType: "standard",
+        reportLanguage: "de",
+        idempotencyKey: `summary-completed-${now}`,
+        status: "completed",
+        publicSlug: `summary-completed-${now}`,
+        isPublic: true,
+        reportVersion: "v1",
+        overallScore: 70,
+        completedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+
+    const result = await t
+      .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+      .query(api.reports.getDashboardSummary, { tzOffsetMinutes: 0 })
+
+    assert.ok(result)
+    assert.equal(result!.auditsThisMonth, 2)
+    assert.equal(result!.completedAudits, 1)
+  })
+
+  test("counts report views across all audits", async () => {
+    const t = createTest()
+    const { workspaceId, auditId } = await seedCompletedReport(t, { isPublic: true })
+
+    await t.mutation(async (ctx) => {
+      const now = Date.now()
+      await ctx.db.insert("reportViews", { workspaceId, auditId, viewedAt: now })
+      await ctx.db.insert("reportViews", { workspaceId, auditId, viewedAt: now - 1_000 })
+      await ctx.db.insert("reportViews", { workspaceId, auditId, viewedAt: now - 2_000 })
+    })
+
+    const result = await t
+      .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+      .query(api.reports.getDashboardSummary, { tzOffsetMinutes: 0 })
+
+    assert.ok(result)
+    assert.equal(result!.reportViews, 3)
+  })
+
+  test("detects copied outreach via usageEvents", async () => {
+    const t = createTest()
+    const { workspaceId, auditId } = await seedCompletedReport(t)
+
+    await t.mutation(async (ctx) => {
+      const now = Date.now()
+      await ctx.db.insert("usageEvents", {
+        workspaceId,
+        auditId,
+        event: "outreach_copied",
+        metadata: { draftType: "email" },
+        createdAt: now,
+      })
+    })
+
+    const result = await t
+      .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+      .query(api.reports.getDashboardSummary, { tzOffsetMinutes: 0 })
+
+    assert.ok(result)
+    assert.equal(result!.hasOutreachCopy, true)
+  })
+
+  test("isolates data between workspaces", async () => {
+    const t = createTest()
+    await seedCompletedReport(t, {
+      tokenIdentifier: "owner-a",
+      slug: "owner-a-slug",
+      isPublic: true,
+    })
+
+    await t.mutation(async (ctx) => {
+      const now = Date.now()
+      const otherUserId = await ctx.db.insert("users", {
+        tokenIdentifier: "owner-b",
+        betterAuthUserId: "owner-b-better-auth",
+        email: "b@example.com",
+        createdAt: now,
+      })
+      await ctx.db.insert("workspaces", {
+        name: "Owner B Studio",
+        ownerUserId: otherUserId,
+        reportLanguage: "de",
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+
+    const result = await t
+      .withIdentity({ tokenIdentifier: "owner-b", email: "b@example.com" })
+      .query(api.reports.getDashboardSummary, { tzOffsetMinutes: 0 })
+
+    assert.ok(result)
+    assert.equal(result!.auditsThisMonth, 0)
+    assert.equal(result!.completedAudits, 0)
+    assert.equal(result!.reportViews, 0)
+    assert.equal(result!.hasPublicReport, false)
+  })
+
+  test("respects tzOffsetMinutes for month boundary", async () => {
+    const t = createTest()
+    const { workspaceId, userId } = await seedCompletedReport(t)
+
+    await t.mutation(async (ctx) => {
+      const now = Date.now()
+      const prevMonth = now - 32 * 24 * 60 * 60 * 1000
+      await ctx.db.insert("audits", {
+        workspaceId,
+        createdByUserId: userId,
+        url: "https://old.com/",
+        normalizedUrl: "https://old.com/",
+        domain: "old.com",
+        auditType: "standard",
+        reportLanguage: "de",
+        idempotencyKey: `summary-old-${now}`,
+        status: "completed",
+        publicSlug: `summary-old-${now}`,
+        isPublic: true,
+        reportVersion: "v1",
+        overallScore: 50,
+        completedAt: prevMonth,
+        createdAt: prevMonth,
+        updatedAt: prevMonth,
+      })
+    })
+
+    const result = await t
+      .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+      .query(api.reports.getDashboardSummary, { tzOffsetMinutes: 0 })
+
+    assert.ok(result)
+    assert.equal(result!.auditsThisMonth, 1)
+    assert.equal(result!.completedAudits, 2)
+  })
+})

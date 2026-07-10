@@ -489,12 +489,11 @@ Das System ruft einen Business-Data-Provider auf und speichert Leads mit:
 
 ### Datenquellen im MVP
 
-1. HTML-Fetch der Startseite
-2. Jina Reader oder vergleichbarer Content-Extraction-Service
-3. ScreenshotOne für Desktop- und Mobile-Screenshots
-4. PageSpeed Insights API für Performance-Daten
-5. Optional: Local Business Data API via RapidAPI oder Google Places
-6. Optional: manuelle Ergänzung durch Nutzer
+1. Firecrawl als primärer Crawler für HTML, Markdown, Link-Discovery und Screenshots
+2. Direkter HTML-Fetch als Fallback, falls Firecrawl fehlschlägt oder keine Inhalte liefert
+3. PageSpeed Insights API für Performance-Daten
+4. Optional: Local Business Data API via RapidAPI oder Google Places
+5. Optional: manuelle Ergänzung durch Nutzer
 
 ### Zu erfassende Rohdaten
 
@@ -1066,8 +1065,8 @@ zusätzlich Burst-Limit, z.B. 10 Audits pro Stunde
 
 ### Datenquellen
 
-- Jina Reader für Website-Text/Markdown
-- ScreenshotOne für Screenshots
+- Firecrawl für Website-Text/Markdown, HTML, Link-Discovery und Screenshots (Screenshot-URLs verfallen nach 24 h und werden sofort in Convex Storage kopiert)
+- Direkter HTML-Fetch als Fallback bei Firecrawl-Ausfällen
 - PageSpeed Insights API für Performance
 - Local Business Data API via RapidAPI
 - optional Google Places / SerpApi / DataForSEO / Apify als austauschbare Provider
@@ -1108,9 +1107,8 @@ Convex Workpool
 Convex Action / Worker
         ↓
 Provider Layer
-  ├─ HTML Fetch
-  ├─ Jina / Firecrawl
-  ├─ ScreenshotOne
+  ├─ Firecrawl (Crawl, Links, Screenshots)
+  ├─ HTML Fetch (Fallback)
   ├─ PageSpeed Insights
   └─ Business Data Provider
         ↓
@@ -1181,7 +1179,8 @@ Beispiele:
 
 | Fehler | Verhalten |
 |---|---|
-| ScreenshotOne Timeout | Audit ohne Screenshot fortsetzen |
+| Firecrawl Timeout/Fehler (Content) | Auf direkten HTML-Fetch zurückfallen |
+| Firecrawl Timeout/Fehler (Screenshot) | Audit ohne Screenshot fortsetzen |
 | PageSpeed Timeout | Audit ohne Performance-Score fortsetzen |
 | HTML nicht erreichbar | Audit abbrechen |
 | LLM Validation Failed | Retry mit kompakterem Prompt |
@@ -1627,7 +1626,7 @@ MVP kann nur `owner` unterstützen.
 {
   workspaceId: Id<"workspaces">;
   auditId?: Id<"audits">;
-  provider: "jina" | "screenshotone" | "pagespeed" | "openai" | "anthropic" | "rapidapi" | "other";
+  provider: "firecrawl" | "direct_html" | "pagespeed" | "openai" | "anthropic" | "rapidapi" | "other";
   operation: string;
   estimatedCostUsd?: number;
   tokensIn?: number;
@@ -1813,9 +1812,8 @@ Alle externen Services sollen hinter internen Interfaces liegen.
 Ziel:
 
 ```text
-Heute ScreenshotOne, morgen Playwright Worker.
+Heute Firecrawl für Crawling und Screenshots, morgen Playwright Worker.
 Heute RapidAPI, morgen Google Places.
-Heute Jina, morgen Firecrawl.
 ```
 
 ### 14.2 Env Vars
@@ -1841,8 +1839,7 @@ EVE_INTERNAL_SECRET=
 EVE_DEFAULT_MODEL=
 VERCEL_USE_EXPERIMENTAL_FRAMEWORKS=1
 
-SCREENSHOTONE_ACCESS_KEY=
-JINA_API_KEY=
+FIRECRAWL_API_KEY=
 GOOGLE_PAGESPEED_API_KEY=
 RAPIDAPI_KEY=
 
@@ -2197,9 +2194,9 @@ SitePitch helps web designers turn weak local websites into branded audits and o
 
 - URL-Eingabe
 - Audit-Job erstellen
-- HTML Fetch
+- Firecrawl Crawl + Screenshots
+- HTML Fetch (Fallback)
 - Content Extraction
-- ScreenshotOne
 - PageSpeed
 - deterministische Checks
 - Scoring
@@ -2281,8 +2278,8 @@ SitePitch helps web designers turn weak local websites into branded audits and o
 
 #### Tag 4: Content + Screenshots
 
-- Jina Reader Integration
-- ScreenshotOne Integration
+- Firecrawl-Integration (Crawl, Markdown, Screenshots)
+- Direkter HTML-Fetch als Fallback
 - Asset Storage
 - Screenshot im Report anzeigen
 
@@ -2580,9 +2577,8 @@ Testseiten:
 
 ### Zu messende Kosten pro Audit
 
-- ScreenshotOne Requests
+- Firecrawl Credits (Crawl, Screenshots)
 - PageSpeed Requests
-- Jina/Content Extraction
 - LLM Input Tokens
 - LLM Output Tokens
 - Business Data Lookup

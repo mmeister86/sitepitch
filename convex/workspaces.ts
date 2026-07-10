@@ -98,6 +98,7 @@ export const getMyWorkspace = query({
         ctaUrl: workspace.ctaUrl ?? "",
         reportLanguage: workspace.reportLanguage,
         updatedAt: workspace.updatedAt,
+        createdAt: workspace.createdAt,
       },
       credits: getWorkspaceCreditSnapshot(await getWorkspaceCreditBalance(ctx, workspace._id)),
     }

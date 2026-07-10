@@ -142,7 +142,18 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="gap-3 p-3">
-        <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/50 p-3">
+        <div
+          className="rounded-xl border border-sidebar-border bg-sidebar-accent/50 p-3"
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate({ name: "billing-settings" })}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault()
+              navigate({ name: "billing-settings" })
+            }
+          }}
+        >
           <div className="flex items-center justify-between text-xs">
             <span className="font-medium text-sidebar-foreground/70">Credits</span>
             <span className="font-semibold tabular-nums text-sidebar-foreground">
@@ -200,11 +211,11 @@ export function AppSidebar() {
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => navigate({ name: "settings" })}>
               <Settings />
-              Branding & Team
+              Einstellungen
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate({ name: "campaigns" })}>
+            <DropdownMenuItem onClick={() => navigate({ name: "billing-settings" })}>
               <Mail />
-              Vorlagen & Outreach
+              Plan & Credits
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => void signOut()}>

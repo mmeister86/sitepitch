@@ -12,7 +12,7 @@ import { internal } from "./_generated/api"
 import type { ActionCtx } from "./_generated/server"
 import type { Id } from "./_generated/dataModel"
 import { checkProviderLimit } from "./lib/audit_rate_limit"
-import { providerToLimitKind } from "./lib/rate_limit_helpers"
+import { providerToLimitKind, type ProviderLimitKind } from "./lib/rate_limit_helpers"
 import {
   extractSignalsFromHtml,
   extractSignalsFromMarkdown,
@@ -43,12 +43,6 @@ type PrimaryFetchResult =
       httpStatus: number
       sourceProvider: "direct_html"
       html: string
-    }
-  | {
-      finalUrl: string
-      httpStatus: number
-      sourceProvider: "jina"
-      markdown: string
     }
   | {
       finalUrl: string
@@ -346,13 +340,13 @@ async function runProviderAttempt<T>(
   operation: string,
   requestEvidence: string,
   attemptFn: (attempt: number) => Promise<{ value: T; responseStatus?: number }>,
-  options: { optional?: boolean } = {},
+  options: { optional?: boolean; limitKind?: ProviderLimitKind } = {},
 ): Promise<T | null> {
   let lastError: ProviderFetchError | null = null
 
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      await checkProviderLimit(ctx, { kind: providerToLimitKind(provider), provider })
+      await checkProviderLimit(ctx, { kind: options.limitKind ?? providerToLimitKind(provider), provider })
     } catch (error) {
       if (options.optional) {
         return null
@@ -421,6 +415,8 @@ const FIRECRAWL_RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504])
 type FirecrawlScrapePayload = {
   markdown?: string
   html?: string
+  rawHtml?: string
+  screenshot?: string
   links?: string[]
   metadata?: {
     statusCode?: number
@@ -437,6 +433,7 @@ type FirecrawlNormalizedScrape = {
   markdown?: string
   html?: string
   links: string[]
+  screenshot?: string
   title?: string
   metaDescription?: string
 }
@@ -484,14 +481,15 @@ function normalizeFirecrawlScrape(
   const links = Array.isArray(data.links)
     ? data.links.filter((link): link is string => typeof link === "string")
     : []
-  const finalUrl = metadata.sourceURL ?? metadata.url ?? fallbackUrl
+  const finalUrl = metadata.url ?? metadata.sourceURL ?? fallbackUrl
   const httpStatus = typeof metadata.statusCode === "number" ? metadata.statusCode : responseStatus
   return {
     finalUrl,
     httpStatus,
     markdown: data.markdown,
-    html: data.html,
+    html: data.rawHtml ?? data.html,
     links,
+    screenshot: data.screenshot,
     title: metadata.title,
     metaDescription: metadata.description,
   }
@@ -529,9 +527,10 @@ async function scrapeHomepageWithFirecrawl(
         headers: firecrawlRequestHeaders(),
         body: JSON.stringify({
           url,
-          formats: ["markdown", "html", "links"],
+          formats: ["markdown", "rawHtml", "links"],
           onlyMainContent: false,
           timeout: 25_000,
+          maxAge: 0,
         }),
         timeoutMs: 35_000,
         bodyLimitBytes: 5_000_000,
@@ -590,9 +589,10 @@ async function scrapePriorityPageWithFirecrawl(
         headers: firecrawlRequestHeaders(),
         body: JSON.stringify({
           url,
-          formats: ["markdown", "html"],
+          formats: ["markdown", "rawHtml"],
           onlyMainContent: false,
           timeout: 25_000,
+          maxAge: 0,
         }),
         timeoutMs: 35_000,
         bodyLimitBytes: 5_000_000,
@@ -675,119 +675,72 @@ async function mapWithFirecrawl(ctx: ActionCtx, claim: Claim, baseUrl: string): 
 }
 
 async function fetchPrimaryHtml(ctx: ActionCtx, claim: Claim): Promise<PrimaryFetchResult> {
-  const directEvidence = `direct_html:${claim.normalizedUrl}`
+  // Firecrawl is the primary crawler. If it fails or returns no usable content,
+  // fall back to a direct HTML fetch. Jina has been removed from the pipeline.
   try {
-    const directResult = await runProviderAttempt(
-      ctx,
-      claim,
-      "direct_html",
-      "fetch_homepage_html",
-      directEvidence,
-      async () => {
-        const response = await requestText(claim.normalizedUrl, {
-          timeoutMs: 10_000,
-          bodyLimitBytes: 2_000_000,
-          maxRedirects: 5,
-          sameOriginOnly: true,
-          headers: {
-            accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          },
-        })
-
-        if (response.statusCode >= 400) {
-          const retryAfterMs = parseRetryAfter(response.headers["retry-after"])
-          throw new ProviderFetchError(
-            `HTTP_${response.statusCode}`,
-            `HTML fetch failed with ${response.statusCode}`,
-            {
-              retryable: response.statusCode === 408 || response.statusCode === 429 || response.statusCode >= 500,
-              statusCode: response.statusCode,
-              retryAfterMs,
-            },
-          )
-        }
-
-        return {
-          value: {
-            finalUrl: response.finalUrl,
-            httpStatus: response.statusCode,
-            sourceProvider: "direct_html" as const,
-            html: response.text,
-          },
-          responseStatus: response.statusCode,
-        }
-      },
-    )
-    if (directResult) {
-      return directResult
+    const firecrawlResult = await scrapeHomepageWithFirecrawl(ctx, claim)
+    if (firecrawlResult) {
+      return firecrawlResult
     }
-    throw new ProviderFetchError("EMPTY_RESPONSE", "HTML fetch returned no content.", { retryable: false })
   } catch (error) {
-    const directError = error instanceof Error ? error : new Error("HTML fetch failed")
-
-    try {
-      const firecrawlResult = await scrapeHomepageWithFirecrawl(ctx, claim)
-      if (firecrawlResult) {
-        return firecrawlResult
-      }
-    } catch {
-      // fall through to jina markdown fallback
-    }
-
-    const jinaUrl = `https://r.jina.ai/http://${claim.normalizedUrl.replace(/^https?:\/\//, "")}`
-    const jinaEvidence = `jina:${jinaUrl}`
-
-    try {
-      const jinaResult = await runProviderAttempt(
-        ctx,
-        claim,
-        "jina",
-        "fetch_homepage_markdown",
-        jinaEvidence,
-        async () => {
-          const response = await requestText(jinaUrl, {
-            timeoutMs: 30_000,
-            bodyLimitBytes: 2_000_000,
-            maxRedirects: 5,
-            headers: {
-              accept: "text/plain,text/markdown,text/html;q=0.5,*/*;q=0.2",
-            },
-          })
-
-          if (response.statusCode >= 400) {
-            const retryAfterMs = parseRetryAfter(response.headers["retry-after"])
-            throw new ProviderFetchError(
-              `HTTP_${response.statusCode}`,
-              `Jina fallback failed with ${response.statusCode}`,
-              {
-                retryable: response.statusCode === 408 || response.statusCode === 429 || response.statusCode >= 500,
-                statusCode: response.statusCode,
-                retryAfterMs,
-              },
-            )
-          }
-
-          return {
-            value: {
-              finalUrl: response.finalUrl,
-              httpStatus: response.statusCode,
-              sourceProvider: "jina" as const,
-              markdown: response.text,
-            },
-            responseStatus: response.statusCode,
-          }
-        },
-      )
-
-      if (jinaResult) {
-        return jinaResult
-      }
-    } catch {
-      // fall through to the direct HTML error below
-    }
-
-    throw directError
+    console.warn(
+      "Firecrawl homepage scrape failed, falling back to direct HTML",
+      redactSensitiveText(error instanceof Error ? error.message : String(error)),
+    )
   }
+
+  const directEvidence = `direct_html:${claim.normalizedUrl}`
+  const directResult = await runProviderAttempt(
+    ctx,
+    claim,
+    "direct_html",
+    "fetch_homepage_html",
+    directEvidence,
+    async () => {
+      const response = await requestText(claim.normalizedUrl, {
+        timeoutMs: 10_000,
+        bodyLimitBytes: 2_000_000,
+        maxRedirects: 5,
+        sameOriginOnly: true,
+        headers: {
+          accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+      })
+
+      if (response.statusCode >= 400) {
+        const retryAfterMs = parseRetryAfter(response.headers["retry-after"])
+        throw new ProviderFetchError(
+          `HTTP_${response.statusCode}`,
+          `HTML fetch failed with ${response.statusCode}`,
+          {
+            retryable: response.statusCode === 408 || response.statusCode === 429 || response.statusCode >= 500,
+            statusCode: response.statusCode,
+            retryAfterMs,
+          },
+        )
+      }
+
+      return {
+        value: {
+          finalUrl: response.finalUrl,
+          httpStatus: response.statusCode,
+          sourceProvider: "direct_html" as const,
+          html: response.text,
+        },
+        responseStatus: response.statusCode,
+      }
+    },
+  )
+
+  if (directResult) {
+    return directResult
+  }
+
+  throw new ProviderFetchError(
+    "EMPTY_RESPONSE",
+    "Weder Firecrawl noch ein direkter HTML-Abruf konnten Inhalte liefern.",
+    { retryable: false },
+  )
 }
 
 async function fetchPriorityPage(
@@ -797,7 +750,20 @@ async function fetchPriorityPage(
   pageIndex: number,
   kind: string,
 ): Promise<PriorityPageResult | null> {
-  const directResult = await runProviderAttempt<PriorityPageResult>(
+  // Firecrawl first, direct HTML as fallback.
+  try {
+    const firecrawlResult = await scrapePriorityPageWithFirecrawl(ctx, claim, url, pageIndex, kind)
+    if (firecrawlResult) {
+      return firecrawlResult
+    }
+  } catch (error) {
+    console.warn(
+      "Firecrawl priority page scrape failed, falling back to direct HTML",
+      redactSensitiveText(error instanceof Error ? error.message : String(error)),
+    )
+  }
+
+  return await runProviderAttempt<PriorityPageResult>(
     ctx,
     claim,
     "direct_html",
@@ -838,12 +804,6 @@ async function fetchPriorityPage(
     },
     { optional: true },
   )
-
-  if (directResult) {
-    return directResult
-  }
-
-  return await scrapePriorityPageWithFirecrawl(ctx, claim, url, pageIndex, kind)
 }
 
 function parsePageSpeed(result: {
@@ -877,34 +837,65 @@ function numericAudit(value: number | undefined) {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 
-async function captureScreenshot(
+async function captureScreenshotWithFirecrawl(
   ctx: ActionCtx,
   claim: Claim,
   targetUrl: string,
   viewport: "desktop" | "mobile",
   requestEvidence: string,
 ) {
-  if (!env.SCREENSHOTONE_API_KEY) {
+  if (!isFirecrawlConfigured()) {
     return null
   }
 
   return await runProviderAttempt(
     ctx,
     claim,
-    "screenshotone",
+    "firecrawl",
     `capture_${viewport}_screenshot`,
     requestEvidence,
     async () => {
-      const screenshotUrl = new URL("https://api.screenshotone.com/take")
-      screenshotUrl.searchParams.set("access_key", env.SCREENSHOTONE_API_KEY ?? "")
-      screenshotUrl.searchParams.set("url", targetUrl)
-      screenshotUrl.searchParams.set("format", "png")
-      screenshotUrl.searchParams.set("full_page", "true")
-      screenshotUrl.searchParams.set("device_scale_factor", "1")
-      screenshotUrl.searchParams.set("viewport_width", viewport === "mobile" ? "390" : "1440")
-      screenshotUrl.searchParams.set("viewport_height", viewport === "mobile" ? "844" : "900")
+      const screenshotFormat = {
+        type: "screenshot" as const,
+        fullPage: true,
+        viewport: {
+          width: viewport === "mobile" ? 390 : 1440,
+          height: viewport === "mobile" ? 844 : 900,
+        },
+      }
 
-      const response = await requestWithRedirects(screenshotUrl.toString(), {
+      const body: Record<string, unknown> = {
+        url: targetUrl,
+        formats: [screenshotFormat],
+        timeout: 25_000,
+        maxAge: 0,
+      }
+      if (viewport === "mobile") {
+        body.mobile = true
+      }
+
+      const scrapeResponse = await requestJson<unknown>(`${firecrawlBaseUrl()}/v2/scrape`, {
+        method: "POST",
+        headers: firecrawlRequestHeaders(),
+        body: JSON.stringify(body),
+        timeoutMs: 35_000,
+        bodyLimitBytes: 5_000_000,
+        maxRedirects: 3,
+      })
+
+      if (scrapeResponse.statusCode >= 400) {
+        throw firecrawlHttpError(scrapeResponse.statusCode, scrapeResponse.headers, `capture_${viewport}_screenshot`)
+      }
+
+      const normalized = normalizeFirecrawlScrape(scrapeResponse.json, targetUrl, scrapeResponse.statusCode)
+      const screenshotUrl = normalized.screenshot
+      if (!screenshotUrl) {
+        throw new ProviderFetchError("EMPTY_RESPONSE", "Firecrawl returned no screenshot URL.", {
+          retryable: false,
+        })
+      }
+
+      const imageResponse = await requestWithRedirects(screenshotUrl, {
         timeoutMs: 45_000,
         bodyLimitBytes: 10_000_000,
         maxRedirects: 3,
@@ -913,18 +904,18 @@ async function captureScreenshot(
         },
       })
 
-      if (response.statusCode >= 400) {
-        throw new ProviderFetchError(`HTTP_${response.statusCode}`, `Screenshot failed with ${response.statusCode}`, {
-          retryable: response.statusCode === 408 || response.statusCode === 429 || response.statusCode >= 500,
-          statusCode: response.statusCode,
-          retryAfterMs: parseRetryAfter(response.headers["retry-after"]),
+      if (imageResponse.statusCode >= 400) {
+        throw new ProviderFetchError(`HTTP_${imageResponse.statusCode}`, `Screenshot download failed with ${imageResponse.statusCode}`, {
+          retryable: imageResponse.statusCode === 408 || imageResponse.statusCode === 429 || imageResponse.statusCode >= 500,
+          statusCode: imageResponse.statusCode,
+          retryAfterMs: parseRetryAfter(imageResponse.headers["retry-after"]),
         })
       }
 
-      const mimeType = validateScreenshotBytes(response.body, response.headers["content-type"])
-      const arrayBuffer = response.body.buffer.slice(
-        response.body.byteOffset,
-        response.body.byteOffset + response.body.byteLength,
+      const mimeType = validateScreenshotBytes(imageResponse.body, imageResponse.headers["content-type"])
+      const arrayBuffer = imageResponse.body.buffer.slice(
+        imageResponse.body.byteOffset,
+        imageResponse.body.byteOffset + imageResponse.body.byteLength,
       ) as ArrayBuffer
       const storageId = await ctx.storage.store(new Blob([arrayBuffer as ArrayBuffer], { type: mimeType }))
 
@@ -934,10 +925,10 @@ async function captureScreenshot(
           storageId,
           mimeType,
         },
-        responseStatus: response.statusCode,
+        responseStatus: scrapeResponse.statusCode,
       }
     },
-    { optional: true },
+    { optional: true, limitKind: "screenshot" },
   )
 }
 
@@ -1225,8 +1216,7 @@ export const processAuditPipeline = internalAction({
 
     const primaryOrigin = new URL(primaryFetch.finalUrl).origin
     const primarySignals =
-      primaryFetch.sourceProvider === "jina" ||
-      (primaryFetch.sourceProvider === "firecrawl" && !primaryFetch.html)
+      primaryFetch.sourceProvider === "firecrawl" && !primaryFetch.html
         ? extractSignalsFromMarkdown(primaryFetch.markdown, primaryOrigin)
         : extractSignalsFromHtml(primaryFetch.html, primaryFetch.finalUrl, primaryOrigin)
 
@@ -1356,12 +1346,12 @@ export const processAuditPipeline = internalAction({
     })
 
     const screenshotTasks = plan.screenshotViewports.map((viewport) =>
-      captureScreenshot(
+      captureScreenshotWithFirecrawl(
         ctx,
         claim,
         selectedPages[0]?.finalUrl ?? claim.normalizedUrl,
         viewport,
-        `screenshotone:${viewport}:${selectedPages[0]?.finalUrl ?? claim.normalizedUrl}`,
+        `firecrawl:screenshot:${viewport}:${selectedPages[0]?.finalUrl ?? claim.normalizedUrl}`,
       ),
     )
 

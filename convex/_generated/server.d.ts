@@ -32,13 +32,11 @@ type Env = {
   readonly FIRECRAWL_API_BASE_URL: string | undefined;
   readonly FIRECRAWL_API_KEY: string | undefined;
   readonly GOOGLE_PLACES_API_KEY: string | undefined;
-  readonly JINA_API_KEY: string | undefined;
   readonly LOCAL_BUSINESS_DATA_API_KEY: string | undefined;
   readonly OPENROUTER_API_KEY: string | undefined;
   readonly OPENROUTER_MODEL: string | undefined;
   readonly PAGESPEED_API_KEY: string | undefined;
   readonly PAGESPEED_TIMEOUT_MS: string | undefined;
-  readonly SCREENSHOTONE_API_KEY: string | undefined;
   readonly SITE_URL: string | undefined;
   readonly TURNSTILE_SECRET_KEY: string | undefined;
 };

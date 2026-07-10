@@ -507,4 +507,106 @@ describe("audit start flow", () => {
       assert.equal(audit.statusMessage, "URL wird geprüft")
     }
   })
+
+  test("links a valid workspace lead to the audit and updates the lead", async () => {
+    mocks.checkAuditStartLimits.mockResolvedValue(undefined)
+    mockDnsAnswers({ a: ["93.184.216.34"] })
+
+    const t = createTest().withIdentity({
+      email: "hans@example.com",
+      name: "Hans",
+    })
+
+    await t.mutation(api.workspaces.ensureCurrentWorkspace, {})
+
+    const leadId = await t.mutation((ctx) =>
+      ctx.db.insert("leads", {
+        workspaceId: workspaceState.workspaceId as any,
+        businessName: "Hans Webdesign",
+        websiteUrl: "https://example.com",
+        normalizedWebsiteUrl: "https://example.com/",
+        sourceProvider: "manual",
+        status: "new",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }),
+    )
+
+    const result = await t.action(api.audits.startAudit, {
+      url: "example.com",
+      auditType: "local",
+      reportLanguage: "de",
+      idempotencyKey: "idem-lead-1",
+      leadId: leadId as any,
+    })
+
+    const audit = await t.query(api.audits.getById, { auditId: result.auditId })
+    assert.ok(audit)
+    if (audit) {
+      assert.equal(audit.leadId, leadId)
+      assert.equal(audit.auditType, "local")
+    }
+
+    const lead = await t.query((ctx) =>
+      ctx.db.get(leadId as any),
+    ) as unknown as { auditId: any; status: string } | null
+    assert.ok(lead)
+    if (lead) {
+      assert.equal(lead.auditId, result.auditId)
+      assert.equal(lead.status, "audited")
+    }
+  })
+
+  test("rejects a leadId from a different workspace", async () => {
+    mocks.checkAuditStartLimits.mockResolvedValue(undefined)
+    mockDnsAnswers({ a: ["93.184.216.34"] })
+
+    const t = createTest().withIdentity({
+      email: "ingo@example.com",
+      name: "Ingo",
+    })
+
+    await t.mutation(api.workspaces.ensureCurrentWorkspace, {})
+
+    const otherWorkspaceId = await t.mutation((ctx) =>
+      ctx.db.insert("workspaces", {
+        name: "Other Workspace",
+        ownerUserId: workspaceState.userId as any,
+        accentColor: "#5b5bd6",
+        contactEmail: "other@example.com",
+        ctaText: "Kostenloses Erstgespräch buchen",
+        reportLanguage: "de",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }),
+    )
+
+    const otherLeadId = await t.mutation((ctx) =>
+      ctx.db.insert("leads", {
+        workspaceId: otherWorkspaceId,
+        businessName: "Other Lead",
+        websiteUrl: "https://example.com",
+        normalizedWebsiteUrl: "https://example.com/",
+        sourceProvider: "manual",
+        status: "new",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }),
+    )
+
+    await expect(
+      t.action(api.audits.startAudit, {
+        url: "example.com",
+        auditType: "standard",
+        reportLanguage: "de",
+        idempotencyKey: "idem-lead-foreign-1",
+        leadId: otherLeadId as any,
+      }),
+    ).rejects.toMatchObject({ data: { code: "FORBIDDEN" } })
+
+    const audits = await t.query((ctx) => ctx.db.query("audits").collect())
+    const creditBalances = await t.query((ctx) => ctx.db.query("creditBalances").collect())
+    assert.equal(audits.length, 0)
+    assert.equal(creditBalances[0]?.reservedCredits ?? 0, 0)
+  })
 })

@@ -608,7 +608,7 @@ Die folgenden Tabellen erweitern das MVP-Datenmodell konzeptionell.
   workspaceId: Id<"workspaces">;
   auditId?: Id<"audits">;
   batchAuditJobId?: Id<"batchAuditJobs">;
-  provider: "jina" | "screenshotone" | "pagespeed" | "openai" | "anthropic" | "business_data" | "other";
+  provider: "firecrawl" | "direct_html" | "pagespeed" | "openai" | "anthropic" | "business_data" | "other";
   operation: string;
   status: "started" | "completed" | "failed" | "skipped";
   requestHash?: string;
@@ -643,7 +643,7 @@ Die folgenden Tabellen erweitern das MVP-Datenmodell konzeptionell.
 ```ts
 {
   workspaceId?: Id<"workspaces">;
-  provider: "jina" | "screenshotone" | "pagespeed" | "openai" | "anthropic" | "business_data" | "other";
+  provider: "firecrawl" | "direct_html" | "pagespeed" | "openai" | "anthropic" | "business_data" | "other";
   dailyLimitUsd?: number;
   monthlyLimitUsd?: number;
   warningThresholdPercent: number;

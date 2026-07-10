@@ -4,6 +4,7 @@ import {
   Eye,
   ScanSearch,
   Plus,
+  Search,
   Check,
   Circle,
   ArrowRight,
@@ -47,6 +48,10 @@ import { getFirstName, getUserDisplayName } from "@/lib/user-display"
 import { api } from "../../convex/_generated/api"
 import { Spinner } from "@/components/ui/spinner"
 
+type SummaryData = NonNullable<
+  ReturnType<typeof useQuery<typeof api.reports.getDashboardSummary>>
+>
+
 type EngagementData = NonNullable<
   ReturnType<typeof useQuery<typeof api.reports.getDashboardEngagement>>
 >
@@ -67,7 +72,9 @@ const activityIcon: Record<string, { icon: LucideIcon; tone: string }> = {
 export function DashboardView() {
   const { navigate } = useRouter()
   const ws = useQuery(api.workspaces.getMyWorkspace)
-  const auditsData = useQuery(api.audits.listMyAudits, {})
+  const summary = useQuery(api.reports.getDashboardSummary, {
+    tzOffsetMinutes: typeof window !== "undefined" ? new Date().getTimezoneOffset() : 0,
+  })
   const engagement = useQuery(api.reports.getDashboardEngagement, {
     tzOffsetMinutes: typeof window !== "undefined" ? new Date().getTimezoneOffset() : 0,
   })
@@ -78,7 +85,7 @@ export function DashboardView() {
     ws?.user.email ?? session.data?.user?.email,
   )
 
-  if (ws === undefined || auditsData === undefined || engagement === undefined) {
+  if (ws === undefined || summary === undefined || engagement === undefined) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <Spinner className="size-6 text-primary" />
@@ -86,25 +93,56 @@ export function DashboardView() {
     )
   }
 
-  const items = auditsData?.items ?? []
-  const total = auditsData?.total ?? 0
-  const completed = items.filter((a) => a.status === "completed").length
-  const totalViews = items.reduce((sum, a) => sum + a.viewCount, 0)
-  const hasPublic = items.some((a) => a.isPublic)
-  const hasOutreach = items.some((a) => a.hasOutreach)
-  const creditsRemaining = ws?.credits.remaining ?? 0
-  const creditsTotal = ws?.credits.total ?? 0
+  const summaryData = summary ?? {
+    auditsThisMonth: 0,
+    completedAudits: 0,
+    reportViews: 0,
+    hasPublicReport: false,
+    hasOutreachCopy: false,
+    recentAudits: [],
+  }
+
+  const workspace = ws?.workspace
+  const brandingDone = workspace
+    ? workspace.updatedAt > workspace.createdAt
+    : false
+  const firstAuditDone = summaryData.auditsThisMonth > 0
+  const completedDone = summaryData.completedAudits > 0
 
   const checklist = [
-    { label: "Branding hinterlegt", done: ws !== null },
-    { label: "Ersten Audit gestartet", done: total > 0 },
-    { label: "Audit abgeschlossen", done: completed > 0 },
-    { label: "Report freigegeben", done: hasPublic },
-    { label: "Outreach genutzt", done: hasOutreach },
+    {
+      label: "Branding einrichten",
+      done: brandingDone,
+      cta: { label: "Branding öffnen", route: { name: "branding-settings" } as const },
+    },
+    {
+      label: "Ersten Audit starten",
+      done: firstAuditDone,
+      cta: { label: "Ersten Audit starten", route: { name: "new-audit" } as const },
+    },
+    {
+      label: "Audit abschließen",
+      done: completedDone,
+      cta: { label: "Audits ansehen", route: { name: "audits" } as const },
+    },
+    {
+      label: "Report freigeben",
+      done: summaryData.hasPublicReport,
+      cta: { label: "Audits ansehen", route: { name: "audits" } as const },
+    },
+    {
+      label: "Outreach kopieren",
+      done: summaryData.hasOutreachCopy,
+      cta: { label: "Audits ansehen", route: { name: "audits" } as const },
+    },
   ]
   const doneCount = checklist.filter((c) => c.done).length
 
-  const recent = items.slice(0, 5)
+  const firstOpenStep = checklist.find((c) => !c.done)
+  const creditsRemaining = ws?.credits.remaining ?? 0
+  const creditsTotal = ws?.credits.total ?? 0
+  const recent = summaryData.recentAudits
+  const total = summaryData.auditsThisMonth
 
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-6 p-4 md:p-6">
@@ -117,45 +155,55 @@ export function DashboardView() {
           <p className="mt-1 text-sm text-muted-foreground">
             {total === 0
               ? "Starte deinen ersten Audit, um Website-Potenziale zu entdecken."
-              : `${total} Audits · ${completed} abgeschlossen · ${totalViews} Report Views`}
+              : `${total} Audits diesen Monat · ${summaryData.completedAudits} abgeschlossen · ${summaryData.reportViews} Report Views`}
           </p>
         </div>
-        <NewAuditDialog
-          trigger={
-            <Button className="gap-2">
-              <Plus className="size-4" />
-              Neuer Audit
-            </Button>
-          }
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => navigate({ name: "lead-search" })}
+          >
+            <Search className="size-4" />
+            Leads suchen
+          </Button>
+          <NewAuditDialog
+            trigger={
+              <Button className="gap-2">
+                <Plus className="size-4" />
+                Neuer Audit
+              </Button>
+            }
+          />
+        </div>
       </div>
 
       {/* KPIs */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Audits"
-          value={String(total)}
-          icon={ScanSearch}
-          hint={`${completed} abgeschlossen`}
-          accent
-        />
-        <StatCard
-          label="Report Views"
-          value={String(totalViews)}
-          icon={Eye}
-          hint="Über alle freigegebenen Reports"
-        />
-        <StatCard
           label="Credits"
           value={`${creditsRemaining}/${creditsTotal}`}
           icon={Sparkles}
           hint="Verbleibend in diesem Monat"
+          accent
         />
         <StatCard
-          label="Aktivierung"
-          value={`${doneCount}/${checklist.length}`}
+          label="Audits diesen Monat"
+          value={String(total)}
+          icon={ScanSearch}
+          hint={`${summaryData.completedAudits} abgeschlossen`}
+        />
+        <StatCard
+          label="Abgeschlossene Audits"
+          value={String(summaryData.completedAudits)}
           icon={CheckCircle2}
-          hint="Onboarding-Schritte erledigt"
+          hint="Alle Audits"
+        />
+        <StatCard
+          label="Report Views"
+          value={String(summaryData.reportViews)}
+          icon={Eye}
+          hint="Über alle freigegebenen Reports"
         />
       </div>
 
@@ -196,19 +244,19 @@ export function DashboardView() {
               ))}
             </ul>
           </CardContent>
-          {doneCount < checklist.length && (
+          {firstOpenStep ? (
             <CardFooter>
               <Button
                 variant="outline"
                 size="sm"
                 className="w-full gap-2"
-                onClick={() => navigate({ name: "audits" })}
+                onClick={() => navigate(firstOpenStep.cta.route)}
               >
-                {total === 0 ? "Ersten Audit starten" : "Weitermachen"}
+                {firstOpenStep.cta.label}
                 <ArrowRight className="size-4" />
               </Button>
             </CardFooter>
-          )}
+          ) : null}
         </Card>
 
         <Card className="lg:col-span-2">
@@ -217,7 +265,7 @@ export function DashboardView() {
               <CardTitle>Letzte Audits</CardTitle>
               <CardDescription>Nach Erstellungsdatum</CardDescription>
             </div>
-            {total > 0 && (
+            {recent.length > 0 && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -241,14 +289,25 @@ export function DashboardView() {
                     Starte deinen ersten Audit, um loszulegen.
                   </p>
                 </div>
-                <NewAuditDialog
-                  trigger={
-                    <Button size="sm" className="gap-1.5">
-                      <Plus className="size-4" />
-                      Audit starten
-                    </Button>
-                  }
-                />
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Button
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => navigate({ name: "lead-search" })}
+                    variant="outline"
+                  >
+                    <Search className="size-4" />
+                    Leads suchen
+                  </Button>
+                  <NewAuditDialog
+                    trigger={
+                      <Button size="sm" className="gap-1.5">
+                        <Plus className="size-4" />
+                        Audit starten
+                      </Button>
+                    }
+                  />
+                </div>
               </div>
             ) : (
               <div className="divide-y">
@@ -269,9 +328,7 @@ export function DashboardView() {
                       <div className="truncate text-sm font-medium">
                         {a.businessName ?? a.domain}
                       </div>
-                      <div className="truncate text-xs text-muted-foreground">
-                        {a.domain}
-                      </div>
+                      <div className="truncate text-xs text-muted-foreground">{a.domain}</div>
                     </div>
                     <div className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
                       <Eye className="size-3.5" />

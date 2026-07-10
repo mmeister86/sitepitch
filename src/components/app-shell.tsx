@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
 import { AppSidebar } from "@/components/app-sidebar"
 import { useRouter } from "@/lib/router"
-import { auditById } from "@/lib/mock-data"
 
 function useTitle() {
   const { view } = useRouter()
@@ -23,14 +22,22 @@ function useTitle() {
       return "Übersicht"
     case "audits":
       return "Audits"
+    case "new-audit":
+      return "Neuer Audit"
     case "audit":
-      return auditById(view.id)?.businessName ?? "Audit"
+      return "Audit"
     case "leads":
       return "Leads"
+    case "lead-search":
+      return "Leads suchen"
     case "campaigns":
       return "Kampagnen"
     case "settings":
       return "Einstellungen"
+    case "branding-settings":
+      return "Report-Branding"
+    case "billing-settings":
+      return "Plan & Credits"
   }
 }
 
