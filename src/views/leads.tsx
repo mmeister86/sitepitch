@@ -41,6 +41,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/sonner"
 import { LeadSearchPanel } from "@/components/lead-search"
 import { LeadDetailPanel, LeadSummary } from "@/components/lead-common"
+import { LeadEditDialog, LeadEditButton } from "@/components/lead-edit-dialog"
 import { useRouter } from "@/lib/router"
 import { cn } from "@/lib/utils"
 import { api } from "../../convex/_generated/api"
@@ -95,6 +96,17 @@ export function LeadsView() {
   const startAuditFromLead = useAction(api.leads.startAuditFromLead)
 
   const [websiteDialogLead, setWebsiteDialogLead] = useState<{ id: Id<"leads">; name: string } | null>(null)
+  const [editLead, setEditLead] = useState<{
+    leadId: Id<"leads">
+    businessName: string
+    category?: string
+    city?: string
+    country?: string
+    address?: string
+    phone?: string
+    businessEmail?: string
+  } | null>(null)
+  const [isEditOpen, setIsEditOpen] = useState(false)
   const [websiteInput, setWebsiteInput] = useState("")
   const [websiteError, setWebsiteError] = useState<string | null>(null)
   const [isSavingWebsite, setIsSavingWebsite] = useState(false)
@@ -139,6 +151,20 @@ export function LeadsView() {
     setWebsiteDialogLead({ id: leadId, name })
     setWebsiteInput("")
     setWebsiteError(null)
+  }
+
+  function openEditLead(lead: LeadListItem) {
+    setEditLead({
+      leadId: lead._id,
+      businessName: lead.businessName,
+      category: lead.category,
+      city: lead.city,
+      country: lead.country,
+      address: lead.address,
+      phone: lead.phone,
+      businessEmail: lead.businessEmail,
+    })
+    setIsEditOpen(true)
   }
 
   async function handleSaveWebsite() {
@@ -339,6 +365,19 @@ export function LeadsView() {
                       action={
                         <>
                           {renderLeadPrimaryAction(lead)}
+                          <LeadEditButton
+                            lead={{
+                              leadId: lead._id,
+                              businessName: lead.businessName,
+                              category: lead.category,
+                              city: lead.city,
+                              country: lead.country,
+                              address: lead.address,
+                              phone: lead.phone,
+                              businessEmail: lead.businessEmail,
+                            }}
+                            onClick={() => openEditLead(lead)}
+                          />
                           <Button
                             variant="outline"
                             size="sm"
@@ -409,6 +448,8 @@ export function LeadsView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <LeadEditDialog lead={editLead} open={isEditOpen} onOpenChange={setIsEditOpen} />
 
       <AlertDialog
         open={deleteTarget !== null}

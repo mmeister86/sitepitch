@@ -725,3 +725,62 @@ describe("deleteLead", () => {
     assert.equal(audit.leadId, undefined)
   })
 })
+
+describe("updateLeadProfile", () => {
+  test("updates editable profile fields", async () => {
+    const t = createTest().withIdentity({ email: "peter@example.com", name: "Peter" })
+
+    await t.mutation(api.workspaces.ensureCurrentWorkspace, {})
+
+    const leadId = await t.mutation(api.leads.saveLeadFromSearch, {
+      businessName: "Bäckerei Peter",
+      city: "Leipzig",
+      country: "Deutschland",
+      sourceProvider: "manual",
+      sourceLabel: "Manuell",
+    })
+
+    await t.mutation(api.leads.updateLeadProfile, {
+      leadId: leadId as any,
+      businessName: "Bäckerei Peter GmbH",
+      category: "Bäckerei",
+      city: "Dresden",
+      country: "Deutschland",
+      address: "Katharinenstraße 1",
+      phone: "+49 351 123456",
+      businessEmail: "peter@example.com",
+    })
+
+    const list = await t.query(api.leads.listMyLeads, {})
+    assert.ok(list)
+    const lead = list.items[0]
+    assert.equal(lead.businessName, "Bäckerei Peter GmbH")
+    assert.equal(lead.category, "Bäckerei")
+    assert.equal(lead.city, "Dresden")
+    assert.equal(lead.country, "Deutschland")
+    assert.equal(lead.address, "Katharinenstraße 1")
+    assert.equal(lead.phone, "+49 351 123456")
+    assert.equal(lead.businessEmail, "peter@example.com")
+  })
+
+  test("rejects empty business name", async () => {
+    const t = createTest().withIdentity({ email: "peter@example.com", name: "Peter" })
+
+    await t.mutation(api.workspaces.ensureCurrentWorkspace, {})
+
+    const leadId = await t.mutation(api.leads.saveLeadFromSearch, {
+      businessName: "Bäckerei Peter",
+      city: "Leipzig",
+      country: "Deutschland",
+      sourceProvider: "manual",
+      sourceLabel: "Manuell",
+    })
+
+    await expect(
+      t.mutation(api.leads.updateLeadProfile, {
+        leadId: leadId as any,
+        businessName: "",
+      }),
+    ).rejects.toMatchObject({ data: { code: "VALIDATION_ERROR" } })
+  })
+})

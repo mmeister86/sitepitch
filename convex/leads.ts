@@ -4,7 +4,7 @@ import { action, internalMutation, internalQuery, mutation, query } from "./_gen
 import type { Id, Doc } from "./_generated/dataModel"
 import { api, internal } from "./_generated/api"
 import { findAppUser, getWorkspaceByOwner, requireExistingAppUser } from "./lib/workspace"
-import { normalizeLeadWebsiteUrl } from "./lib/lead_search"
+import { normalizeLeadWebsiteUrl, normalizeBusinessEmail } from "./lib/lead_search"
 import { attachLeadToCampaign } from "./lib/campaigns"
 
 export type LeadListItem = {
@@ -275,6 +275,54 @@ export const updateLeadWebsite = mutation({
       normalizedWebsiteUrl,
       updatedAt: Date.now(),
     })
+  },
+})
+
+export const updateLeadProfile = mutation({
+  args: {
+    leadId: v.id("leads"),
+    businessName: v.optional(v.string()),
+    category: v.optional(v.string()),
+    city: v.optional(v.string()),
+    country: v.optional(v.string()),
+    address: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    businessEmail: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const user = await requireExistingAppUser(ctx)
+    const workspace = await getWorkspaceByOwner(ctx, user.userId)
+    if (!workspace) {
+      throw new ConvexError({ code: "WORKSPACE_NOT_READY", message: "Workspace not ready" })
+    }
+
+    const lead = await ctx.db.get(args.leadId)
+    if (!lead || lead.workspaceId !== workspace._id) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Lead nicht gefunden." })
+    }
+
+    const businessName = args.businessName?.trim() ?? lead.businessName
+    if (!businessName) {
+      throw new ConvexError({
+        code: "VALIDATION_ERROR",
+        message: "Ein Unternehmensname ist erforderlich.",
+      })
+    }
+
+    const businessEmail = normalizeBusinessEmail(args.businessEmail)
+
+    const patch: Partial<Doc<"leads">> = {
+      businessName,
+      category: args.category?.trim() || undefined,
+      city: args.city?.trim() || undefined,
+      country: args.country?.trim() || undefined,
+      address: args.address?.trim() || undefined,
+      phone: args.phone?.trim() || undefined,
+      businessEmail,
+      updatedAt: Date.now(),
+    }
+
+    await ctx.db.patch(args.leadId, patch)
   },
 })
 

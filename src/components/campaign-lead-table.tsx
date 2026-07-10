@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/expandable"
 import { toast } from "@/components/ui/sonner"
 import { LeadDetailPanel } from "@/components/lead-common"
+import { LeadEditDialog, LeadEditButton } from "@/components/lead-edit-dialog"
 import { api } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
 import type { CampaignLeadListItem } from "../../convex/campaigns"
@@ -185,6 +186,17 @@ export function CampaignLeadTable({
   const [savingFollowUpId, setSavingFollowUpId] = useState<Id<"campaignLeads"> | null>(null)
   const [auditStartingId, setAuditStartingId] = useState<Id<"campaignLeads"> | null>(null)
   const idempotencyKeyRef = useRef(crypto.randomUUID())
+  const [editLead, setEditLead] = useState<{
+    leadId: Id<"leads">
+    businessName: string
+    category?: string
+    city?: string
+    country?: string
+    address?: string
+    phone?: string
+    businessEmail?: string
+  } | null>(null)
+  const [isEditOpen, setIsEditOpen] = useState(false)
 
   const isReadOnly = campaignStatus === "archived" || campaignStatus === "paused"
 
@@ -313,6 +325,20 @@ export function CampaignLeadTable({
     } catch (error) {
       toast.error((error as Error)?.message ?? "Lead konnte nicht entfernt werden")
     }
+  }
+
+  function openEditLead(lead: CampaignLeadListItem) {
+    setEditLead({
+      leadId: lead.leadId,
+      businessName: lead.businessName,
+      category: lead.category,
+      city: lead.city,
+      country: lead.country,
+      address: lead.address,
+      phone: lead.phone,
+      businessEmail: lead.businessEmail,
+    })
+    setIsEditOpen(true)
   }
 
   if (leads.length === 0) {
@@ -474,6 +500,8 @@ export function CampaignLeadTable({
                       Notiz
                     </Button>
 
+                    <LeadEditButton lead={lead} onClick={() => openEditLead(lead)} />
+
                     <Button
                       variant="ghost"
                       size="sm"
@@ -580,6 +608,8 @@ export function CampaignLeadTable({
           </ExpandableItem>
         ))}
       </Expandable>
+
+      <LeadEditDialog lead={editLead} open={isEditOpen} onOpenChange={setIsEditOpen} />
 
       <Dialog open={!!removingId} onOpenChange={() => setRemovingId(null)}>
         <DialogContent>

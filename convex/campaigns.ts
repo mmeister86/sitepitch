@@ -88,8 +88,14 @@ export type CampaignLeadListItem = {
   normalizedWebsiteUrl?: string
   category?: string
   city?: string
+  country?: string
+  address?: string
   businessEmail?: string
   phone?: string
+  latitude?: number
+  longitude?: number
+  sourceProvider?: string
+  sourceId?: string
   status: CampaignLeadStatus
   note?: string
   noteUpdatedAt?: number
@@ -298,8 +304,14 @@ export const getMyCampaign = query({
         normalizedWebsiteUrl: lead?.normalizedWebsiteUrl ?? undefined,
         category: lead?.category ?? undefined,
         city: lead?.city ?? undefined,
+        country: lead?.country ?? undefined,
+        address: lead?.address ?? undefined,
         businessEmail: lead?.businessEmail ?? undefined,
         phone: lead?.phone ?? undefined,
+        latitude: lead?.latitude ?? undefined,
+        longitude: lead?.longitude ?? undefined,
+        sourceProvider: lead?.sourceProvider ?? undefined,
+        sourceId: lead?.sourceId ?? undefined,
         status: cl.status,
         note: cl.note ?? undefined,
         noteUpdatedAt: cl.noteUpdatedAt ?? undefined,
