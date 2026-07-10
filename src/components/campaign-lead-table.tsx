@@ -274,7 +274,6 @@ export function CampaignLeadTable({
     try {
       await setFollowUp({ campaignLeadId, followUpAt: ts })
       toast.success("Follow-up gesetzt")
-      setFollowUpDrafts((prev) => ({ ...prev, [campaignLeadId]: "" }))
     } catch (error) {
       toast.error((error as Error)?.message ?? "Follow-up konnte nicht gesetzt werden")
     } finally {
@@ -288,6 +287,11 @@ export function CampaignLeadTable({
     try {
       await setFollowUp({ campaignLeadId, followUpAt: null })
       toast.success("Follow-up entfernt")
+      setFollowUpDrafts((prev) => {
+        const next = { ...prev }
+        delete next[campaignLeadId]
+        return next
+      })
     } catch (error) {
       toast.error((error as Error)?.message ?? "Follow-up konnte nicht entfernt werden")
     } finally {
