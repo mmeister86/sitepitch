@@ -1,13 +1,20 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { Building2, Globe, Mail, MapPin, Phone, Plus } from "lucide-react"
+import { Building2, Globe, Mail, MapPin, Megaphone, Phone, Plus } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { LeadMap } from "@/components/lead-map"
 import { cn } from "@/lib/utils"
 
 export type LeadStatus = "new" | "audited" | "contacted" | "follow_up" | "interested" | "won" | "lost"
+
+export type LeadCampaignBadge = {
+  campaignId: string
+  name: string
+  status?: string
+}
 
 export type LeadLike = {
   businessName: string
@@ -24,6 +31,7 @@ export type LeadLike = {
   sourceProvider?: string
   auditReady: boolean
   audited?: boolean
+  campaigns?: LeadCampaignBadge[]
 }
 
 export type SearchResultItem = {
@@ -77,7 +85,35 @@ export function LeadStatusBadge({ lead }: { lead: LeadLike }) {
   )
 }
 
-export function LeadSummary({ lead }: { lead: LeadLike }) {
+export function LeadCampaignBadges({ campaigns, onNavigate }: { campaigns?: LeadCampaignBadge[]; onNavigate?: (campaignId: string) => void }) {
+  if (!campaigns || campaigns.length === 0) return null
+
+  const first = campaigns[0]
+  const remaining = campaigns.length - 1
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <Badge
+        variant="outline"
+        className="gap-1 text-xs border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 cursor-pointer"
+        onClick={(e) => {
+          e.stopPropagation()
+          onNavigate?.(first.campaignId)
+        }}
+      >
+        <Megaphone className="size-3" />
+        {first.name}
+      </Badge>
+      {remaining > 0 && (
+        <span className="text-xs text-muted-foreground" title={campaigns.slice(1).map((c) => c.name).join(", ")}>
+          +{remaining}
+        </span>
+      )}
+    </div>
+  )
+}
+
+export function LeadSummary({ lead, onCampaignNavigate }: { lead: LeadLike; onCampaignNavigate?: (campaignId: string) => void }) {
   return (
     <div className="flex flex-1 flex-wrap items-center gap-x-4 gap-y-1">
       <div className="min-w-0">
@@ -87,6 +123,7 @@ export function LeadSummary({ lead }: { lead: LeadLike }) {
         )}
       </div>
       <div className="flex items-center gap-2">
+        <LeadCampaignBadges campaigns={lead.campaigns} onNavigate={onCampaignNavigate} />
         <LeadStatusBadge lead={lead} />
         {lead.city && (
           <span className="hidden text-xs text-muted-foreground sm:inline">{lead.city}</span>
@@ -137,9 +174,11 @@ export function DetailRow({
 
 export function LeadDetailPanel({
   lead,
+  onCampaignNavigate,
   action,
 }: {
   lead: LeadLike
+  onCampaignNavigate?: (campaignId: string) => void
   action?: ReactNode
 }) {
   const address =
@@ -148,6 +187,13 @@ export function LeadDetailPanel({
   return (
     <div className="grid gap-4 pt-2 md:grid-cols-[1fr_300px]">
       <div className="space-y-2">
+        {lead.campaigns && lead.campaigns.length > 0 && (
+          <DetailRow
+            icon={<Megaphone className="size-3.5" />}
+            label="Kampagnen"
+            value={lead.campaigns.map((c) => c.name).join(", ")}
+          />
+        )}
         <DetailRow
           icon={<Globe className="size-3.5" />}
           label="Website"

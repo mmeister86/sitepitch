@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react"
 import { useAction, useMutation, useQuery } from "convex/react"
-import { Building2, Globe, Loader2, Plus, Search, Trash2 } from "lucide-react"
+import { Building2, Globe, Loader2, Megaphone, Plus, Search, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -340,7 +340,9 @@ export function LeadsView() {
                         sourceProvider: lead.sourceProvider,
                         auditReady: lead.auditReady,
                         audited: Boolean(lead.audit),
+                        campaigns: lead.campaigns,
                       }}
+                      onCampaignNavigate={(campaignId) => navigate({ name: "campaign", id: campaignId })}
                     />
                   </ExpandableTrigger>
 
@@ -361,10 +363,25 @@ export function LeadsView() {
                         sourceProvider: lead.sourceProvider,
                         auditReady: lead.auditReady,
                         audited: Boolean(lead.audit),
+                        campaigns: lead.campaigns,
                       }}
+                      onCampaignNavigate={(campaignId) => navigate({ name: "campaign", id: campaignId })}
                       action={
                         <>
                           {renderLeadPrimaryAction(lead)}
+                          {lead.campaigns[0] && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5"
+                              onClick={() =>
+                                navigate({ name: "campaign", id: lead.campaigns[0].campaignId })
+                              }
+                            >
+                              <Megaphone className="size-3.5" />
+                              Zur Kampagne
+                            </Button>
+                          )}
                           <LeadEditButton
                             lead={{
                               leadId: lead._id,

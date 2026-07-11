@@ -5,7 +5,7 @@ import type { Id, Doc } from "./_generated/dataModel"
 import { api, internal } from "./_generated/api"
 import { findAppUser, getWorkspaceByOwner, requireExistingAppUser } from "./lib/workspace"
 import { normalizeLeadWebsiteUrl, normalizeBusinessEmail } from "./lib/lead_search"
-import { attachLeadToCampaign } from "./lib/campaigns"
+import { attachLeadToCampaign, type CampaignLeadStatus } from "./lib/campaigns"
 
 export type LeadListItem = {
   _id: Id<"leads">
@@ -32,6 +32,11 @@ export type LeadListItem = {
     overallScore?: number
     publicSlug: string
   } | null
+  campaigns: {
+    campaignId: Id<"campaigns">
+    name: string
+    status: CampaignLeadStatus
+  }[]
   createdAt: number
   updatedAt: number
 }
@@ -70,6 +75,25 @@ export const listMyLeads = query({
           }
         }
 
+        const campaignLeads = await ctx.db
+          .query("campaignLeads")
+          .withIndex("by_workspaceId_and_leadId", (q) =>
+            q.eq("workspaceId", workspace._id).eq("leadId", lead._id),
+          )
+          .take(50)
+
+        const campaigns: LeadListItem["campaigns"] = []
+        for (const cl of campaignLeads) {
+          const campaign = await ctx.db.get(cl.campaignId)
+          if (campaign) {
+            campaigns.push({
+              campaignId: campaign._id,
+              name: campaign.name,
+              status: cl.status as CampaignLeadStatus,
+            })
+          }
+        }
+
         return {
           _id: lead._id,
           businessName: lead.businessName,
@@ -89,6 +113,7 @@ export const listMyLeads = query({
           auditId: lead.auditId,
           auditReady: Boolean(lead.normalizedWebsiteUrl || lead.websiteUrl),
           audit,
+          campaigns,
           createdAt: lead.createdAt,
           updatedAt: lead.updatedAt,
         }
