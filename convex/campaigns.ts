@@ -746,6 +746,8 @@ export const deleteCampaign = mutation({
       await ctx.db.delete(cl._id)
     }
 
+    await ctx.runMutation(internal.lead_search.deleteSnapshotsForCampaign, { campaignId: args.campaignId })
+
     const campaignActivities = await ctx.db
       .query("leadActivities")
       .withIndex("by_campaignId_and_createdAt", (q) => q.eq("campaignId", args.campaignId))

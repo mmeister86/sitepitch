@@ -35,6 +35,7 @@ assert.deepEqual(tableNames, [
   "creditBalances",
   "creditLedger",
   "leadActivities",
+  "leadSearchSnapshots",
   "leads",
   "outreachDrafts",
   "providerCalls",
@@ -240,3 +241,11 @@ const leadsIndexes = (schema.tables.leads as any).indexes.map(
 assert.ok(leadsIndexes.includes("by_workspaceId"))
 assert.ok(leadsIndexes.includes("by_workspaceId_and_status"))
 assert.ok(leadsIndexes.includes("by_workspaceId_and_sourceProvider_and_sourceId"))
+
+const leadSearchSnapshotIndexes = (schema.tables.leadSearchSnapshots as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(leadSearchSnapshotIndexes.includes("by_workspaceId"))
+assert.ok(leadSearchSnapshotIndexes.includes("by_workspaceId_and_campaignId"))
+assert.ok(leadSearchSnapshotIndexes.includes("by_workspaceId_and_updatedAt"))
+assert.ok(leadSearchSnapshotIndexes.includes("by_campaignId"))

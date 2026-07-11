@@ -1,8 +1,6 @@
-"use node"
-
 import { ConvexError, v } from "convex/values"
 
-import { action, env } from "./_generated/server"
+import { action, env, internalMutation, internalQuery, query } from "./_generated/server"
 import type { ActionCtx } from "./_generated/server"
 import { api, internal } from "./_generated/api"
 import { checkLeadSearchLimit, checkProviderLimit } from "./lib/audit_rate_limit"
@@ -16,6 +14,8 @@ import {
   type LeadSearchResult,
 } from "./lib/lead_search"
 import { redactSensitiveText } from "./lib/audit_pipeline"
+import { findAppUser, getWorkspaceByOwner } from "./lib/workspace"
+import type { Doc, Id } from "./_generated/dataModel"
 
 const GEOCODE_MAX_LOOKUPS = 5
 
@@ -194,6 +194,7 @@ export const searchLocalBusinesses = action({
     country: v.string(),
     keyword: v.optional(v.string()),
     radiusKm: v.optional(v.number()),
+    campaignId: v.optional(v.id("campaigns")),
   },
   handler: async (ctx, args): Promise<LeadSearchResponse> => {
     const industry = args.industry.trim()
@@ -281,6 +282,226 @@ export const searchLocalBusinesses = action({
       // usage logging must never break search
     }
 
+    try {
+      await ctx.runMutation(internal.lead_search.saveSnapshot, {
+        workspaceId,
+        campaignId: args.campaignId,
+        industry,
+        city,
+        country,
+        keyword: input.keyword,
+        radiusKm: input.radiusKm,
+        provider: result.provider,
+        sourceLabel: result.sourceLabel,
+        items: result.items,
+        searchedAt: result.searchedAt,
+      })
+    } catch (error) {
+      // snapshot must never break the search
+      console.warn(
+        "Lead search snapshot failed",
+        redactSensitiveText(error instanceof Error ? error.message : String(error)),
+      )
+    }
+
     return result
+  },
+})
+
+export const saveSnapshot = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    campaignId: v.optional(v.id("campaigns")),
+    industry: v.string(),
+    city: v.string(),
+    country: v.string(),
+    keyword: v.optional(v.string()),
+    radiusKm: v.optional(v.number()),
+    provider: v.union(v.literal("rapidapi"), v.literal("google_places")),
+    sourceLabel: v.string(),
+    items: v.array(
+      v.object({
+        businessName: v.string(),
+        websiteUrl: v.optional(v.string()),
+        normalizedWebsiteUrl: v.optional(v.string()),
+        category: v.optional(v.string()),
+        city: v.optional(v.string()),
+        country: v.optional(v.string()),
+        address: v.optional(v.string()),
+        phone: v.optional(v.string()),
+        businessEmail: v.optional(v.string()),
+        latitude: v.optional(v.number()),
+        longitude: v.optional(v.number()),
+        sourceProvider: v.union(v.literal("rapidapi"), v.literal("google_places")),
+        sourceId: v.optional(v.string()),
+        sourceLabel: v.string(),
+        auditReady: v.boolean(),
+      }),
+    ),
+    searchedAt: v.number(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    if (args.campaignId) {
+      const campaign = await ctx.db.get(args.campaignId)
+      if (!campaign || campaign.workspaceId !== args.workspaceId) {
+        throw new ConvexError({ code: "NOT_FOUND", message: "Kampagne nicht gefunden." })
+      }
+    }
+
+    const existing = args.campaignId
+      ? await ctx.db
+          .query("leadSearchSnapshots")
+          .withIndex("by_workspaceId_and_campaignId", (q) =>
+            q.eq("workspaceId", args.workspaceId).eq("campaignId", args.campaignId),
+          )
+          .unique()
+      : await ctx.db
+          .query("leadSearchSnapshots")
+          .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
+          .unique()
+
+    const now = Date.now()
+    const snapshot = {
+      workspaceId: args.workspaceId,
+      campaignId: args.campaignId,
+      industry: args.industry,
+      city: args.city,
+      country: args.country,
+      keyword: args.keyword,
+      radiusKm: args.radiusKm,
+      provider: args.provider,
+      sourceLabel: args.sourceLabel,
+      resultCount: args.items.length,
+      items: args.items,
+      searchedAt: args.searchedAt,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    }
+
+    if (existing) {
+      await ctx.db.replace(existing._id, snapshot)
+    } else {
+      await ctx.db.insert("leadSearchSnapshots", snapshot)
+    }
+  },
+})
+
+export const getLatestSnapshot = query({
+  args: {
+    campaignId: v.optional(v.id("campaigns")),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<
+    | {
+        snapshotId: Id<"leadSearchSnapshots">
+        campaignId?: Id<"campaigns">
+        industry: string
+        city: string
+        country: string
+        keyword?: string
+        radiusKm?: number
+        provider: string
+        sourceLabel: string
+        resultCount: number
+        items: LeadSearchResult[]
+        searchedAt: number
+        updatedAt: number
+        savedKeys: string[]
+        campaignLeadKeys: string[]
+      }
+    | null
+  > => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+
+    const user = await findAppUser(ctx, identity.tokenIdentifier)
+    if (!user) return null
+
+    const workspace = await getWorkspaceByOwner(ctx, user._id)
+    if (!workspace) return null
+
+    if (args.campaignId) {
+      const campaign = await ctx.db.get(args.campaignId)
+      if (!campaign || campaign.workspaceId !== workspace._id) return null
+    }
+
+    const snapshot = args.campaignId
+      ? await ctx.db
+          .query("leadSearchSnapshots")
+          .withIndex("by_workspaceId_and_campaignId", (q) =>
+            q.eq("workspaceId", workspace._id).eq("campaignId", args.campaignId),
+          )
+          .order("desc")
+          .first()
+      : await ctx.db
+          .query("leadSearchSnapshots")
+          .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspace._id))
+          .order("desc")
+          .first()
+
+    if (!snapshot) return null
+
+    const savedKeys: string[] = []
+    const campaignLeadKeys: string[] = []
+
+    for (const item of snapshot.items) {
+      const key = `${item.sourceProvider}-${item.sourceId ?? ""}`
+      if (item.sourceId) {
+        const existing = await ctx.db
+          .query("leads")
+          .withIndex("by_workspaceId_and_sourceProvider_and_sourceId", (q) =>
+            q.eq("workspaceId", workspace._id).eq("sourceProvider", item.sourceProvider).eq("sourceId", item.sourceId),
+          )
+          .unique()
+        if (existing) {
+          savedKeys.push(key)
+          if (args.campaignId) {
+            const campaignLead = await ctx.db
+              .query("campaignLeads")
+              .withIndex("by_campaignId_and_leadId", (q) =>
+                q.eq("campaignId", args.campaignId as Id<"campaigns">).eq("leadId", existing._id),
+              )
+              .unique()
+            if (campaignLead) {
+              campaignLeadKeys.push(key)
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      snapshotId: snapshot._id,
+      campaignId: snapshot.campaignId ?? undefined,
+      industry: snapshot.industry,
+      city: snapshot.city,
+      country: snapshot.country,
+      keyword: snapshot.keyword ?? undefined,
+      radiusKm: snapshot.radiusKm ?? undefined,
+      provider: snapshot.provider,
+      sourceLabel: snapshot.sourceLabel,
+      resultCount: snapshot.resultCount,
+      items: snapshot.items as LeadSearchResult[],
+      searchedAt: snapshot.searchedAt,
+      updatedAt: snapshot.updatedAt,
+      savedKeys,
+      campaignLeadKeys,
+    }
+  },
+})
+
+export const deleteSnapshotsForCampaign = internalMutation({
+  args: { campaignId: v.id("campaigns") },
+  handler: async (ctx, args): Promise<void> => {
+    const snapshots = await ctx.db
+      .query("leadSearchSnapshots")
+      .withIndex("by_campaignId", (q) => q.eq("campaignId", args.campaignId))
+      .take(100)
+
+    for (const snapshot of snapshots) {
+      await ctx.db.delete(snapshot._id)
+    }
   },
 })

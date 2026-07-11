@@ -1,7 +1,7 @@
 "use client"
 
-import { useAction, useMutation } from "convex/react"
-import { useState } from "react"
+import { useAction, useMutation, useQuery } from "convex/react"
+import { useEffect, useState } from "react"
 import { Loader2, Plus, Search } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -87,6 +87,7 @@ export function LeadSearchPanel({
 }: LeadSearchPanelProps) {
   const searchLeads = useAction(api.lead_search.searchLocalBusinesses)
   const saveLead = useMutation(api.leads.saveLeadFromSearch)
+  const snapshot = useQuery(api.lead_search.getLatestSnapshot, { campaignId: campaignId ?? undefined })
 
   const [industry, setIndustry] = useState(defaultIndustry)
   const [city, setCity] = useState(defaultCity)
@@ -98,6 +99,27 @@ export function LeadSearchPanel({
   const [searchResults, setSearchResults] = useState<SearchResponse | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!snapshot) return
+    setIndustry(snapshot.industry)
+    setCity(snapshot.city)
+    setCountry(snapshot.country)
+    setKeyword(snapshot.keyword ?? "")
+    setRadiusKm(snapshot.radiusKm ? String(snapshot.radiusKm) : "")
+    setSearchResults({
+      items: snapshot.items as SearchResponse["items"],
+      provider: snapshot.provider as SearchResponse["provider"],
+      sourceLabel: snapshot.sourceLabel,
+      searchedAt: snapshot.searchedAt,
+      query: "",
+    })
+    const nextSavedIds = new Set<string>()
+    for (const key of campaignId ? snapshot.campaignLeadKeys : snapshot.savedKeys) {
+      nextSavedIds.add(key)
+    }
+    setSavedIds(nextSavedIds)
+  }, [snapshot, campaignId])
 
   async function handleSearch() {
     if (isSearching) return
@@ -116,6 +138,7 @@ export function LeadSearchPanel({
         country: country.trim(),
         keyword: keyword.trim() || undefined,
         radiusKm: radiusKm.trim() ? Number(radiusKm) : undefined,
+        campaignId,
       })
       setSearchResults(result as SearchResponse)
     } catch (error) {
@@ -266,6 +289,16 @@ export function LeadSearchPanel({
             </Button>
           </div>
         </div>
+        {searchResults && (
+          <div className="flex items-center justify-between border-t pt-3">
+            <p className="text-xs text-muted-foreground">
+              Letzte Suche: {new Date(searchResults.searchedAt).toLocaleString("de-DE")}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {searchResults.items.length} Ergebnisse über {searchResults.sourceLabel}
+            </p>
+          </div>
+        )}
         {searchError && (
           <Alert variant="destructive">
             <AlertDescription>{searchError}</AlertDescription>

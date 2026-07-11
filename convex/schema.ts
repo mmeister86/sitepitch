@@ -128,6 +128,45 @@ export default defineSchema({
     .index("by_workspaceId_and_type", ["workspaceId", "type"])
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"]),
 
+  leadSearchSnapshots: defineTable({
+    workspaceId: v.id("workspaces"),
+    campaignId: v.optional(v.id("campaigns")),
+    industry: v.string(),
+    city: v.string(),
+    country: v.string(),
+    keyword: v.optional(v.string()),
+    radiusKm: v.optional(v.number()),
+    provider: leadSourceProviderValidator,
+    sourceLabel: v.string(),
+    resultCount: v.number(),
+    items: v.array(
+      v.object({
+        businessName: v.string(),
+        websiteUrl: v.optional(v.string()),
+        normalizedWebsiteUrl: v.optional(v.string()),
+        category: v.optional(v.string()),
+        city: v.optional(v.string()),
+        country: v.optional(v.string()),
+        address: v.optional(v.string()),
+        phone: v.optional(v.string()),
+        businessEmail: v.optional(v.string()),
+        latitude: v.optional(v.number()),
+        longitude: v.optional(v.number()),
+        sourceProvider: leadSourceProviderValidator,
+        sourceId: v.optional(v.string()),
+        sourceLabel: v.string(),
+        auditReady: v.boolean(),
+      }),
+    ),
+    searchedAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_campaignId", ["workspaceId", "campaignId"])
+    .index("by_workspaceId_and_updatedAt", ["workspaceId", "updatedAt"])
+    .index("by_campaignId", ["campaignId"]),
+
   leads: defineTable({
     workspaceId: v.id("workspaces"),
     businessName: v.string(),

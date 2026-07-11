@@ -176,6 +176,7 @@ const modules = import.meta.glob([
   "./audits.ts",
   "./campaigns.ts",
   "./leads.ts",
+  "./lead_search.ts",
   "./audit_pipeline.ts",
   "./audit_scoring.ts",
   "./audit_state.ts",
