@@ -291,6 +291,11 @@ export const startAudit = action({
     })
 
     if (workspaceContext.credits.remaining < 1) {
+      await ctx.runMutation(internal.audits.logCreditsExhausted, {
+        workspaceId: workspaceContext.workspaceId,
+        userId: workspaceContext.userId,
+        idempotencyKey: args.idempotencyKey,
+      })
       throw new ConvexError({ code: "INSUFFICIENT_CREDITS", message: "No credits available" })
     }
 
@@ -349,6 +354,7 @@ export const deleteAudit = mutation({
       "outreachDrafts",
       "reportViews",
       "providerCalls",
+      "providerCosts",
       "auditPipelineStates",
       "auditAgentRuns",
     ] as const
@@ -390,5 +396,22 @@ export const deleteAudit = mutation({
     deleted++
 
     return { deleted }
+  },
+})
+
+export const logCreditsExhausted = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    idempotencyKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("usageEvents", {
+      workspaceId: args.workspaceId,
+      userId: args.userId,
+      event: "credits_exhausted",
+      idempotencyKey: `credits_exhausted:${args.idempotencyKey}`,
+      createdAt: Date.now(),
+    })
   },
 })

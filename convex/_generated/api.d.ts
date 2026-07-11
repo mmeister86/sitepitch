@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as admin_operations from "../admin_operations.js";
 import type * as audit_agent from "../audit_agent.js";
 import type * as audit_agent_action from "../audit_agent_action.js";
 import type * as audit_pipeline from "../audit_pipeline.js";
@@ -15,7 +16,9 @@ import type * as audit_scoring from "../audit_scoring.js";
 import type * as audit_state from "../audit_state.js";
 import type * as audits from "../audits.js";
 import type * as auth from "../auth.js";
+import type * as billing from "../billing.js";
 import type * as campaigns from "../campaigns.js";
+import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as lead_search from "../lead_search.js";
 import type * as leads from "../leads.js";
@@ -40,9 +43,16 @@ import type * as lib_audit_url from "../lib/audit_url.js";
 import type * as lib_campaigns from "../lib/campaigns.js";
 import type * as lib_credits from "../lib/credits.js";
 import type * as lib_lead_search from "../lib/lead_search.js";
+import type * as lib_lemonsqueezy from "../lib/lemonsqueezy.js";
+import type * as lib_provider_cost_rates from "../lib/provider_cost_rates.js";
+import type * as lib_provider_costs from "../lib/provider_costs.js";
 import type * as lib_rate_limit_helpers from "../lib/rate_limit_helpers.js";
+import type * as lib_support from "../lib/support.js";
+import type * as lib_telemetry_safety from "../lib/telemetry_safety.js";
 import type * as lib_turnstile from "../lib/turnstile.js";
 import type * as lib_workspace from "../lib/workspace.js";
+import type * as provider_billing from "../provider_billing.js";
+import type * as provider_billing_state from "../provider_billing_state.js";
 import type * as reports from "../reports.js";
 import type * as workpools from "../workpools.js";
 import type * as workspaces from "../workspaces.js";
@@ -54,6 +64,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  admin_operations: typeof admin_operations;
   audit_agent: typeof audit_agent;
   audit_agent_action: typeof audit_agent_action;
   audit_pipeline: typeof audit_pipeline;
@@ -61,7 +72,9 @@ declare const fullApi: ApiFromModules<{
   audit_state: typeof audit_state;
   audits: typeof audits;
   auth: typeof auth;
+  billing: typeof billing;
   campaigns: typeof campaigns;
+  crons: typeof crons;
   http: typeof http;
   lead_search: typeof lead_search;
   leads: typeof leads;
@@ -86,9 +99,16 @@ declare const fullApi: ApiFromModules<{
   "lib/campaigns": typeof lib_campaigns;
   "lib/credits": typeof lib_credits;
   "lib/lead_search": typeof lib_lead_search;
+  "lib/lemonsqueezy": typeof lib_lemonsqueezy;
+  "lib/provider_cost_rates": typeof lib_provider_cost_rates;
+  "lib/provider_costs": typeof lib_provider_costs;
   "lib/rate_limit_helpers": typeof lib_rate_limit_helpers;
+  "lib/support": typeof lib_support;
+  "lib/telemetry_safety": typeof lib_telemetry_safety;
   "lib/turnstile": typeof lib_turnstile;
   "lib/workspace": typeof lib_workspace;
+  provider_billing: typeof provider_billing;
+  provider_billing_state: typeof provider_billing_state;
   reports: typeof reports;
   workpools: typeof workpools;
   workspaces: typeof workspaces;

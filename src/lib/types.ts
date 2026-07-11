@@ -166,7 +166,7 @@ export interface Campaign {
 export interface Activity {
   id: string
   type:
-    | "report_viewed"
+    | "report_opened"
     | "outreach_copied"
     | "public_link_copied"
     | "audit_completed"

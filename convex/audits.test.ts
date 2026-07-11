@@ -342,10 +342,10 @@ describe("audit start flow", () => {
 
     const workspace = await t.query(api.workspaces.getMyWorkspace, {})
     assert.ok(workspace)
-    assert.equal(workspace.credits.total, 20)
+    assert.equal(workspace.credits.total, 3)
     assert.equal(workspace.credits.used, 0)
     assert.equal(workspace.credits.reserved, 1)
-    assert.equal(workspace.credits.remaining, 19)
+    assert.equal(workspace.credits.remaining, 2)
   })
 
   test("rejects invalid URLs without touching rate limits or credits", async () => {

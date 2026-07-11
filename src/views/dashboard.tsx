@@ -61,7 +61,7 @@ const engagementChartConfig = {
 } satisfies ChartConfig
 
 const activityIcon: Record<string, { icon: LucideIcon; tone: string }> = {
-  report_viewed: { icon: Eye, tone: "bg-chart-1/12 text-chart-1" },
+  report_opened: { icon: Eye, tone: "bg-chart-1/12 text-chart-1" },
   report_cta_clicked: { icon: MousePointerClick, tone: "bg-primary/12 text-primary" },
   outreach_copied: { icon: Copy, tone: "bg-chart-2/12 text-chart-2" },
   public_link_copied: { icon: Link2, tone: "bg-chart-3/12 text-chart-3" },

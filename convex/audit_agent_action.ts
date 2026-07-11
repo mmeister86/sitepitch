@@ -45,6 +45,7 @@ import {
 import { generateDeterministicDesignCritique } from "./lib/audit_design_critique_fallback"
 import type { CheckInput, CategoryScores } from "./lib/audit_scoring"
 import { checkProviderLimit } from "./lib/audit_rate_limit"
+import { sanitizeError } from "./lib/telemetry_safety"
 
 const SKILL_VERSIONS = {
   "conversion-audit": "2026.07.1",
@@ -65,32 +66,10 @@ const DEFAULT_MODEL = "openai/gpt-4.1-mini"
 const MAX_RETRIES = 1
 
 function describeError(error: unknown): string {
-  if (!(error instanceof Error)) {
-    return String(error)
-  }
-  const parts: string[] = [error.message]
-  const anyErr = error as Error & {
-    responseBody?: unknown
-    responseStatus?: number
-    url?: string
-    value?: unknown
-    data?: unknown
-    isRetryable?: boolean
-  }
-  if (anyErr.responseStatus !== undefined) {
-    parts.push(`status=${anyErr.responseStatus}`)
-  }
-  if (typeof anyErr.responseBody === "string") {
-    parts.push(`body=${anyErr.responseBody.slice(0, 400)}`)
-  } else if (anyErr.responseBody !== undefined) {
-    try {
-      parts.push(`body=${JSON.stringify(anyErr.responseBody).slice(0, 400)}`)
-    } catch {
-      // ignore non-serializable body
-    }
-  }
-  if (anyErr.url) {
-    parts.push(`url=${anyErr.url}`)
+  const safe = sanitizeError(error)
+  const parts: string[] = [safe.message]
+  if (safe.responseStatus !== undefined) {
+    parts.push(`status=${safe.responseStatus}`)
   }
   return parts.join(" | ")
 }

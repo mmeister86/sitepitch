@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
+import { trackRybbitEvent } from "@/lib/analytics"
 import { api } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
 
@@ -116,6 +117,7 @@ export function OutreachWorkflows({
                       /* clipboard may be unavailable */
                     }
                     toast.success("Report-Link kopiert")
+                    trackRybbitEvent("public_link_copied", { source: "internal_report" })
                     await recordPublicLinkCopy()
                   }}
                 >
@@ -187,6 +189,7 @@ function OutreachDraftCard({
     }
     setCopied(true)
     toast.success(`${label}-Text kopiert`)
+    trackRybbitEvent("outreach_copied", { draft_type: draftType })
     setTimeout(() => setCopied(false), 1600)
     try {
       await recordCopy({

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { ArrowRight, Loader2 } from "lucide-react"
 
 import { authClient } from "@/lib/auth-client"
+import { trackRybbitEvent } from "@/lib/analytics"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -44,6 +45,10 @@ export function AuthForm({ mode }: AuthFormProps) {
         description: result.error.message ?? "Bitte prüfe deine Eingaben.",
       })
       return
+    }
+
+    if (isSignup) {
+      trackRybbitEvent("signed_up")
     }
 
     router.replace("/app")

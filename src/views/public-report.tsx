@@ -7,6 +7,7 @@ import { Printer, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { AuditReport } from "@/components/audit-report"
+import { trackRybbitEvent } from "@/lib/analytics"
 import { api } from "../../convex/_generated/api"
 
 export function PublicReportView({ slug }: { slug: string }) {
@@ -27,14 +28,17 @@ export function PublicReportView({ slug }: { slug: string }) {
     }
 
     recordView({ slug }).catch(() => {})
+    trackRybbitEvent("report_opened", { source: "public_report" })
   }, [report, slug, recordView])
 
   const handleCtaClick = () => {
     recordCta({ slug }).catch(() => {})
+    trackRybbitEvent("report_cta_clicked", { source: "public_report" })
   }
 
   const handlePrint = () => {
     recordPdf({ slug }).catch(() => {})
+    trackRybbitEvent("pdf_exported", { source: "public_report" })
     window.print()
   }
 

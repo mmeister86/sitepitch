@@ -63,6 +63,7 @@ export default defineSchema({
     ctaText: v.optional(v.string()),
     ctaUrl: v.optional(v.string()),
     reportLanguage: reportLanguageValidator,
+    brandingCompletedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_ownerUserId", ["ownerUserId"]),
@@ -82,6 +83,9 @@ export default defineSchema({
     provider: subscriptionProviderValidator,
     providerCustomerId: v.optional(v.string()),
     providerSubscriptionId: v.optional(v.string()),
+    providerVariantId: v.optional(v.string()),
+    customerPortalUrl: v.optional(v.string()),
+    providerUpdatedAt: v.optional(v.number()),
     plan: subscriptionPlanValidator,
     status: subscriptionStatusValidator,
     currentPeriodStart: v.optional(v.number()),
@@ -94,6 +98,24 @@ export default defineSchema({
     .index("by_workspaceId_and_status", ["workspaceId", "status"])
     .index("by_provider_and_providerCustomerId", ["provider", "providerCustomerId"])
     .index("by_provider_and_providerSubscriptionId", ["provider", "providerSubscriptionId"]),
+
+  billingEvents: defineTable({
+    provider: subscriptionProviderValidator,
+    providerEventId: v.string(),
+    eventName: v.string(),
+    workspaceId: v.optional(v.id("workspaces")),
+    providerOrderId: v.optional(v.string()),
+    providerSubscriptionId: v.optional(v.string()),
+    providerVariantId: v.optional(v.string()),
+    testMode: v.boolean(),
+    status: v.union(v.literal("processed"), v.literal("ignored"), v.literal("failed")),
+    reason: v.optional(v.string()),
+    occurredAt: v.optional(v.number()),
+    processedAt: v.number(),
+  })
+    .index("by_provider_and_providerEventId", ["provider", "providerEventId"])
+    .index("by_workspaceId_and_processedAt", ["workspaceId", "processedAt"])
+    .index("by_providerOrderId", ["providerOrderId"]),
 
   creditBalances: defineTable({
     workspaceId: v.id("workspaces"),
@@ -126,6 +148,7 @@ export default defineSchema({
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
     .index("by_workspaceId_and_subscriptionId", ["workspaceId", "subscriptionId"])
     .index("by_workspaceId_and_type", ["workspaceId", "type"])
+    .index("by_workspaceId_and_idempotencyKey", ["workspaceId", "idempotencyKey"])
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"]),
 
   leadSearchSnapshots: defineTable({
@@ -210,6 +233,7 @@ export default defineSchema({
     publicSlug: v.string(),
     isPublic: v.boolean(),
     reportVersion: v.string(),
+    rerunOfAuditId: v.optional(v.id("audits")),
     overallScore: v.optional(v.number()),
     completedAt: v.optional(v.number()),
     failedAt: v.optional(v.number()),
@@ -228,7 +252,8 @@ export default defineSchema({
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
     .index("by_leadId", ["leadId"])
     .index("by_publicSlug", ["publicSlug"])
-    .index("by_workspaceId_and_publicSlug", ["workspaceId", "publicSlug"]),
+    .index("by_workspaceId_and_publicSlug", ["workspaceId", "publicSlug"])
+    .index("by_status_and_createdAt", ["status", "createdAt"]),
 
   auditRawData: defineTable({
     workspaceId: v.id("workspaces"),
@@ -399,7 +424,8 @@ export default defineSchema({
     .index("by_workspaceId", ["workspaceId"])
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
     .index("by_auditId", ["auditId"])
-    .index("by_workspaceId_and_viewedAt", ["workspaceId", "viewedAt"]),
+    .index("by_workspaceId_and_viewedAt", ["workspaceId", "viewedAt"])
+    .index("by_viewedAt", ["viewedAt"]),
 
   usageEvents: defineTable({
     workspaceId: v.id("workspaces"),
@@ -413,7 +439,10 @@ export default defineSchema({
     .index("by_workspaceId", ["workspaceId"])
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
     .index("by_workspaceId_and_event", ["workspaceId", "event"])
-    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"]),
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
+    .index("by_auditId_and_event", ["auditId", "event"])
+    .index("by_event_and_createdAt", ["event", "createdAt"])
+    .index("by_createdAt", ["createdAt"]),
 
   auditPipelineStates: defineTable({
     workspaceId: v.id("workspaces"),
@@ -455,7 +484,8 @@ export default defineSchema({
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
     .index("by_auditId", ["auditId"])
     .index("by_workspaceId_and_provider", ["workspaceId", "provider"])
-    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"]),
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
+    .index("by_createdAt", ["createdAt"]),
 
   auditPages: defineTable({
     workspaceId: v.id("workspaces"),
@@ -644,4 +674,68 @@ export default defineSchema({
     .index("by_campaignId_and_createdAt", ["campaignId", "createdAt"])
     .index("by_campaignLeadId_and_createdAt", ["campaignLeadId", "createdAt"])
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"]),
+
+  providerCosts: defineTable({
+    workspaceId: v.id("workspaces"),
+    auditId: v.optional(v.id("audits")),
+    providerCallId: v.optional(v.id("providerCalls")),
+    costKey: v.string(),
+    provider: providerCallProviderValidator,
+    operation: v.string(),
+    model: v.optional(v.string()),
+    providerRequestId: v.optional(v.string()),
+    source: v.union(
+      v.literal("provider_response"),
+      v.literal("generation_lookup"),
+      v.literal("estimated"),
+      v.literal("zero_cost"),
+    ),
+    pricingVersion: v.optional(v.string()),
+    estimatedCostUsd: v.optional(v.number()),
+    actualCostUsd: v.optional(v.number()),
+    tokensIn: v.optional(v.number()),
+    tokensOut: v.optional(v.number()),
+    requestCount: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
+    .index("by_auditId", ["auditId"])
+    .index("by_provider_and_createdAt", ["provider", "createdAt"])
+    .index("by_createdAt", ["createdAt"])
+    .index("by_costKey", ["costKey"]),
+
+  adminActions: defineTable({
+    actorUserId: v.id("users"),
+    workspaceId: v.id("workspaces"),
+    auditId: v.optional(v.id("audits")),
+    action: v.union(
+      v.literal("credit_adjusted"),
+      v.literal("report_disabled"),
+      v.literal("audit_rerun"),
+    ),
+    reason: v.string(),
+    metadata: v.optional(primitiveMetadataValidator),
+    createdAt: v.number(),
+  })
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
+    .index("by_auditId_and_createdAt", ["auditId", "createdAt"])
+    .index("by_actorUserId_and_createdAt", ["actorUserId", "createdAt"])
+    .index("by_createdAt", ["createdAt"]),
+
+  providerBillingSnapshots: defineTable({
+    provider: providerCallProviderValidator,
+    periodStart: v.number(),
+    periodEnd: v.number(),
+    providerSpendUsd: v.optional(v.number()),
+    calculatedSpendUsd: v.number(),
+    deltaUsd: v.optional(v.number()),
+    creditBalance: v.optional(v.number()),
+    source: v.union(v.literal("provider_api"), v.literal("unavailable")),
+    idempotencyKey: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_provider_and_createdAt", ["provider", "createdAt"])
+    .index("by_idempotencyKey", ["idempotencyKey"])
+    .index("by_createdAt", ["createdAt"]),
 })

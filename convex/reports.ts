@@ -692,7 +692,7 @@ export const recordPublicReportView = mutation({
     await ctx.db.insert("usageEvents", {
       workspaceId: audit.workspaceId,
       auditId: audit._id,
-      event: "report_viewed",
+      event: "report_opened",
       metadata: { source: "public_report" },
       createdAt: now,
     })
@@ -1013,7 +1013,7 @@ export const getDashboardSummary = query({
 const DAY_MS = 86_400_000
 const ENGAGEMENT_WINDOW_DAYS = 14
 const ACTIVITY_EVENT_TYPES = new Set([
-  "report_viewed",
+  "report_opened",
   "report_cta_clicked",
   "outreach_copied",
   "public_link_copied",
@@ -1148,7 +1148,7 @@ function activityDetail(
   event: string,
   metadata: Record<string, string | number | boolean | null> | undefined,
 ): string | null {
-  if (event === "report_viewed") return "Report aufgerufen"
+  if (event === "report_opened") return "Report aufgerufen"
   if (event === "report_cta_clicked") return "CTA geklickt"
   if (event === "audit_completed") return "Audit abgeschlossen"
   if (event === "pdf_exported") return "Report als PDF exportiert"

@@ -3,6 +3,8 @@ import { ConvexError, v } from "convex/values"
 import type { Doc, Id } from "./_generated/dataModel"
 import { internalMutation, internalQuery } from "./_generated/server"
 import type { CheckCategory, CheckInput } from "./lib/audit_scoring"
+import { consumeWorkspaceCreditReservation, releaseWorkspaceCreditReservation } from "./lib/credits"
+import { estimateLlmCostUsd, PROVIDER_COST_RATE_VERSION } from "./lib/provider_cost_rates"
 import { auditAgentOutputSchema, type AuditAgentOutput } from "./lib/audit_agent_schemas"
 import { personaPanelOutputSchema } from "./lib/audit_persona_schemas"
 import { copyReviewOutputSchema } from "./lib/audit_copy_review_schemas"
@@ -283,6 +285,9 @@ export const finishAuditAgentRun = internalMutation({
     errorMessage: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const run = await ctx.db.get(args.auditAgentRunId)
+    if (!run) return
+
     await ctx.db.patch(args.auditAgentRunId, {
       status: args.status,
       tokensIn: args.tokensIn,
@@ -290,6 +295,33 @@ export const finishAuditAgentRun = internalMutation({
       errorMessage: args.errorMessage,
       completedAt: now(),
     })
+
+    if (args.status === "completed" && args.tokensIn !== undefined && args.tokensOut !== undefined) {
+      const costKey = `agent:${args.auditAgentRunId}`
+      const existing = await ctx.db
+        .query("providerCosts")
+        .withIndex("by_costKey", (q) => q.eq("costKey", costKey))
+        .first()
+      if (existing) return
+
+      const estimatedCostUsd = estimateLlmCostUsd(run.model, args.tokensIn, args.tokensOut)
+
+      await ctx.db.insert("providerCosts", {
+        workspaceId: run.workspaceId,
+        auditId: run.auditId,
+        costKey,
+        provider: run.provider,
+        operation: `llm:${run.purpose}`,
+        model: run.model,
+        source: "estimated",
+        pricingVersion: PROVIDER_COST_RATE_VERSION,
+        estimatedCostUsd,
+        tokensIn: args.tokensIn,
+        tokensOut: args.tokensOut,
+        requestCount: 1,
+        createdAt: now(),
+      })
+    }
   },
 })
 
@@ -577,6 +609,13 @@ export const completeAuditFromAgent = internalMutation({
       updatedAt: current,
     })
 
+    await consumeWorkspaceCreditReservation(
+      ctx,
+      audit.workspaceId,
+      args.auditId,
+      `consume:${args.auditId}`,
+    )
+
     const existingCompletedEvent = await ctx.db
       .query("usageEvents")
       .withIndex("by_workspaceId_and_auditId", (q) =>
@@ -641,6 +680,8 @@ export const markAuditAgentFailed = internalMutation({
       return null
     }
 
+    const alreadyFailed = audit.status === "failed"
+
     const current = now()
     await ctx.db.patch(args.auditId, {
       status: "failed",
@@ -650,6 +691,28 @@ export const markAuditAgentFailed = internalMutation({
       errorMessage: args.errorMessage,
       updatedAt: current,
     })
+
+    if (!alreadyFailed) {
+      await releaseWorkspaceCreditReservation(ctx, audit.workspaceId, audit._id, audit.idempotencyKey, args.errorCode)
+
+      const existingFailedEvent = await ctx.db
+        .query("usageEvents")
+        .withIndex("by_auditId_and_event", (q) =>
+          q.eq("auditId", args.auditId).eq("event", "audit_failed"),
+        )
+        .first()
+
+      if (!existingFailedEvent) {
+        await ctx.db.insert("usageEvents", {
+          workspaceId: audit.workspaceId,
+          auditId: args.auditId,
+          event: "audit_failed",
+          idempotencyKey: `audit_failed:${args.auditId}`,
+          metadata: { code: args.errorCode },
+          createdAt: current,
+        })
+      }
+    }
 
     return { auditId: args.auditId }
   },

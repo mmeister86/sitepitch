@@ -402,7 +402,7 @@ describe("recordPublicReportView", () => {
         )
         .collect(),
     )
-    const viewEvent = events.find((e) => e.event === "report_viewed")
+    const viewEvent = events.find((e) => e.event === "report_opened")
     assert.ok(viewEvent)
   })
 
@@ -875,7 +875,7 @@ describe("getDashboardEngagement", () => {
       await ctx.db.insert("usageEvents", {
         workspaceId,
         auditId,
-        event: "report_viewed",
+        event: "report_opened",
         createdAt: now,
       })
     })
@@ -885,7 +885,7 @@ describe("getDashboardEngagement", () => {
       .query(api.reports.getDashboardEngagement, { tzOffsetMinutes: 0 })
 
     assert.ok(result)
-    const viewed = result!.activity.find((a) => a.event === "report_viewed")
+    const viewed = result!.activity.find((a) => a.event === "report_opened")
     assert.ok(viewed)
     assert.equal(viewed!.businessName, "Acme Bakery")
   })

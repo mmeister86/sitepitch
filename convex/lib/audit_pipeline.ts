@@ -279,15 +279,7 @@ export function pickPriorityPages(homepageUrl: string, internalLinks: string[], 
     }))
 }
 
-export function redactSensitiveText(input: string) {
-  return collapseWhitespace(
-    input
-      .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [redacted]")
-      .replace(/api[_-]?key\s*[:=]\s*['"]?[^'"\s]+/gi, "api_key=[redacted]")
-      .replace(/access[_-]?key\s*[:=]\s*['"]?[^'"\s]+/gi, "access_key=[redacted]")
-      .replace(/secret\s*[:=]\s*['"]?[^'"\s]+/gi, "secret=[redacted]"),
-  )
-}
+export { redactSensitiveText } from "./telemetry_safety"
 
 function classifyPageKind(path: string): AuditPageKind {
   if (/kontakt|contact|reach|anfrage/i.test(path)) {

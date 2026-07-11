@@ -15,6 +15,7 @@ import {
 const tableNames = Object.keys(schema.tables).sort()
 
 assert.deepEqual(tableNames, [
+  "adminActions",
   "auditAgentRuns",
   "auditAssets",
   "auditBusinessData",
@@ -30,6 +31,7 @@ assert.deepEqual(tableNames, [
   "auditScores",
   "auditSummaries",
   "audits",
+  "billingEvents",
   "campaignLeads",
   "campaigns",
   "creditBalances",
@@ -38,7 +40,9 @@ assert.deepEqual(tableNames, [
   "leadSearchSnapshots",
   "leads",
   "outreachDrafts",
+  "providerBillingSnapshots",
   "providerCalls",
+  "providerCosts",
   "reportViews",
   "subscriptions",
   "usageEvents",
@@ -128,6 +132,14 @@ const creditLedgerIndexes = (schema.tables.creditLedger as any).indexes.map(
 )
 assert.ok(creditLedgerIndexes.includes("by_workspaceId_and_auditId"))
 assert.ok(creditLedgerIndexes.includes("by_workspaceId_and_subscriptionId"))
+assert.ok(creditLedgerIndexes.includes("by_workspaceId_and_idempotencyKey"))
+
+const billingEventIndexes = (schema.tables.billingEvents as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(billingEventIndexes.includes("by_provider_and_providerEventId"))
+assert.ok(billingEventIndexes.includes("by_workspaceId_and_processedAt"))
+assert.ok(billingEventIndexes.includes("by_providerOrderId"))
 
 const auditAssetsIndexes = (schema.tables.auditAssets as any).indexes.map(
   (index: { indexDescriptor: string }) => index.indexDescriptor,
@@ -249,3 +261,49 @@ assert.ok(leadSearchSnapshotIndexes.includes("by_workspaceId"))
 assert.ok(leadSearchSnapshotIndexes.includes("by_workspaceId_and_campaignId"))
 assert.ok(leadSearchSnapshotIndexes.includes("by_workspaceId_and_updatedAt"))
 assert.ok(leadSearchSnapshotIndexes.includes("by_campaignId"))
+
+// ---------------------------------------------------------------------------
+// TASK-4.13 additions
+// ---------------------------------------------------------------------------
+
+const usageEventsIndexesFinal = (schema.tables.usageEvents as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(usageEventsIndexesFinal.includes("by_auditId_and_event"))
+
+const workspacesFields = Object.keys((schema.tables.workspaces as any).validator.fields)
+assert.ok(workspacesFields.includes("brandingCompletedAt"), "workspaces should include brandingCompletedAt")
+
+const auditsFields = Object.keys((schema.tables.audits as any).validator.fields)
+assert.ok(auditsFields.includes("rerunOfAuditId"), "audits should include rerunOfAuditId")
+
+const providerCostsIndexes = (schema.tables.providerCosts as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(providerCostsIndexes.includes("by_workspaceId"))
+assert.ok(providerCostsIndexes.includes("by_workspaceId_and_createdAt"))
+assert.ok(providerCostsIndexes.includes("by_auditId"))
+assert.ok(providerCostsIndexes.includes("by_provider_and_createdAt"))
+assert.ok(providerCostsIndexes.includes("by_costKey"))
+
+const providerCostsFields = Object.keys((schema.tables.providerCosts as any).validator.fields)
+assert.ok(providerCostsFields.includes("costKey"), "providerCosts should include costKey")
+assert.ok(providerCostsFields.includes("source"), "providerCosts should include source")
+assert.ok(providerCostsFields.includes("model"), "providerCosts should include model")
+assert.ok(providerCostsFields.includes("providerRequestId"), "providerCosts should include providerRequestId")
+assert.ok(providerCostsFields.includes("pricingVersion"), "providerCosts should include pricingVersion")
+
+const billingSnapshotsIndexes = (schema.tables.providerBillingSnapshots as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(billingSnapshotsIndexes.includes("by_provider_and_createdAt"))
+assert.ok(billingSnapshotsIndexes.includes("by_idempotencyKey"))
+
+const adminActionsIndexes = (schema.tables.adminActions as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(adminActionsIndexes.includes("by_workspaceId_and_createdAt"))
+assert.ok(adminActionsIndexes.includes("by_auditId_and_createdAt"))
+assert.ok(adminActionsIndexes.includes("by_actorUserId_and_createdAt"))
+
+console.log("schema contract tests passed")

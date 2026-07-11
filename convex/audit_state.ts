@@ -243,6 +243,24 @@ export const failAuditPipeline = internalMutation({
 
     await releaseWorkspaceCreditReservation(ctx, audit.workspaceId, audit._id, audit.idempotencyKey, args.errorCode ?? "audit_failed")
 
+    const existingFailedEvent = await ctx.db
+      .query("usageEvents")
+      .withIndex("by_auditId_and_event", (q) =>
+        q.eq("auditId", args.auditId).eq("event", "audit_failed"),
+      )
+      .first()
+
+    if (!existingFailedEvent) {
+      await ctx.db.insert("usageEvents", {
+        workspaceId: audit.workspaceId,
+        auditId: args.auditId,
+        event: "audit_failed",
+        idempotencyKey: `audit_failed:${args.auditId}`,
+        metadata: { code: args.errorCode ?? "AUDIT_FAILED" },
+        createdAt: current,
+      })
+    }
+
     return state._id
   },
 })
@@ -303,6 +321,75 @@ export const logProviderCallFinish = internalMutation({
       errorCode: args.errorCode,
       responseStatus: args.responseStatus,
       completedAt: now(),
+    })
+  },
+})
+
+export const recordProviderCost = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    auditId: v.optional(v.id("audits")),
+    providerCallId: v.optional(v.id("providerCalls")),
+    costKey: v.string(),
+    provider: v.union(
+      v.literal("direct_html"),
+      v.literal("jina"),
+      v.literal("firecrawl"),
+      v.literal("screenshotone"),
+      v.literal("pagespeed"),
+      v.literal("local_business_data"),
+      v.literal("google_places"),
+      v.literal("openai"),
+      v.literal("anthropic"),
+      v.literal("other"),
+    ),
+    operation: v.string(),
+    model: v.optional(v.string()),
+    providerRequestId: v.optional(v.string()),
+    source: v.union(
+      v.literal("provider_response"),
+      v.literal("generation_lookup"),
+      v.literal("estimated"),
+      v.literal("zero_cost"),
+    ),
+    pricingVersion: v.optional(v.string()),
+    estimatedCostUsd: v.optional(v.number()),
+    actualCostUsd: v.optional(v.number()),
+    tokensIn: v.optional(v.number()),
+    tokensOut: v.optional(v.number()),
+    requestCount: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("providerCosts")
+      .withIndex("by_costKey", (q) => q.eq("costKey", args.costKey))
+      .first()
+
+    if (existing) {
+      return existing._id
+    }
+
+    if (args.estimatedCostUsd === undefined && args.actualCostUsd === undefined) {
+      throw new Error("recordProviderCost requires at least estimated or actual cost")
+    }
+
+    return await ctx.db.insert("providerCosts", {
+      workspaceId: args.workspaceId,
+      auditId: args.auditId,
+      providerCallId: args.providerCallId,
+      costKey: args.costKey,
+      provider: args.provider,
+      operation: args.operation,
+      model: args.model,
+      providerRequestId: args.providerRequestId,
+      source: args.source,
+      pricingVersion: args.pricingVersion,
+      estimatedCostUsd: args.estimatedCostUsd,
+      actualCostUsd: args.actualCostUsd,
+      tokensIn: args.tokensIn,
+      tokensOut: args.tokensOut,
+      requestCount: args.requestCount,
+      createdAt: now(),
     })
   },
 })

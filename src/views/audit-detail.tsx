@@ -26,7 +26,7 @@ import {
   Link2Off,
 } from "lucide-react"
 import { toast } from "@/components/ui/sonner"
-import { useState, type ReactNode } from "react"
+import { useState, useEffect, useRef, type ReactNode } from "react"
 import { useAction, useMutation, useQuery } from "convex/react"
 
 import {
@@ -61,6 +61,7 @@ import { PersonaPanel } from "@/components/persona-panel"
 import { CopyReviewPanel } from "@/components/copy-review"
 import { DesignCritiquePanel } from "@/components/design-critique"
 import { useRouter } from "@/lib/router"
+import { trackRybbitEvent } from "@/lib/analytics"
 import { auditById, campaignById } from "@/lib/mock-data"
 import {
   scoreColorVar,
@@ -211,6 +212,24 @@ function LiveAuditDetail({ id }: { id: string }) {
   const report = useQuery(api.reports.getInternalReportById, {
     auditId: id as Id<"audits">,
   })
+  const trackedStatusRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!report) return
+    if (trackedStatusRef.current === report.status) return
+    const prevStatus = trackedStatusRef.current
+    trackedStatusRef.current = report.status
+
+    if (report.status === "completed" && prevStatus !== "completed") {
+      trackRybbitEvent("audit_completed", {
+        audit_type: (report as any).auditType ?? "standard",
+      })
+    } else if (report.status === "failed" && prevStatus !== "failed") {
+      trackRybbitEvent("audit_failed", {
+        failure_code: (report as any).errorCode ?? "AUDIT_FAILED",
+      })
+    }
+  }, [report])
 
   if (report === undefined) {
     return (

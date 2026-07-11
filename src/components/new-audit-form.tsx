@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { useRouter } from "@/lib/router"
+import { trackRybbitEvent } from "@/lib/analytics"
 import type { AuditType } from "@/lib/types"
 import type { LeadListItem } from "../../convex/leads"
 import { api } from "../../convex/_generated/api"
@@ -158,6 +159,7 @@ export function NewAuditForm({
         leadId,
       })
 
+      trackRybbitEvent("audit_started", { audit_type: auditType, report_language: reportLanguage })
       resetForm()
       onStarted?.()
       navigate({ name: "audit", id: result.auditId })
@@ -169,6 +171,7 @@ export function NewAuditForm({
       if (code === "INVALID_URL" || code === "UNSAFE_URL" || code === "URL_UNRESOLVABLE") {
         setUrlError(message ?? "Bitte prüfe die eingegebene URL.")
       } else if (code === "INSUFFICIENT_CREDITS") {
+        trackRybbitEvent("credits_exhausted", { plan: data?.subscription?.plan ?? "trial" })
         setFormError(
           message ?? "Für diesen Audit sind aktuell keine Credits verfügbar. Verwalte deinen Plan unter Plan & Credits.",
         )
@@ -290,7 +293,19 @@ export function NewAuditForm({
 
       {formError ? (
         <Alert variant="destructive" id={formErrorId}>
-          <AlertDescription>{formError}</AlertDescription>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>{formError}</span>
+            {remainingCredits === 0 ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => navigate({ name: "billing-settings" })}
+              >
+                Plan wählen oder Credits kaufen
+              </Button>
+            ) : null}
+          </AlertDescription>
         </Alert>
       ) : null}
 
@@ -311,10 +326,23 @@ export function NewAuditForm({
             Abbrechen
           </Button>
         ) : null}
-        <Button type="submit" disabled={isSubmitting} className="gap-2">
+        <Button
+          type="submit"
+          disabled={isSubmitting || data === undefined || remainingCredits === 0}
+          className="gap-2"
+        >
           {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}
           {isSubmitting ? "Wird gestartet …" : submitLabel}
         </Button>
+        {data !== undefined && remainingCredits === 0 ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => navigate({ name: "billing-settings" })}
+          >
+            Credits kaufen
+          </Button>
+        ) : null}
       </div>
     </form>
   )

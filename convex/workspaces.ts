@@ -60,6 +60,14 @@ export const ensureCurrentWorkspace = mutation({
 
     await ensureWorkspaceCreditBalance(ctx, workspaceId, user.userId)
 
+    await ctx.db.insert("usageEvents", {
+      workspaceId,
+      userId: user.userId,
+      event: "workspace_created",
+      idempotencyKey: `workspace_created:${workspaceId}`,
+      createdAt: now,
+    })
+
     return {
       workspaceId,
       userId: user.userId,
@@ -75,6 +83,11 @@ export const getMyWorkspace = query({
   args: {},
   handler: async (ctx) => {
     const { user, workspace } = await requireOwnerWorkspace(ctx)
+    const subscription = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspace._id))
+      .order("desc")
+      .first()
     const logoUrl = workspace.logoStorageId
       ? await ctx.storage.getUrl(workspace.logoStorageId)
       : null
@@ -101,6 +114,14 @@ export const getMyWorkspace = query({
         createdAt: workspace.createdAt,
       },
       credits: getWorkspaceCreditSnapshot(await getWorkspaceCreditBalance(ctx, workspace._id)),
+      subscription: subscription
+        ? {
+            plan: subscription.plan,
+            status: subscription.status,
+            currentPeriodEnd: subscription.currentPeriodEnd ?? null,
+            cancelAtPeriodEnd: subscription.cancelAtPeriodEnd ?? false,
+          }
+        : null,
     }
   },
 })
@@ -186,8 +207,20 @@ export const updateBranding = mutation({
       ctaText: parsed.value.ctaText ?? undefined,
       ctaUrl: parsed.value.ctaUrl ?? undefined,
       reportLanguage: parsed.value.reportLanguage,
+      brandingCompletedAt: workspace.brandingCompletedAt ?? Date.now(),
       updatedAt: Date.now(),
     })
+
+    if (!workspace.brandingCompletedAt) {
+      await ctx.db.insert("usageEvents", {
+        workspaceId: workspace._id,
+        userId: user.userId,
+        event: "branding_completed",
+        idempotencyKey: `branding_completed:${workspace._id}`,
+        metadata: { report_language: parsed.value.reportLanguage },
+        createdAt: Date.now(),
+      })
+    }
 
     return workspace._id
   },

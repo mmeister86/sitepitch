@@ -248,6 +248,15 @@ export const saveLeadFromSearch = mutation({
       updatedAt: now,
     })
 
+    await ctx.db.insert("usageEvents", {
+      workspaceId: workspace._id,
+      userId: user.userId,
+      event: "lead_saved",
+      idempotencyKey: `lead_saved:${leadId}`,
+      metadata: { source: args.sourceProvider },
+      createdAt: now,
+    })
+
     if (campaignId) {
       await attachLeadToCampaign(ctx, {
         workspaceId: workspace._id,
@@ -410,7 +419,6 @@ export const getLeadForAudit = internalQuery({
 export const logLeadSearchStarted = internalMutation({
   args: {
     workspaceId: v.id("workspaces"),
-    query: v.string(),
     provider: v.union(v.literal("rapidapi"), v.literal("google_places")),
     resultCount: v.number(),
   },
@@ -420,7 +428,6 @@ export const logLeadSearchStarted = internalMutation({
       workspaceId: args.workspaceId,
       event: "lead_search_started",
       metadata: {
-        query: args.query,
         provider: args.provider,
         resultCount: args.resultCount,
       },

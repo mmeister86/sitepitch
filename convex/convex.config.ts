@@ -20,6 +20,17 @@ const app = defineApp({
     EVE_AGENT_URL: v.optional(v.string()),
     EVE_AGENT_MODEL: v.optional(v.string()),
     TURNSTILE_SECRET_KEY: v.optional(v.string()),
+    SUPPORT_ADMIN_EMAILS: v.optional(v.string()),
+    PROVIDER_COST_ALERT_USD: v.optional(v.string()),
+    PROVIDER_COST_ALERT_PERCENT: v.optional(v.string()),
+    LEMONSQUEEZY_API_KEY: v.optional(v.string()),
+    LEMONSQUEEZY_STORE_ID: v.optional(v.string()),
+    LEMONSQUEEZY_WEBHOOK_SECRET: v.optional(v.string()),
+    LEMONSQUEEZY_TEST_MODE: v.optional(v.string()),
+    LEMONSQUEEZY_STARTER_VARIANT_ID: v.optional(v.string()),
+    LEMONSQUEEZY_PRO_VARIANT_ID: v.optional(v.string()),
+    LEMONSQUEEZY_AGENCY_VARIANT_ID: v.optional(v.string()),
+    LEMONSQUEEZY_CREDIT_PACK_VARIANT_ID: v.optional(v.string()),
   },
 })
 

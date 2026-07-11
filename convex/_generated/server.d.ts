@@ -32,12 +32,23 @@ type Env = {
   readonly FIRECRAWL_API_BASE_URL: string | undefined;
   readonly FIRECRAWL_API_KEY: string | undefined;
   readonly GOOGLE_PLACES_API_KEY: string | undefined;
+  readonly LEMONSQUEEZY_AGENCY_VARIANT_ID: string | undefined;
+  readonly LEMONSQUEEZY_API_KEY: string | undefined;
+  readonly LEMONSQUEEZY_CREDIT_PACK_VARIANT_ID: string | undefined;
+  readonly LEMONSQUEEZY_PRO_VARIANT_ID: string | undefined;
+  readonly LEMONSQUEEZY_STARTER_VARIANT_ID: string | undefined;
+  readonly LEMONSQUEEZY_STORE_ID: string | undefined;
+  readonly LEMONSQUEEZY_TEST_MODE: string | undefined;
+  readonly LEMONSQUEEZY_WEBHOOK_SECRET: string | undefined;
   readonly LOCAL_BUSINESS_DATA_API_KEY: string | undefined;
   readonly OPENROUTER_API_KEY: string | undefined;
   readonly OPENROUTER_MODEL: string | undefined;
   readonly PAGESPEED_API_KEY: string | undefined;
   readonly PAGESPEED_TIMEOUT_MS: string | undefined;
+  readonly PROVIDER_COST_ALERT_PERCENT: string | undefined;
+  readonly PROVIDER_COST_ALERT_USD: string | undefined;
   readonly SITE_URL: string | undefined;
+  readonly SUPPORT_ADMIN_EMAILS: string | undefined;
   readonly TURNSTILE_SECRET_KEY: string | undefined;
 };
 

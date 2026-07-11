@@ -23,6 +23,14 @@ import {
   sameOrigin,
 } from "./lib/audit_pipeline"
 import { validatePublicAuditTarget } from "./lib/audit_url"
+import { sanitizeError } from "./lib/telemetry_safety"
+import {
+  buildZeroCost,
+  estimateFirecrawlCost,
+  estimatePageSpeedCost,
+  estimateDirectHtmlCost,
+  type ProviderCostRecord,
+} from "./lib/provider_costs"
 
 type Claim = {
   auditId: Id<"audits">
@@ -374,6 +382,7 @@ async function runProviderAttempt<T>(
         retryCount: attempt - 1,
         responseStatus: result.responseStatus,
       })
+      await recordAttemptCost(ctx, claim, provider, operation, providerCallId)
       return result.value
     } catch (error) {
       const normalized =
@@ -407,6 +416,60 @@ async function runProviderAttempt<T>(
   }
 
   throw lastError ?? new ProviderFetchError("PROVIDER_ERROR", "Providerfehler.", { retryable: false })
+}
+
+async function recordAttemptCost(
+  ctx: ActionCtx,
+  claim: Claim,
+  provider: string,
+  operation: string,
+  providerCallId: string,
+) {
+  const costInput = {
+    workspaceId: claim.workspaceId,
+    auditId: claim.auditId,
+    providerCallId,
+    costKey: `pcall:${providerCallId}`,
+    provider,
+    operation,
+    requestCount: 1,
+  }
+
+  let costRecord: ProviderCostRecord
+  if (provider === "firecrawl") {
+    costRecord = estimateFirecrawlCost(costInput, operation)
+  } else if (provider === "pagespeed") {
+    costRecord = estimatePageSpeedCost(costInput)
+  } else if (provider === "direct_html") {
+    costRecord = estimateDirectHtmlCost(costInput)
+  } else {
+    costRecord = buildZeroCost(costInput)
+  }
+
+  try {
+    await ctx.runMutation(internal.audit_state.recordProviderCost, {
+      workspaceId: costRecord.workspaceId as Id<"workspaces">,
+      auditId: costRecord.auditId as Id<"audits"> | undefined,
+      providerCallId: costRecord.providerCallId as Id<"providerCalls"> | undefined,
+      costKey: costRecord.costKey,
+      provider: costRecord.provider as any,
+      operation: costRecord.operation,
+      source: costRecord.source as any,
+      ...(costRecord.model !== undefined ? { model: costRecord.model } : {}),
+      ...(costRecord.providerRequestId !== undefined ? { providerRequestId: costRecord.providerRequestId } : {}),
+      ...(costRecord.pricingVersion !== undefined ? { pricingVersion: costRecord.pricingVersion } : {}),
+      ...(costRecord.estimatedCostUsd !== undefined ? { estimatedCostUsd: costRecord.estimatedCostUsd } : {}),
+      ...(costRecord.actualCostUsd !== undefined ? { actualCostUsd: costRecord.actualCostUsd } : {}),
+      ...(costRecord.tokensIn !== undefined ? { tokensIn: costRecord.tokensIn } : {}),
+      ...(costRecord.tokensOut !== undefined ? { tokensOut: costRecord.tokensOut } : {}),
+      ...(costRecord.requestCount !== undefined ? { requestCount: costRecord.requestCount } : {}),
+    })
+  } catch (error) {
+    console.warn("[audit_pipeline] failed to record provider cost", {
+      providerCallId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
 }
 
 const FIRECRAWL_DEFAULT_BASE_URL = "https://api.firecrawl.dev"
@@ -1211,8 +1274,9 @@ export const processAuditPipeline = internalAction({
       return null
     }
 
-    const plan = getAuditPipelinePlan(claim.auditType)
-    const primaryFetch = await fetchPrimaryHtml(ctx, claim)
+    try {
+      const plan = getAuditPipelinePlan(claim.auditType)
+      const primaryFetch = await fetchPrimaryHtml(ctx, claim)
 
     const primaryOrigin = new URL(primaryFetch.finalUrl).origin
     const primarySignals =
@@ -1480,5 +1544,27 @@ export const processAuditPipeline = internalAction({
     }
 
     return null
+    } catch (error) {
+      const safe = sanitizeError(error)
+      console.error("[audit_pipeline] pipeline failed", {
+        auditId: claim.auditId,
+        code: safe.code,
+        message: safe.message,
+      })
+      try {
+        await ctx.runMutation(internal.audit_state.failAuditPipeline, {
+          auditId: claim.auditId,
+          leaseToken: claim.leaseToken,
+          errorCode: safe.code,
+          errorMessage: safe.message,
+        })
+      } catch (failError) {
+        console.error("[audit_pipeline] failed to mark audit as failed", {
+          auditId: claim.auditId,
+          error: failError instanceof Error ? failError.message : String(failError),
+        })
+      }
+      return null
+    }
   },
 })

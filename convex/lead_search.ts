@@ -274,7 +274,6 @@ export const searchLocalBusinesses = action({
     try {
       await ctx.runMutation(internal.leads.logLeadSearchStarted, {
         workspaceId,
-        query,
         provider: result.provider,
         resultCount: result.items.length,
       })

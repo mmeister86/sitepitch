@@ -525,8 +525,8 @@ export const leads: Lead[] = [
 ]
 
 export const activities: Activity[] = [
-  { id: "ac1", type: "report_viewed", business: "Ristorante Bella Vista", detail: "Report erneut geöffnet · CTA geklickt", at: ago(20 * h) },
-  { id: "ac2", type: "report_viewed", business: "Zahnarztpraxis Dr. Weber", detail: "Report geöffnet · PDF heruntergeladen", at: ago(5 * h) },
+  { id: "ac1", type: "report_opened", business: "Ristorante Bella Vista", detail: "Report erneut geöffnet · CTA geklickt", at: ago(20 * h) },
+  { id: "ac2", type: "report_opened", business: "Zahnarztpraxis Dr. Weber", detail: "Report geöffnet · PDF heruntergeladen", at: ago(5 * h) },
   { id: "ac3", type: "outreach_copied", business: "Dental Konzept Leipzig", detail: "E-Mail-Text kopiert", at: ago(2 * d) },
   { id: "ac4", type: "status_changed", business: "Trattoria Sole", detail: "Status auf »Gewonnen« gesetzt", at: ago(30 * h) },
   { id: "ac5", type: "audit_completed", business: "SHK Bauer & Söhne", detail: "Audit abgeschlossen · Score 43", at: ago(5 * d) },

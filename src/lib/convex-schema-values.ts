@@ -177,17 +177,24 @@ export const outreachDraftTypeValidator = v.union(
 )
 
 export const usageEventTypeValidator = v.union(
+  v.literal("signed_up"),
+  v.literal("workspace_created"),
+  v.literal("branding_completed"),
+  v.literal("lead_search_started"),
+  v.literal("lead_saved"),
   v.literal("audit_started"),
   v.literal("audit_completed"),
   v.literal("audit_failed"),
-  v.literal("lead_search_started"),
-  v.literal("report_viewed"),
+  v.literal("report_opened"),
   v.literal("report_cta_clicked"),
   v.literal("outreach_copied"),
   v.literal("public_link_copied"),
   v.literal("pdf_exported"),
   v.literal("credits_consumed"),
+  v.literal("credits_exhausted"),
   v.literal("upgrade_clicked"),
+  v.literal("checkout_started"),
+  v.literal("subscription_started"),
 )
 
 export const providerCallProviderValidator = v.union(
