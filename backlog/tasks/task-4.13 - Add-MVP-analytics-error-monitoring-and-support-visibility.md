@@ -1,10 +1,10 @@
 ---
 id: TASK-4.13
 title: 'Add MVP analytics, error monitoring, and support visibility'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-03 20:04'
-updated_date: '2026-07-11 19:30'
+updated_date: '2026-07-11 22:20'
 labels:
   - mvp
   - analytics
@@ -30,10 +30,16 @@ Scope includes product analytics events, Sentry or equivalent error monitoring, 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Core events are emitted for signup, workspace created, branding completed, lead search started, lead saved, audit started/completed/failed, report opened, public link copied, outreach copied, PDF/export if present, upgrade clicked, checkout started, subscription started, and credits exhausted.
-- [ ] #2 Audit duration, provider failure rate, average provider cost per audit, completion rate, outreach copy rate, and public report views can be measured.
-- [ ] #3 Errors and provider failures are captured with enough context to debug while excluding API keys, OAuth tokens, and sensitive raw payloads.
-- [ ] #4 Support can inspect failed audits, provider errors, credit state, and safe audit trace information from an admin page or documented Convex-dashboard process.
-- [ ] #5 Admin/support actions that alter credits, disable reports, or rerun audits are auditable.
-- [ ] #6 Analytics and monitoring setup is documented with required environment variables and privacy considerations.
+- [x] #1 Core events are emitted for signup, workspace created, branding completed, lead search started, lead saved, audit started/completed/failed, report opened, public link copied, outreach copied, PDF/export if present, upgrade clicked, checkout started, subscription started, and credits exhausted.
+- [x] #2 Audit duration, provider failure rate, average provider cost per audit, completion rate, outreach copy rate, and public report views can be measured.
+- [x] #3 Errors and provider failures are captured with enough context to debug while excluding API keys, OAuth tokens, and sensitive raw payloads.
+- [x] #4 Support can inspect failed audits, provider errors, credit state, and safe audit trace information from an admin page or documented Convex-dashboard process.
+- [x] #5 Admin/support actions that alter credits, disable reports, or rerun audits are auditable.
+- [x] #6 Analytics and monitoring setup is documented with required environment variables and privacy considerations.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented Rybbit-based product analytics, Convex operational telemetry, provider-cost tracking, retention, and `/app/admin/operations` for support. Sentry is intentionally not configured for the MVP; safe structured error telemetry is stored in Convex and provides the integration boundary for a later Sentry rollout.
+<!-- SECTION:NOTES:END -->
