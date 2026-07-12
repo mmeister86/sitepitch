@@ -13,7 +13,7 @@ import {
   Save,
   Trash2,
 } from "lucide-react"
-import { useMutation, useQuery } from "convex/react"
+import { useConvex, useMutation, useQuery } from "convex/react"
 
 import {
   Card,
@@ -45,6 +45,7 @@ import {
 import { toast } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 import { trackRybbitEvent } from "@/lib/analytics"
+import { filterCompatibleTemplates } from "@/lib/outreach-template-compatibility"
 import { api } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
 
@@ -204,15 +205,18 @@ function OutreachDraftCard({
   const [templateName, setTemplateName] = useState(`${label} Vorlage`)
   const [isSavingTemplate, setIsSavingTemplate] = useState(false)
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false)
+  const [isUpdatingTemplate, setIsUpdatingTemplate] = useState(false)
   const [isDeletingTemplate, setIsDeletingTemplate] = useState(false)
   const createTemplate = useMutation(api.outreach_templates.create)
+  const updateTemplate = useMutation(api.outreach_templates.update)
   const deleteTemplate = useMutation(api.outreach_templates.deleteTemplate)
-  const renderTemplate = useMutation(api.outreach_templates.renderForAudit)
+  const convex = useConvex()
 
   const dirty = subject !== original.subject || body !== original.body
   const draftType = draft.type as OutreachDraftType
   const linkInserted = body.includes(shareUrl)
-  const compatibleTemplates = (templates ?? []).filter((template) => template.type === draft.type)
+  const compatibleTemplates = filterCompatibleTemplates(templates ?? [], draft.type, language)
+  const selectedTemplate = compatibleTemplates.find((template) => template._id === selectedTemplateId)
 
   const handleSaveTemplate = async () => {
     if (!templateName.trim() || isSavingTemplate) return
@@ -238,10 +242,9 @@ function OutreachDraftCard({
     if (!selectedTemplateId || isApplyingTemplate) return
     setIsApplyingTemplate(true)
     try {
-      const rendered = await renderTemplate({
+      const rendered = await convex.query(api.outreach_templates.renderForAudit, {
         templateId: selectedTemplateId as Id<"outreachTemplates">,
         auditId,
-        reportUrl: shareUrl,
       })
       setSubject(rendered.subject ?? "")
       setBody(rendered.body)
@@ -250,6 +253,27 @@ function OutreachDraftCard({
       toast.error((error as Error)?.message ?? "Vorlage konnte nicht angewendet werden")
     } finally {
       setIsApplyingTemplate(false)
+    }
+  }
+
+  const handleUpdateTemplate = async () => {
+    if (!selectedTemplate || isUpdatingTemplate) return
+    if (!window.confirm(`Vorlage „${selectedTemplate.name}“ mit der aktuellen Arbeitskopie überschreiben?`)) return
+    setIsUpdatingTemplate(true)
+    try {
+      await updateTemplate({
+        templateId: selectedTemplate._id,
+        name: selectedTemplate.name,
+        type: draftType,
+        language,
+        subject: subject.trim() || undefined,
+        body,
+      })
+      toast.success("Vorlage aktualisiert")
+    } catch (error) {
+      toast.error((error as Error)?.message ?? "Vorlage konnte nicht aktualisiert werden")
+    } finally {
+      setIsUpdatingTemplate(false)
     }
   }
 
@@ -412,10 +436,22 @@ function OutreachDraftCard({
               {isDeletingTemplate ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
             </Button>
           </div>
-          <Button type="button" variant="ghost" size="sm" className="gap-1.5" onClick={() => setSaveDialogOpen(true)}>
-            <Save className="size-3.5" />
-            Als Vorlage speichern
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="ghost" size="sm" className="gap-1.5" onClick={() => setSaveDialogOpen(true)}>
+              <Save className="size-3.5" />
+              Als Vorlage speichern
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={!selectedTemplate || isUpdatingTemplate}
+              onClick={() => void handleUpdateTemplate()}
+            >
+              {isUpdatingTemplate ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+              Vorlage aktualisieren
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2">

@@ -8,6 +8,7 @@ import { toSafeDisplayUrl } from "./lib/audit_url"
 import { DEFAULT_WORKSPACE_ACCENT, findAppUser, getWorkspaceByOwner } from "./lib/workspace"
 import { outreachDraftTypeValidator } from "../src/lib/convex-schema-values.ts"
 import { recordReportView } from "./retention"
+import { resolveReportCtaSnapshotValues } from "./lib/report_cta"
 
 // ---------------------------------------------------------------------------
 // Category metadata
@@ -108,6 +109,7 @@ export interface BrandingDto {
   accentColor: string
   ctaText?: string
   ctaUrl?: string
+  ctaSnapshotted: boolean
   website?: string
   contactEmail?: string
 }
@@ -344,6 +346,7 @@ function buildBranding(workspace: Doc<"workspaces">, audit: Doc<"audits">): Bran
     accentColor: workspace.accentColor ?? DEFAULT_WORKSPACE_ACCENT,
     ctaText: hasCtaSnapshot ? audit.reportCtaText : workspace.ctaText,
     ctaUrl: hasCtaSnapshot ? audit.reportCtaUrl : workspace.ctaUrl,
+    ctaSnapshotted: hasCtaSnapshot,
     website: workspace.website,
     contactEmail: workspace.contactEmail,
   }
@@ -711,14 +714,7 @@ async function resolveReportCtaSnapshot(
 ): Promise<{ text?: string; url?: string }> {
   const lead = audit.leadId ? await ctx.db.get(audit.leadId) : null
   const ownedLead = lead?.workspaceId === workspace._id ? lead : null
-  return {
-    text: ownedLead?.reportCtaText ?? workspace.ctaText,
-    url:
-      ownedLead?.reportCtaUrl ??
-      workspace.ctaUrl ??
-      workspace.website ??
-      (workspace.contactEmail ? `mailto:${workspace.contactEmail}` : undefined),
-  }
+  return resolveReportCtaSnapshotValues(workspace, ownedLead)
 }
 
 export const refreshPublicReportCta = mutation({
@@ -742,6 +738,9 @@ export const refreshPublicReportCta = mutation({
     }
     if (audit.status !== "completed") {
       throw new ConvexError({ code: "REPORT_NOT_READY", message: "Report is not completed" })
+    }
+    if (!audit.isPublic) {
+      throw new ConvexError({ code: "REPORT_NOT_PUBLIC", message: "Report is not public" })
     }
     const snapshot = await resolveReportCtaSnapshot(ctx, audit, workspace)
     const now = Date.now()

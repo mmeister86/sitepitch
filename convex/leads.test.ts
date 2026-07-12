@@ -829,6 +829,16 @@ describe("updateLeadProfile", () => {
     assert.equal(lead.businessEmail, "peter@example.com")
     assert.equal(lead.reportCtaText, "Termin buchen")
     assert.equal(lead.reportCtaUrl, "mailto:peter@example.com")
+
+    await t.mutation(api.leads.updateLeadProfile, {
+      leadId: leadId as any,
+      businessName: "Bäckerei Peter GmbH",
+      reportCtaText: "",
+      reportCtaUrl: "",
+    })
+    const cleared = await t.query(api.leads.listMyLeads, {})
+    assert.equal(cleared?.items[0]?.reportCtaText, undefined)
+    assert.equal(cleared?.items[0]?.reportCtaUrl, undefined)
   })
 
   test("rejects empty business name", async () => {

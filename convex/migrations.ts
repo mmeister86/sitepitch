@@ -4,6 +4,7 @@ import { components } from "./_generated/api.js"
 import type { DataModel } from "./_generated/dataModel.js"
 import { internalMutation } from "./_generated/server.js"
 import schema from "./schema.js"
+import { resolveReportCtaSnapshotValues } from "./lib/report_cta.js"
 
 const migrations = new Migrations<DataModel, typeof schema>(components.migrations, {
   internalMutation,
@@ -39,5 +40,28 @@ export const backfillSignedUpEvents = migrations.define({
       idempotencyKey,
       createdAt: workspace.createdAt,
     })
+  },
+})
+
+/**
+ * Backfills stable CTA snapshots for legacy public reports.
+ * Define and deploy this migration, then run it explicitly via the Convex CLI.
+ */
+export const backfillPublicReportCtaSnapshots = migrations.define({
+  table: "audits",
+  migrateOne: async (ctx, audit) => {
+    if (!audit.isPublic || audit.reportCtaSnapshottedAt !== undefined) return
+    const workspace = await ctx.db.get(audit.workspaceId)
+    if (!workspace) return
+    const lead = audit.leadId ? await ctx.db.get(audit.leadId) : null
+    const ownedLead = lead?.workspaceId === workspace._id ? lead : null
+    const snapshot = resolveReportCtaSnapshotValues(workspace, ownedLead)
+    const now = Date.now()
+    return {
+      reportCtaText: snapshot.text,
+      reportCtaUrl: snapshot.url,
+      reportCtaSnapshottedAt: now,
+      updatedAt: now,
+    }
   },
 })

@@ -2,7 +2,7 @@
 import assert from "node:assert/strict"
 
 import { convexTest } from "convex-test"
-import { describe, expect, test } from "vitest"
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
 import { api } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
@@ -13,6 +13,14 @@ const modules = import.meta.glob(["./auth.ts", "./outreach_templates.ts", "./lib
 function createTest() {
   return convexTest(schema, modules)
 }
+
+beforeEach(() => {
+  vi.stubEnv("SITE_URL", "https://trusted.sitepitch.test/base/")
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
 
 async function seedWorkspace(t: ReturnType<typeof createTest>, tokenIdentifier: string) {
   return await t.run(async (ctx) => {
@@ -123,6 +131,14 @@ describe("outreach templates", () => {
       body: "Sachlicher Text.",
     })
     assert.equal((await owner.query(api.outreach_templates.listMyTemplates, {}))?.[0]?.name, "Neuer Name")
+    await expect(owner.mutation(api.outreach_templates.update, {
+      templateId: first,
+      name: "Unsicher",
+      type: "email",
+      language: "de",
+      body: "Ihre Website ist schlecht.",
+    })).rejects.toMatchObject({ data: { code: "VALIDATION_ERROR", issues: expect.any(Array) } })
+    assert.equal((await t.run((ctx) => ctx.db.get(first)))?.name, "Neuer Name")
 
     await expect(other.mutation(api.outreach_templates.deleteTemplate, { templateId: first }))
       .rejects.toMatchObject({ data: { code: "NOT_FOUND" } })
@@ -175,6 +191,12 @@ describe("outreach templates", () => {
       body: "Hallo",
     })).rejects.toMatchObject({ data: { code: "VALIDATION_ERROR" } })
     await expect(owner.mutation(api.outreach_templates.create, {
+      name: "Literal braces",
+      type: "email",
+      language: "de",
+      body: "JSON-Beispiel: {\"ok\": true}",
+    })).resolves.toBeTruthy()
+    await expect(owner.mutation(api.outreach_templates.create, {
       name: "Zu lang",
       type: "email",
       language: "de",
@@ -219,42 +241,58 @@ describe("outreach templates", () => {
     })
 
     const audit = await t.run((ctx) => ctx.db.get(auditId))
-    const otherAuditDoc = await t.run((ctx) => ctx.db.get(otherAudit.auditId))
-    await expect(owner.mutation(api.outreach_templates.renderForAudit, {
+    await expect(owner.query(api.outreach_templates.renderForAudit, {
       templateId,
       auditId: otherAudit.auditId,
-      reportUrl: `https://app.example/r/${otherAuditDoc!.publicSlug}`,
     })).rejects.toMatchObject({ data: { code: "NOT_FOUND" } })
-    await expect(owner.mutation(api.outreach_templates.renderForAudit, {
+    await expect(owner.query(api.outreach_templates.renderForAudit, {
       templateId,
       auditId,
-      reportUrl: "https://app.example/r/wrong-slug",
-    })).rejects.toMatchObject({ data: { code: "VALIDATION_ERROR" } })
-    const rendered = await owner.mutation(api.outreach_templates.renderForAudit, {
+    })).resolves.toBeTruthy()
+    const rendered = await owner.query(api.outreach_templates.renderForAudit, {
       templateId,
       auditId,
-      reportUrl: `https://app.example/r/${audit!.publicSlug}`,
     })
     assert.equal(rendered.subject, "Report für Muster GmbH")
-    assert.match(rendered.body, /^muster\.example erreicht 73 Punkte: https:\/\/app\.example\/r\//)
+    assert.equal(
+      rendered.body,
+      `muster.example erreicht 73 Punkte: https://trusted.sitepitch.test/base/r/${audit!.publicSlug}`,
+    )
     assert.equal(rendered.context.businessName, "Muster GmbH")
     assert.equal(rendered.context.domain, "muster.example")
     assert.equal(rendered.context.score, "73")
 
     await t.run((ctx) => ctx.db.patch(auditId, { isPublic: false }))
-    await expect(owner.mutation(api.outreach_templates.renderForAudit, {
+    await expect(owner.query(api.outreach_templates.renderForAudit, {
       templateId,
       auditId,
-      reportUrl: `https://app.example/r/${audit!.publicSlug}`,
     })).rejects.toMatchObject({ data: { code: "VALIDATION_ERROR" } })
 
     const unsafe = await seedAudit(t, ids, "Ihre Website ist schlecht")
-    await expect(owner.mutation(api.outreach_templates.renderForAudit, {
+    await expect(owner.query(api.outreach_templates.renderForAudit, {
       templateId,
       auditId: unsafe.auditId,
-      reportUrl: `https://app.example/r/${(await t.run((ctx) => ctx.db.get(unsafe.auditId)))!.publicSlug}`,
     })).rejects.toMatchObject({
       data: { code: "VALIDATION_ERROR", issues: expect.any(Array) },
     })
+  })
+
+  test("rejects missing or unsafe canonical SITE_URL configuration", async () => {
+    const t = createTest()
+    const ids = await seedWorkspace(t, "owner-token")
+    const { auditId } = await seedAudit(t, ids)
+    const owner = t.withIdentity({ tokenIdentifier: "owner-token" })
+    const templateId = await owner.mutation(api.outreach_templates.create, {
+      name: "Report",
+      type: "email",
+      language: "de",
+      body: "{{report_url}}",
+    })
+
+    for (const siteUrl of ["", "javascript:alert(1)", "https://user:secret@example.com"]) {
+      vi.stubEnv("SITE_URL", siteUrl)
+      await expect(owner.query(api.outreach_templates.renderForAudit, { templateId, auditId }))
+        .rejects.toMatchObject({ data: { code: "CONFIGURATION_ERROR" } })
+    }
   })
 })

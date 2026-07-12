@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScoreRing } from "@/components/score-ring"
 import { scoreColorVar, scoreTextClass, severityMeta } from "@/lib/scores"
 import { cn } from "@/lib/utils"
+import { resolveCtaHref } from "@/lib/report-cta-href"
 
 // ---------------------------------------------------------------------------
 // Shared report data shape — compatible with both public and internal DTOs
@@ -66,6 +67,7 @@ export interface AuditReportData {
     accentColor: string
     ctaText?: string
     ctaUrl?: string
+    ctaSnapshotted: boolean
     website?: string
     contactEmail?: string
   }
@@ -463,27 +465,4 @@ function ReportCTA({
       </CardContent>
     </Card>
   )
-}
-
-function resolveCtaHref(branding: AuditReportData["branding"]): string | null {
-  if (branding.ctaUrl) {
-    try {
-      new URL(branding.ctaUrl)
-      return branding.ctaUrl
-    } catch {
-      // fall through
-    }
-  }
-  if (branding.website) {
-    try {
-      new URL(branding.website)
-      return branding.website
-    } catch {
-      // fall through
-    }
-  }
-  if (branding.contactEmail) {
-    return `mailto:${branding.contactEmail}`
-  }
-  return null
 }

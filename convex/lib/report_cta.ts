@@ -1,10 +1,21 @@
 import { ConvexError } from "convex/values"
+import type { Doc } from "../_generated/dataModel"
 
 const CTA_TEXT_LIMIT = 80
 const CTA_URL_LIMIT = 2_048
 
 function invalid(message: string): never {
   throw new ConvexError({ code: "VALIDATION_ERROR", message })
+}
+
+function decodeRepeatedly(value: string): string {
+  let decoded = value
+  for (let i = 0; i <= value.length; i++) {
+    const next = decodeURIComponent(decoded)
+    if (next === decoded) return decoded
+    decoded = next
+  }
+  invalid("Bitte gib eine eindeutig codierte CTA-URL ein.")
 }
 
 export function normalizeReportCtaText(value: string | undefined): string | undefined {
@@ -20,6 +31,14 @@ export function normalizeReportCtaUrl(value: string | undefined): string | undef
   if (!raw) return undefined
   if (raw.length > CTA_URL_LIMIT || /[\u0000-\u0020\u007f]/.test(raw)) {
     invalid("Bitte gib eine gültige CTA-URL ohne Leer- oder Steuerzeichen ein.")
+  }
+  try {
+    const decodedRaw = decodeRepeatedly(raw)
+    if (/[\r\n]|%0[ad]/i.test(decodedRaw)) {
+      invalid("Bitte gib eine gültige CTA-URL ohne Steuerzeichen ein.")
+    }
+  } catch {
+    invalid("Bitte gib eine gültig codierte CTA-URL ein.")
   }
   let url: URL
   try {
@@ -39,18 +58,18 @@ export function normalizeReportCtaUrl(value: string | undefined): string | undef
   if (url.protocol === "mailto:") {
     let address: string
     try {
-      address = decodeURIComponent(url.pathname)
+      address = decodeRepeatedly(url.pathname)
     } catch {
       invalid("Bitte gib eine gültige E-Mail-Adresse als CTA-Ziel ein.")
     }
-    if (url.search || url.hash || /[\r\n]/.test(address) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) {
+    if (url.search || url.hash || /[\r\n]|%0[ad]/i.test(address) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) {
       invalid("Bitte gib eine gültige E-Mail-Adresse als CTA-Ziel ein.")
     }
   }
   if (url.protocol === "tel:") {
     let phone: string
     try {
-      phone = decodeURIComponent(url.pathname)
+      phone = decodeRepeatedly(url.pathname)
     } catch {
       invalid("Bitte gib eine gültige Telefonnummer als CTA-Ziel ein.")
     }
@@ -59,4 +78,39 @@ export function normalizeReportCtaUrl(value: string | undefined): string | undef
     }
   }
   return raw
+}
+
+export function safeNormalizeReportCtaUrl(value: string | undefined): string | undefined {
+  try {
+    return normalizeReportCtaUrl(value)
+  } catch {
+    return undefined
+  }
+}
+
+export function safeNormalizeWorkspaceWebsite(value: string | undefined): string | undefined {
+  const normalized = safeNormalizeReportCtaUrl(value)
+  if (!normalized) return undefined
+  const url = new URL(normalized)
+  return url.protocol === "http:" || url.protocol === "https:" ? normalized : undefined
+}
+
+export function safeMailtoFromContactEmail(value: string | undefined): string | undefined {
+  const email = value?.trim()
+  if (!email || /[\u0000-\u0020\u007f]|%0[ad]/i.test(email)) return undefined
+  return safeNormalizeReportCtaUrl(`mailto:${email}`)
+}
+
+export function resolveReportCtaSnapshotValues(
+  workspace: Pick<Doc<"workspaces">, "ctaText" | "ctaUrl" | "website" | "contactEmail">,
+  lead: Pick<Doc<"leads">, "reportCtaText" | "reportCtaUrl"> | null,
+): { text?: string; url?: string } {
+  return {
+    text: lead?.reportCtaText ?? workspace.ctaText,
+    url:
+      safeNormalizeReportCtaUrl(lead?.reportCtaUrl) ??
+      safeNormalizeReportCtaUrl(workspace.ctaUrl) ??
+      safeNormalizeWorkspaceWebsite(workspace.website) ??
+      safeMailtoFromContactEmail(workspace.contactEmail),
+  }
 }

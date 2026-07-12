@@ -1,10 +1,11 @@
 import { ConvexError, v } from "convex/values"
 
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server"
+import { env, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server"
 import type { Doc, Id } from "./_generated/dataModel"
 import { outreachDraftTypeValidator, reportLanguageValidator } from "../src/lib/convex-schema-values"
 import { scanClaimSafetyText, type ClaimSafetyIssue } from "./lib/audit_agent_claim_safety"
 import { findAppUser, getWorkspaceByOwner } from "./lib/workspace"
+import { buildCanonicalReportUrl } from "./lib/report_url"
 
 const NAME_LIMIT = 80
 const SUBJECT_LIMIT = 200
@@ -176,31 +177,10 @@ export const deleteTemplate = mutation({
   },
 })
 
-function validateReportUrl(reportUrl: string, publicSlug: string): string {
-  const trimmed = reportUrl.trim()
-  try {
-    const url = new URL(trimmed)
-    if (
-      (url.protocol !== "http:" && url.protocol !== "https:") ||
-      url.username ||
-      url.password ||
-      url.pathname !== `/r/${publicSlug}` ||
-      url.search ||
-      url.hash
-    ) {
-      validationError("Der Report-Link passt nicht zu diesem Audit.")
-    }
-    return url.toString()
-  } catch {
-    validationError("Der Report-Link passt nicht zu diesem Audit.")
-  }
-}
-
-export const renderForAudit = mutation({
+export const renderForAudit = query({
   args: {
     templateId: v.id("outreachTemplates"),
     auditId: v.id("audits"),
-    reportUrl: v.string(),
   },
   handler: async (ctx, args) => {
     const { workspace } = await requireWorkspace(ctx)
@@ -223,7 +203,7 @@ export const renderForAudit = mutation({
       business_name: lead && lead.workspaceId === workspace._id ? lead.businessName : audit.domain,
       domain: audit.domain,
       score: audit.overallScore === undefined ? "—" : String(Math.round(audit.overallScore)),
-      report_url: validateReportUrl(args.reportUrl, audit.publicSlug),
+      report_url: usesReportUrl ? buildCanonicalReportUrl(env.SITE_URL, audit.publicSlug) : "",
     }
     const subject = template.subject ? interpolateTemplate(template.subject, context) : undefined
     const body = interpolateTemplate(template.body, context)

@@ -2,7 +2,7 @@
 import assert from "node:assert/strict"
 
 import { convexTest } from "convex-test"
-import { beforeEach, describe, test, vi } from "vitest"
+import { beforeEach, describe, expect, test, vi } from "vitest"
 
 import schema from "./schema.ts"
 import { api } from "./_generated/api"
@@ -504,6 +504,56 @@ describe("setPublicReportEnabled", () => {
 
     const report = await t.query(api.reports.getPublicReportBySlug, { slug: "website-fallback-slug" })
     assert.equal(report?.branding.ctaUrl, "https://studio.example.com")
+  })
+
+  test("rejects refresh before publish and first publish snapshots the latest values", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t, { isPublic: false })
+    const owner = t.withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+
+    await expect(owner.mutation(api.reports.refreshPublicReportCta, { auditId }))
+      .rejects.toMatchObject({ data: { code: "REPORT_NOT_PUBLIC" } })
+    await t.run((ctx) => ctx.db.patch(workspaceId, {
+      ctaText: "Latest CTA",
+      ctaUrl: "https://studio.example.com/latest",
+    }))
+    await owner.mutation(api.reports.setPublicReportEnabled, { auditId, enabled: true })
+
+    const audit = await t.run((ctx) => ctx.db.get(auditId))
+    assert.equal(audit?.reportCtaText, "Latest CTA")
+    assert.equal(audit?.reportCtaUrl, "https://studio.example.com/latest")
+  })
+
+  test("snapshots absence and ignores unsafe stored legacy CTA fallbacks", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t, {
+      isPublic: false,
+      slug: "absent-cta-slug",
+    })
+    await t.run((ctx) => ctx.db.patch(workspaceId, {
+      ctaUrl: "https://user:secret@unsafe.example.com",
+      website: "https://user:secret@unsafe.example.com",
+      contactEmail: "hello%0d%0abcc@example.com",
+    }))
+    const owner = t.withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+    await owner.mutation(api.reports.setPublicReportEnabled, { auditId, enabled: true })
+
+    let report = await t.query(api.reports.getPublicReportBySlug, { slug: "absent-cta-slug" })
+    assert.equal(report?.branding.ctaSnapshotted, true)
+    assert.equal(report?.branding.ctaUrl, undefined)
+
+    await t.run((ctx) => ctx.db.patch(workspaceId, {
+      ctaUrl: "https://safe.example.com/new",
+      website: "https://safe.example.com",
+      contactEmail: "safe@example.com",
+    }))
+    report = await t.query(api.reports.getPublicReportBySlug, { slug: "absent-cta-slug" })
+    assert.equal(report?.branding.ctaSnapshotted, true)
+    assert.equal(report?.branding.ctaUrl, undefined)
+
+    await owner.mutation(api.reports.refreshPublicReportCta, { auditId })
+    report = await t.query(api.reports.getPublicReportBySlug, { slug: "absent-cta-slug" })
+    assert.equal(report?.branding.ctaUrl, "https://safe.example.com/new")
   })
 
   test("toggles isPublic for the workspace owner", async () => {
