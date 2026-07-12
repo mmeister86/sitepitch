@@ -22,6 +22,7 @@ const modules = import.meta.glob([
   "./audit_pipeline.ts",
   "./audit_scoring.ts",
   "./audit_state.ts",
+  "./activation.ts",
   "./audit_agent.ts",
   "./http.ts",
   "./reports.ts",
@@ -380,7 +381,7 @@ describe("getInternalReportById", () => {
 // ---------------------------------------------------------------------------
 
 describe("setPublicReportEnabled", () => {
-  test("records first_shared_report once and snapshots the CTA on first publish", async () => {
+  test("does not record first_shared_report when publishing and snapshots the CTA", async () => {
     const t = createTest()
     const { auditId, workspaceId } = await seedCompletedReport(t, { isPublic: false })
 
@@ -398,8 +399,9 @@ describe("setPublicReportEnabled", () => {
         )
         .take(10),
     }))
-    assert.equal(result.events.length, 1)
-    assert.equal(result.events[0]?.auditId, undefined)
+    assert.equal(result.events.length, 0)
+    const activation = await authed.query(api.activation.getMyActivationStatus, {})
+    assert.equal(activation?.milestones.firstSharedReportAt, null)
     assert.equal(result.audit?.reportCtaText, "Kostenloses Erstgespräch")
     assert.equal(result.audit?.reportCtaUrl, "https://studio.example.com/contact")
     assert.ok(result.audit?.reportCtaSnapshottedAt)
@@ -875,13 +877,19 @@ describe("recordReportCopyEvent", () => {
     assert.equal(copyEvent!.metadata?.includedReportLink, true)
   })
 
-  test("writes a public_link_copied event for a public report", async () => {
+  test("writes every public_link_copied event and one audit-independent first-share milestone", async () => {
     const t = createTest()
     const { auditId, workspaceId } = await seedCompletedReport(t, {
       isPublic: true,
     })
 
     const result = await t
+      .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+      .mutation(api.reports.recordReportCopyEvent, {
+        auditId,
+        kind: "public_link" as const,
+      })
+    await t
       .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
       .mutation(api.reports.recordReportCopyEvent, {
         auditId,
@@ -898,8 +906,22 @@ describe("recordReportCopyEvent", () => {
         )
         .collect(),
     )
-    const linkEvent = events.find((e) => e.event === "public_link_copied")
-    assert.ok(linkEvent)
+    const linkEvents = events.filter((e) => e.event === "public_link_copied")
+    assert.equal(linkEvents.length, 2)
+    const milestones = await t.query((ctx) =>
+      ctx.db
+        .query("usageEvents")
+        .withIndex("by_workspaceId_and_event", (q) =>
+          q.eq("workspaceId", workspaceId).eq("event", "first_shared_report"),
+        )
+        .collect(),
+    )
+    assert.equal(milestones.length, 1)
+    assert.equal(milestones[0]?.auditId, undefined)
+    const activation = await t
+      .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+      .query(api.activation.getMyActivationStatus, {})
+    assert.equal(activation?.milestones.firstSharedReportAt, milestones[0]?.createdAt)
   })
 
   test("rejects public_link_copied for a non-public report", async () => {
@@ -1022,6 +1044,41 @@ describe("recordPublicReportCtaClick", () => {
     assert.equal(afterFirstView?.reopenCount, 0)
     assert.ok(afterFirstView?.firstViewedAt)
     assert.ok(afterFirstView?.lastViewedAt)
+  })
+
+  test("keeps legacy views authoritative after action aggregates and classifies the next view as reopened", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t, {
+      slug: "legacy-actions-before-view",
+      isPublic: true,
+    })
+    await t.run(async (ctx) => {
+      await ctx.db.insert("reportViews", { workspaceId, auditId, viewedAt: 100 })
+      await ctx.db.insert("reportViews", { workspaceId, auditId, viewedAt: 200 })
+    })
+
+    await t.mutation(api.reports.recordPublicReportCtaClick, { slug: "legacy-actions-before-view" })
+    await t.mutation(api.reports.recordPublicReportPdfExport, { slug: "legacy-actions-before-view" })
+    const before = await t
+      .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+      .query(api.reports.getInternalReportById, { auditId })
+    assert.equal(before?.viewCount, 2)
+
+    await t.mutation(api.reports.recordPublicReportView, { slug: "legacy-actions-before-view" })
+    const result = await t.run(async (ctx) => ({
+      stats: await ctx.db.query("reportViewStats").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).unique(),
+      events: await ctx.db.query("usageEvents").withIndex("by_workspaceId_and_auditId", (q) => q.eq("workspaceId", workspaceId).eq("auditId", auditId)).collect(),
+    }))
+    assert.equal(result.stats?.totalViews, 1)
+    assert.equal(result.stats?.ctaClicks, 1)
+    assert.equal(result.stats?.pdfDownloads, 1)
+    assert.equal(result.stats?.viewAggregationState, "pending")
+    assert.equal(result.events.filter((event) => event.event === "report_opened").length, 0)
+    assert.equal(result.events.filter((event) => event.event === "report_reopened").length, 1)
+    const after = await t
+      .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+      .query(api.reports.getInternalReportById, { auditId })
+    assert.equal(after?.viewCount, 3)
   })
 
   test("records a cta click event for an enabled report", async () => {

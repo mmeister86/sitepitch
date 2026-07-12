@@ -3,18 +3,14 @@
 import { useEffect, useRef } from "react"
 import { useMutation, useQuery } from "convex/react"
 import { Printer, Lock } from "lucide-react"
-import { useSearchParams } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { AuditReport } from "@/components/audit-report"
 import { trackRybbitEvent } from "@/lib/analytics"
 import { api } from "../../convex/_generated/api"
-import { isPublicReportPreview } from "./public-report-tracking"
 
 export function PublicReportView({ slug }: { slug: string }) {
-  const searchParams = useSearchParams()
-  const isPreview = isPublicReportPreview(searchParams)
   const report = useQuery(api.reports.getPublicReportBySlug, { slug })
   const recordView = useMutation(api.reports.recordPublicReportView)
   const recordCta = useMutation(api.reports.recordPublicReportCtaClick)
@@ -22,7 +18,7 @@ export function PublicReportView({ slug }: { slug: string }) {
   const trackedRef = useRef(false)
 
   useEffect(() => {
-    if (!report || isPreview || trackedRef.current) return
+    if (!report || trackedRef.current) return
     trackedRef.current = true
 
     const sessionKey = `sp:view:${slug}`
@@ -33,19 +29,16 @@ export function PublicReportView({ slug }: { slug: string }) {
 
     recordView({ slug }).catch(() => {})
     trackRybbitEvent("report_opened", { source: "public_report" })
-  }, [isPreview, report, slug, recordView])
+  }, [report, slug, recordView])
 
   const handleCtaClick = () => {
-    if (isPreview) return
     recordCta({ slug }).catch(() => {})
     trackRybbitEvent("report_cta_clicked", { source: "public_report" })
   }
 
   const handlePrint = () => {
-    if (!isPreview) {
-      recordPdf({ slug }).catch(() => {})
-      trackRybbitEvent("pdf_exported", { source: "public_report" })
-    }
+    recordPdf({ slug }).catch(() => {})
+    trackRybbitEvent("pdf_exported", { source: "public_report" })
     window.print()
   }
 

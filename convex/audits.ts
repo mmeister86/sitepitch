@@ -17,9 +17,9 @@ import type { CreditSnapshot } from "./lib/credits"
 import { findAppUser, getWorkspaceByOwner } from "./lib/workspace"
 import { enqueueAuditDeletion } from "./deletion"
 import { auditWorkpool } from "./workpools"
+import { hasAccurateViewAggregate, LEGACY_VIEW_COUNT_CAP } from "./lib/report_view_stats"
 
 type CanonicalLeadStatus = "new" | "audited" | "contacted" | "follow_up" | "interested" | "won" | "lost"
-const LEGACY_VIEW_COUNT_CAP = 100
 
 function toCanonicalLeadStatus(status: Doc<"leads">["status"]): CanonicalLeadStatus {
   return status === "not_interested" ? "lost" : status
@@ -115,10 +115,11 @@ export const listMyAudits = query({
           : outreach.length > 0
             ? "ready" as const
             : "not_started" as const
-        const viewCountCapped = viewStats === null && legacyViews.length > LEGACY_VIEW_COUNT_CAP
-        const views = viewStats?.totalViews ?? Math.min(legacyViews.length, LEGACY_VIEW_COUNT_CAP)
-        const lastViewedAt = viewStats
-          ? viewStats.lastViewedAt ?? null
+        const hasAccurateStats = hasAccurateViewAggregate(viewStats)
+        const viewCountCapped = !hasAccurateStats && legacyViews.length > LEGACY_VIEW_COUNT_CAP
+        const views = hasAccurateStats ? viewStats!.totalViews : Math.min(legacyViews.length, LEGACY_VIEW_COUNT_CAP)
+        const lastViewedAt = hasAccurateStats
+          ? viewStats!.lastViewedAt ?? null
           : legacyViews[0]?.viewedAt ?? null
 
         return {

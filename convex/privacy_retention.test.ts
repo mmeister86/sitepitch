@@ -87,7 +87,8 @@ describe("privacy retention backend", () => {
     const old = Date.now() - 40 * 86_400_000
     await t.run(async (ctx) => {
       for (const [workspaceId, auditId] of [[standard.workspaceId, standardAudit], [extended.workspaceId, extendedAudit]] as const) {
-        await ctx.db.insert("reportViews", { workspaceId, auditId, viewerIpHash: "hash", viewedAt: old })
+        await ctx.db.insert("reportViews", { workspaceId, auditId, viewerIpHash: "hash", viewedAt: old, includedInStats: true })
+        await ctx.db.insert("reportViewStats", { workspaceId, auditId, totalViews: 1, firstViewedAt: old, lastViewedAt: old, reopenCount: 0, viewAggregationState: "accurate" })
         await ctx.db.insert("providerCalls", { workspaceId, auditId, provider: "openai", operation: "audit", status: "completed", attempt: 1, startedAt: old, createdAt: old })
       }
     })
@@ -99,6 +100,27 @@ describe("privacy retention backend", () => {
       extended: (await ctx.db.query("providerCalls").withIndex("by_workspaceId", q => q.eq("workspaceId", extended.workspaceId)).take(10)).length,
     }))
     expect(counts).toEqual({ views: 0, standard: 0, extended: 1 })
+  })
+
+  test("retains expired legacy views until their pending aggregate is finalized", async () => {
+    const t = convexTest(schema, modules)
+    const owner = await seedWorkspace(t)
+    const auditId = await seedAudit(t, owner.userId, owner.workspaceId)
+    const old = Date.now() - 40 * 86_400_000
+    await t.run(async (ctx) => {
+      await ctx.db.insert("reportViews", { workspaceId: owner.workspaceId, auditId, viewedAt: old })
+      await ctx.db.insert("reportViewStats", {
+        workspaceId: owner.workspaceId,
+        auditId,
+        totalViews: 0,
+        ctaClicks: 1,
+        viewAggregationState: "pending",
+      })
+    })
+
+    const result = await t.mutation(internal.crons.purgeExpiredReportViews, {})
+    expect(result.deleted).toBe(0)
+    expect(await t.run((ctx) => ctx.db.query("reportViews").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).first())).not.toBeNull()
   })
 
   test("blocks account deletion with an active subscription and prepares a durable job otherwise", async () => {

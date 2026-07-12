@@ -62,8 +62,11 @@ export const unreadCount = query({
       .withIndex("by_workspaceId_and_recipientUserId_and_readAt", (q) =>
         q.eq("workspaceId", workspace._id).eq("recipientUserId", user._id).eq("readAt", undefined),
       )
-      .take(UNREAD_COUNT_LIMIT)
-    return notifications.length
+      .take(UNREAD_COUNT_LIMIT + 1)
+    return {
+      count: Math.min(notifications.length, UNREAD_COUNT_LIMIT),
+      capped: notifications.length > UNREAD_COUNT_LIMIT,
+    }
   },
 })
 

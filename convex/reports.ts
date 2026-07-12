@@ -8,6 +8,7 @@ import { toSafeDisplayUrl } from "./lib/audit_url"
 import { DEFAULT_WORKSPACE_ACCENT, findAppUser, getWorkspaceByOwner } from "./lib/workspace"
 import { outreachDraftTypeValidator } from "../src/lib/convex-schema-values.ts"
 import { recordReportView } from "./retention"
+import { hasAccurateViewAggregate, LEGACY_VIEW_COUNT_CAP } from "./lib/report_view_stats"
 import { resolveReportCtaSnapshotValues } from "./lib/report_cta"
 
 // ---------------------------------------------------------------------------
@@ -236,6 +237,7 @@ async function incrementReportActionAggregate(
     reopenCount: 0,
     ctaClicks: field === "ctaClicks" ? 1 : 0,
     pdfDownloads: field === "pdfDownloads" ? 1 : 0,
+    viewAggregationState: "pending",
   })
 }
 
@@ -563,7 +565,7 @@ export const getInternalReportById = query({
       outreachDrafts: buildOutreach(outreach),
       performance: buildPerformance(performanceRows),
       screenshots,
-      viewCount: reportViewStats?.totalViews ?? reportViews.length,
+      viewCount: hasAccurateViewAggregate(reportViewStats) ? reportViewStats!.totalViews : reportViews.length,
       branding: buildBranding(workspace, audit),
       personaReviews: buildPersonaReviews(personaReviews),
       copyReview: buildCopyReview(copyReviewDoc ?? null),
@@ -684,25 +686,6 @@ export const setPublicReportEnabled = mutation({
       updatedAt: now,
     })
 
-    if (firstShare) {
-      const idempotencyKey = `first_shared_report:${workspace._id}`
-      const existingMilestone = await ctx.db
-        .query("usageEvents")
-        .withIndex("by_workspaceId_and_idempotencyKey", (q) =>
-          q.eq("workspaceId", workspace._id).eq("idempotencyKey", idempotencyKey),
-        )
-        .unique()
-      if (!existingMilestone) {
-        await ctx.db.insert("usageEvents", {
-          workspaceId: workspace._id,
-          userId: user._id,
-          event: "first_shared_report",
-          idempotencyKey,
-          createdAt: now,
-        })
-      }
-    }
-
     return { auditId: args.auditId, isPublic: args.enabled }
   },
 })
@@ -795,7 +778,7 @@ export const recordPublicReportView = mutation({
       ? args.referrer.slice(0, 200)
       : undefined
 
-    const totalViews = await recordReportView(ctx, {
+    const viewResult = await recordReportView(ctx, {
       workspaceId: audit.workspaceId,
       auditId: audit._id,
       referrer: truncatedReferrer,
@@ -803,7 +786,7 @@ export const recordPublicReportView = mutation({
       viewedAt: now,
     })
 
-    const isFirstView = totalViews === 1
+    const isFirstView = viewResult.isFirstView
     const event = isFirstView ? "report_opened" : "report_reopened"
     await ctx.db.insert("usageEvents", {
       workspaceId: audit.workspaceId,
@@ -891,6 +874,7 @@ export const recordReportCopyEvent = mutation({
         },
         createdAt: now,
       })
+
     } else {
       if (!audit.isPublic) {
         throw new ConvexError({
@@ -907,6 +891,23 @@ export const recordReportCopyEvent = mutation({
         metadata: { source: "internal_report" },
         createdAt: now,
       })
+
+      const milestoneKey = `first_shared_report:${workspace._id}`
+      const existingMilestone = await ctx.db
+        .query("usageEvents")
+        .withIndex("by_workspaceId_and_idempotencyKey", (q) =>
+          q.eq("workspaceId", workspace._id).eq("idempotencyKey", milestoneKey),
+        )
+        .unique()
+      if (!existingMilestone) {
+        await ctx.db.insert("usageEvents", {
+          workspaceId: workspace._id,
+          userId: user._id,
+          event: "first_shared_report",
+          idempotencyKey: milestoneKey,
+          createdAt: now,
+        })
+      }
     }
 
     return { recorded: true }
@@ -1085,17 +1086,6 @@ export const getDashboardSummary = query({
 
     const auditsThisMonth = allAudits.filter((a) => a.createdAt >= utcStartTs).length
 
-    const [reportViewStats, legacyReportViews] = await Promise.all([
-      ctx.db
-        .query("reportViewStats")
-        .withIndex("by_workspaceId_and_auditId", (q) => q.eq("workspaceId", workspace._id))
-        .take(500),
-      ctx.db
-        .query("reportViews")
-        .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspace._id))
-        .take(500),
-    ])
-
     const usageEvents = await ctx.db
       .query("usageEvents")
       .withIndex("by_workspaceId_and_event", (q) =>
@@ -1120,16 +1110,16 @@ export const getDashboardSummary = query({
           q.eq("workspaceId", workspace._id).eq("auditId", auditId),
         )
         .unique()
-      if (stats) {
-        viewCounts.set(auditId, stats.totalViews)
+      if (hasAccurateViewAggregate(stats)) {
+        viewCounts.set(auditId, stats!.totalViews)
       } else {
         const views = await ctx.db
           .query("reportViews")
           .withIndex("by_workspaceId_and_auditId", (q) =>
             q.eq("workspaceId", workspace._id).eq("auditId", auditId),
           )
-          .take(100)
-        viewCounts.set(auditId, views.length)
+          .take(LEGACY_VIEW_COUNT_CAP + 1)
+        viewCounts.set(auditId, Math.min(views.length, LEGACY_VIEW_COUNT_CAP))
       }
     }
 
@@ -1160,15 +1150,22 @@ export const getDashboardSummary = query({
       }
     })
 
-    const aggregateByAudit = new Map(reportViewStats.map((stats) => [stats.auditId, stats.totalViews]))
-    const legacyByAudit = new Map<Id<"audits">, number>()
-    for (const view of legacyReportViews) {
-      legacyByAudit.set(view.auditId, (legacyByAudit.get(view.auditId) ?? 0) + 1)
+    let totalReportViews = 0
+    for (const audit of allAudits) {
+      const stats = await ctx.db
+        .query("reportViewStats")
+        .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+        .unique()
+      if (hasAccurateViewAggregate(stats)) {
+        totalReportViews += stats!.totalViews
+        continue
+      }
+      const legacy = await ctx.db
+        .query("reportViews")
+        .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+        .take(LEGACY_VIEW_COUNT_CAP + 1)
+      totalReportViews += Math.min(legacy.length, LEGACY_VIEW_COUNT_CAP)
     }
-    const totalReportViews = allAudits.reduce(
-      (total, audit) => total + (aggregateByAudit.get(audit._id) ?? legacyByAudit.get(audit._id) ?? 0),
-      0,
-    )
 
     return {
       auditsThisMonth,

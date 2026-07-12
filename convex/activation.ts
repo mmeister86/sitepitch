@@ -4,6 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel"
 import { query, type QueryCtx } from "./_generated/server"
 import { requireSupportAdmin } from "./lib/support"
 import { findAppUser, getWorkspaceByOwner } from "./lib/workspace"
+import { hasAccurateViewAggregate } from "./lib/report_view_stats"
 
 const DAY_MS = 86_400_000
 const MAX_WINDOW_MS = 90 * DAY_MS
@@ -205,7 +206,15 @@ export const getActivationFunnel = query({
         .query("reportViewStats")
         .withIndex("by_auditId", (q) => q.eq("auditId", auditId))
         .first()
-      if (stats && stats.totalViews > 0) openedAudits += 1
+      if (hasAccurateViewAggregate(stats)) {
+        if (stats!.totalViews > 0) openedAudits += 1
+      } else {
+        const legacyView = await ctx.db
+          .query("reportViews")
+          .withIndex("by_auditId", (q) => q.eq("auditId", auditId))
+          .first()
+        if (legacyView) openedAudits += 1
+      }
     }
 
     return {

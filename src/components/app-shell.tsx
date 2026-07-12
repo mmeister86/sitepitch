@@ -38,6 +38,7 @@ function NotificationPopover() {
   const markAllRead = useMutation(api.notifications.markAllRead)
   const { navigate } = useRouter()
   const isLoading = notifications === undefined || unreadCount === undefined
+  const unreadTotal = unreadCount?.count ?? 0
 
   useEffect(() => {
     if (!open) return
@@ -51,9 +52,9 @@ function NotificationPopover() {
       <PopoverTrigger asChild>
         <Button variant="outline" size="icon" className="relative">
           <Bell className="size-4" />
-          {!isLoading && unreadCount > 0 && (
+          {!isLoading && unreadTotal > 0 && (
             <span className="absolute -right-1.5 -top-1.5 flex min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-5 text-primary-foreground ring-2 ring-background">
-              {unreadCount > 99 ? "99+" : unreadCount}
+              {unreadTotal > 99 ? "99+" : unreadTotal}
             </span>
           )}
           <span className="sr-only">Benachrichtigungen</span>
@@ -64,10 +65,14 @@ function NotificationPopover() {
           <div>
             <h2 className="text-sm font-semibold">Benachrichtigungen</h2>
             <p className="text-xs text-muted-foreground">
-              {isLoading ? "Wird geladen …" : unreadCount > 0 ? `${unreadCount} ungelesen` : "Alles gelesen"}
+              {isLoading
+                ? "Wird geladen …"
+                : unreadTotal > 0
+                  ? `${unreadTotal}${unreadCount.capped ? "+" : ""} ungelesen`
+                  : "Alles gelesen"}
             </p>
           </div>
-          {!isLoading && unreadCount > 0 && (
+          {!isLoading && unreadTotal > 0 && (
             <Button
               variant="ghost"
               size="sm"

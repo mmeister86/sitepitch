@@ -503,12 +503,16 @@ export default defineSchema({
     userAgentHash: v.optional(v.string()),
     referrer: v.optional(v.string()),
     viewedAt: v.number(),
+    // Deploy-1 marker: legacy rows omit it until the resumable stats backfill
+    // has incorporated them into reportViewStats.
+    includedInStats: v.optional(v.boolean()),
   })
     .index("by_workspaceId", ["workspaceId"])
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
     .index("by_auditId", ["auditId"])
     .index("by_auditId_and_viewedAt", ["auditId", "viewedAt"])
     .index("by_workspaceId_and_viewedAt", ["workspaceId", "viewedAt"])
+    .index("by_includedInStats", ["includedInStats"])
     .index("by_viewedAt", ["viewedAt"]),
 
   reportViewStats: defineTable({
@@ -520,8 +524,12 @@ export default defineSchema({
     reopenCount: v.optional(v.number()),
     ctaClicks: v.optional(v.number()),
     pdfDownloads: v.optional(v.number()),
+    // `pending` rows may contain action aggregates while view totals still
+    // come from legacy reportViews. Readers only trust `accurate` totals.
+    viewAggregationState: v.optional(v.union(v.literal("pending"), v.literal("accurate"))),
   })
     .index("by_auditId", ["auditId"])
+    .index("by_viewAggregationState", ["viewAggregationState"])
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"]),
 
   usageEvents: defineTable({

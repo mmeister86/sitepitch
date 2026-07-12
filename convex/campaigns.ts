@@ -31,6 +31,7 @@ import {
   campaignStatusValidator,
   reportLanguageValidator,
 } from "../src/lib/convex-schema-values"
+import { hasAccurateViewAggregate, LEGACY_VIEW_COUNT_CAP } from "./lib/report_view_stats"
 
 const CampaignLeadStatusValidator = campaignLeadStatusValidator
 const CampaignOfferTypeValidator = campaignOfferTypeValidator
@@ -168,11 +169,19 @@ async function computeCampaignMetrics(
   let outreachCopied = 0
 
   for (const auditId of auditIds) {
-    const views = await ctx.db
-      .query("reportViews")
+    const stats = await ctx.db
+      .query("reportViewStats")
       .withIndex("by_auditId", (q: any) => q.eq("auditId", auditId))
-      .take(1000)
-    reportViews += views.length
+      .unique()
+    if (hasAccurateViewAggregate(stats)) {
+      reportViews += stats.totalViews
+    } else {
+      const views = await ctx.db
+        .query("reportViews")
+        .withIndex("by_auditId", (q: any) => q.eq("auditId", auditId))
+        .take(LEGACY_VIEW_COUNT_CAP + 1)
+      reportViews += Math.min(views.length, LEGACY_VIEW_COUNT_CAP)
+    }
 
     const events = await ctx.db
       .query("usageEvents")

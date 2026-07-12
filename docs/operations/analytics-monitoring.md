@@ -90,22 +90,24 @@ Die Aktivierungs-Checkliste und der globale Funnel verwenden ausschließlich ser
 | `branding_completed` | Branding wird erstmals vollständig gespeichert | erster vollständiger Branding-Zustand |
 | `audit_completed` | Audit-Pipeline schließt erfolgreich ab | erster abgeschlossener Audit des Workspace |
 | `outreach_copied` | Nutzer kopiert einen Outreach-Entwurf | unabhängig davon, ob bereits ein Report geteilt wurde |
-| `first_shared_report` | ein zuvor nicht öffentlicher, abgeschlossener Report wird erstmals veröffentlicht | idempotenter Workspace-Meilenstein; entsteht beim Publish, nicht erst beim Kopieren des Links |
-| `public_link_copied` | Link eines öffentlichen Reports wird kopiert | Basis für die Open-Rate-Stichprobe; kann nach dem Publish mehrfach vorkommen |
+| `first_shared_report` | Nutzer kopiert erstmals erfolgreich einen öffentlichen Report-Link | idempotenter Workspace-Meilenstein ohne Audit-Bezug; entsteht in derselben Transaktion wie die erste Link-Kopie |
+| `public_link_copied` | Link eines öffentlichen Reports wird kopiert | Basis für die Open-Rate-Stichprobe; kann mehrfach vorkommen und behält den Audit-Bezug |
 
-Ein deaktivierter und später erneut veröffentlichter Report erzeugt keinen zweiten `first_shared_report`-Meilenstein. Legacy-Daten werden über `backfillSignedUpEvents` ergänzt; die Migration ist operativ separat auszuführen und wird durch diese Dokumentation nicht als bereits gelaufen dargestellt.
+Das Veröffentlichen allein erfüllt den Share-Meilenstein nicht. Wiederholtes Kopieren – auch nach Deaktivieren und erneutem Veröffentlichen – erzeugt keinen zweiten `first_shared_report`-Meilenstein. Legacy-Daten werden über `backfillSignedUpEvents` ergänzt; die Migration ist operativ separat auszuführen und wird durch diese Dokumentation nicht als bereits gelaufen dargestellt.
 
 ### Report geöffnet und erneut geöffnet
 
-`recordPublicReportView` ist die serverseitige Quelle für Views. Der erste akzeptierte View eines Audits erhöht `reportViewStats.totalViews` auf 1 und schreibt `report_opened`; jeder weitere akzeptierte View schreibt `report_reopened` und erhöht den Reopen-Zähler. Rate Limits und die browserseitige Session-Deduplizierung reduzieren Reload-Rauschen. `?preview=1` löst weder die View-Mutation noch Rybbit-Events, CTA-Events oder PDF-Events aus. `/examples/*` wird als vollständiges statisches HTML-Dokument von einem providerfreien Route Handler ausgeliefert und läuft damit außerhalb von React Root Layout, Auth-/Convex-Providern und dem Rybbit-Script-Pfad. Beispielnavigation aus der App verwendet bewusst normale `<a href>`-Links für einen vollständigen Dokumentwechsel; der Route Handler selbst führt keine Convex-Query oder -Mutation aus.
+`recordPublicReportView` ist die serverseitige Quelle für Views. Der erste akzeptierte View eines Audits schreibt `report_opened`; jeder weitere akzeptierte View schreibt `report_reopened`. Rate Limits und die browserseitige Session-Deduplizierung reduzieren Reload-Rauschen. Öffentliche Report-Seiten tracken normale Views, CTA-Klicks, PDF-Exporte und Rybbit-Seitenaufrufe immer; Query-Parameter können Telemetrie nicht deaktivieren. Interne Report-Vorschau erfolgt ausschließlich im Report-Tab der Audit-Detailansicht und navigiert nicht auf die öffentliche Route. `/examples/*` wird als vollständiges statisches HTML-Dokument von einem providerfreien Route Handler ausgeliefert und läuft damit außerhalb von React Root Layout, Auth-/Convex-Providern und dem Rybbit-Script-Pfad. Beispielnavigation aus der App verwendet bewusst normale `<a href>`-Links für einen vollständigen Dokumentwechsel; der Route Handler selbst führt keine Convex-Query oder -Mutation aus.
+
+Während des Legacy-Backfills sind `reportViews` die autoritative View-Quelle. Eine `reportViewStats`-Zeile mit `viewAggregationState: "pending"` darf Action-Aggregate enthalten, ihre View-Zähler werden von Readern aber noch nicht als vollständig behandelt. Neue View-Zeilen werden atomar mit `includedInStats: true` geschrieben. Der resumierbare Backfill markiert jede Legacy-Zeile in derselben Transaktion wie ihre Aggregation; erst der Finalizer setzt den Audit auf `accurate`.
 
 ### Funnel und Raten
 
 `activation.getActivationFunnel` ist nur über den bestehenden Support-Admin-Allowlist-Mechanismus erreichbar. Normale Workspace-Owner können ausschließlich ihren eigenen Aktivierungsstatus lesen.
 
-- Funnel: `Signup → Branding → First Audit → Outreach Copied → First Shared Report`. Gezählt werden eindeutige Workspaces anhand ihres jeweils ersten Ereignis-Zeitpunkts. Ein späterer Schritt zählt nur, wenn sein Zeitstempel mindestens dem vorherigen Schritt entspricht. Deshalb kann ein vor Outreach geteilter Report in der Checkliste als erreicht gelten, zählt im sequentiellen Funnel aber nicht als letzter Schritt.
+- Funnel: `Signup → Branding → First Audit → Outreach Copied → First Shared Report`. Gezählt werden eindeutige Workspaces anhand ihres jeweils ersten Ereignis-Zeitpunkts. Ein späterer Schritt zählt nur, wenn sein Zeitstempel mindestens dem vorherigen Schritt entspricht. Der letzte Schritt ist ausschließlich die erste erfolgreiche öffentliche Link-Kopie.
 - 24h-First-Share-Rate: Nenner sind eindeutige Workspaces mit `signed_up` im gewählten Fenster. Zähler sind diese Workspaces, deren erster Share zwischen Signup und einschließlich `signup + 24h` liegt.
-- Shared-Report-Open-Rate: Nenner sind eindeutige Audit-IDs mit `public_link_copied` im Fenster. Zähler sind diese Audits mit `reportViewStats.totalViews > 0`. Mehrfaches Link-Kopieren desselben Audits erhöht den Nenner nicht.
+- Shared-Report-Open-Rate: Nenner sind eindeutige Audit-IDs mit `public_link_copied` im Fenster. Zähler sind diese Audits mit mindestens einem externen View. Vor Abschluss des Stats-Backfills wird dafür auf Legacy-Views zurückgefallen; erst `accurate`-Aggregate sind autoritativ. Mehrfaches Link-Kopieren desselben Audits erhöht den Nenner nicht.
 - Bei Nenner 0 ist `rate: null`; es wird keine künstliche Division oder Prozentzahl geliefert.
 
 Das Abfragefenster ist auf 90 Tage begrenzt. Pro Ereignistyp werden höchstens 1.000 Zeilen ausgewertet. Sobald eine Quelle darüber liegt, liefert die Antwort `truncated: true`; Dashboards und Exporte müssen dann die Kennzahl als unvollständig markieren oder ein kleineres Fenster abfragen.
@@ -181,15 +183,20 @@ Eine leere Liste bedeutet: kein Support-Zugang für niemanden.
 | adminActions | 24 Monate |
 | Audit-Reports, Scores, Findings | bis Nutzer löscht |
 
-Die Retention wird über tägliche Cron-Jobs in `convex/crons.ts` in gebatchten Löschmutationen ausgeführt.
+Die Retention wird über tägliche Cron-Jobs in `convex/crons.ts` in gebatchten Löschmutationen ausgeführt. Noch nicht aggregierte Legacy-Views werden bis zum verifizierten Stats-Backfill nicht gelöscht.
 
 Aktivierungs- und Funnel-Auswertungen enthalten nur opaque Workspace-/Audit-Bezüge und aggregierte Zähler; sie geben keine Domains, Namen oder E-Mail-Adressen zurück. Nach Ablauf der 24-monatigen `usageEvents`-Retention können historische Funnel-Fenster nicht rekonstruiert werden. Die Open-Rate liest den langlebigen Aggregatwert `reportViewStats.totalViews`, nicht die nach 30 Tagen gelöschten einzelnen IP-/UA-Hashes.
 
 ## 6. Rollout, Migration und Rollback
 
-1. Schema und Code deployen, damit der neue zusammengesetzte Usage-Event-Index verfügbar ist.
-2. Migration zuerst als Dry-Run prüfen: `npx convex run migrations:backfillSignedUpEvents '{"dryRun": true}'` (für Produktion zusätzlich `--prod`).
-3. Erst nach Prüfung mit `npx convex run migrations:backfillSignedUpEvents` (Produktion: `--prod`) starten und den Status mit `npx convex run --component migrations lib:getStatus --watch` beobachten. Diese Schritte sind hier nur beschrieben; es wird nicht behauptet, dass sie ausgeführt wurden.
-4. Aktivierungsstatus mit einem Test-Workspace und Admin-Funnel mit einem kleinen Zeitfenster prüfen; `truncated` explizit überwachen.
+Die folgenden Befehle sind ein Runbook; diese Dokumentation behauptet **nicht**, dass eine Migration ausgeführt wurde. In Produktion erhält jeder `npx convex run`-Befehl zusätzlich `--prod`.
+
+1. **Widen-Deploy:** Schema, Indizes und duale Reader/Writer deployen. Vorher keine Migration starten.
+2. **Lead-Status:** `npx convex run migrations:canonicalizeLeadStatuses '{"dryRun":true}'`, Ergebnis prüfen, danach `npx convex run migrations:canonicalizeLeadStatuses`. Mit `npx convex run --component migrations lib:getStatus --watch` bis zum Abschluss beobachten und verifizieren, dass keine Leads mit `not_interested` verbleiben. **Release Gate:** Erst danach darf ein separater Narrow-Deploy den Legacy-Validator entfernen.
+3. **Signup-Meilensteine:** `npx convex run migrations:backfillSignedUpEvents '{"dryRun":true}'`, danach `npx convex run migrations:backfillSignedUpEvents`, Status bis Abschluss beobachten und stichprobenartig genau ein `signed_up`-Event pro Legacy-Workspace mit `createdAt === workspace.createdAt` prüfen.
+4. **Public-CTA-Snapshots:** `npx convex run migrations:backfillPublicReportCtaSnapshots '{"dryRun":true}'`, danach `npx convex run migrations:backfillPublicReportCtaSnapshots`, Status beobachten und prüfen, dass veröffentlichte Reports einen stabilen `reportCtaSnapshottedAt` besitzen.
+5. **Legacy-View-Aggregate:** `npx convex run migrations:backfillLegacyReportViewStats '{"dryRun":true}'`, danach `npx convex run migrations:backfillLegacyReportViewStats` und bis zum vollständigen Status warten. Anschließend `npx convex run migrations:finalizeLegacyReportViewStats '{"dryRun":true}'`, danach `npx convex run migrations:finalizeLegacyReportViewStats` und erneut den Status beobachten.
+6. **Stats-Verifikation:** `npx convex run migrations:verifyLegacyReportViewStats`. Nur `complete: true` ohne Sample-IDs besteht das Gate. Stichproben müssen exakte Anzahl, ersten/letzten View, `reopenCount = max(totalViews - 1, 0)` sowie unveränderte CTA-/PDF-Aggregate zeigen. Ein Reset oder erneuter Lauf darf die Zahlen nicht erhöhen.
+7. **Aggregate Release Gate:** Erst nach erfolgreicher Verifikation dürfen Funnel, Dashboard, Inbox und Kampagnen die neuen Stats als vollständig betrachten. Bis dahin bleiben die dualen Reader und die 100/100+-Legacy-Anzeige aktiv. Aktivierungsstatus mit einem Test-Workspace und Admin-Funnel mit kleinem Zeitfenster prüfen; `truncated` explizit überwachen.
 
 Rollback/Disable: Die Dashboard-Query kann auf Deployment-Ebene auf die vorherige UI zurückgerollt werden; die Admin-Funnel-Abfrage wird durch Entfernen des UI-Aufrufs bzw. Leeren von `SUPPORT_ADMIN_EMAILS` effektiv deaktiviert. Neue Events und der zusätzliche Index sind rückwärtskompatibel und sollten bei einem UI-Rollback zunächst erhalten bleiben. Keine Usage-Events löschen, solange Metrik- oder Compliance-Prüfungen laufen.

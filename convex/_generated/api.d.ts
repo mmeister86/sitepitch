@@ -51,6 +51,7 @@ import type * as lib_provider_costs from "../lib/provider_costs.js";
 import type * as lib_rate_limit_helpers from "../lib/rate_limit_helpers.js";
 import type * as lib_report_cta from "../lib/report_cta.js";
 import type * as lib_report_url from "../lib/report_url.js";
+import type * as lib_report_view_stats from "../lib/report_view_stats.js";
 import type * as lib_support from "../lib/support.js";
 import type * as lib_telemetry_safety from "../lib/telemetry_safety.js";
 import type * as lib_turnstile from "../lib/turnstile.js";
@@ -116,6 +117,7 @@ declare const fullApi: ApiFromModules<{
   "lib/rate_limit_helpers": typeof lib_rate_limit_helpers;
   "lib/report_cta": typeof lib_report_cta;
   "lib/report_url": typeof lib_report_url;
+  "lib/report_view_stats": typeof lib_report_view_stats;
   "lib/support": typeof lib_support;
   "lib/telemetry_safety": typeof lib_telemetry_safety;
   "lib/turnstile": typeof lib_turnstile;

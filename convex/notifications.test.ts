@@ -134,7 +134,7 @@ describe("notifications", () => {
     assert.equal(items.length, 2)
     assert.equal(items[0]?.type, "first_reopen")
     assert.equal(items[0]?.domain, "owner.example.com")
-    assert.equal(unreadCount, 2)
+    assert.deepEqual(unreadCount, { count: 2, capped: false })
   })
 
   test("binds workspace and recipient before limiting list and unread count", async () => {
@@ -174,7 +174,55 @@ describe("notifications", () => {
     assert.equal(items.length, 20)
     assert.equal(items.every((item) => item.domain === "owner.example.com"), true)
     assert.equal(items[0]!.createdAt > items[19]!.createdAt, true)
-    assert.equal(unreadCount, 22)
+    assert.deepEqual(unreadCount, { count: 22, capped: false })
+  })
+
+  test("distinguishes exactly 1000 unread notifications from a capped 1001 and isolates workspaces", async () => {
+    const t = createTest()
+    const { ownerUserId, workspaceId, auditId, otherWorkspaceId, otherAuditId } =
+      await seedNotifications(t)
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 998; index += 1) {
+        await ctx.db.insert("notifications", {
+          workspaceId,
+          auditId,
+          recipientUserId: ownerUserId,
+          type: "first_reopen",
+          idempotencyKey: `count-owner:${index}`,
+          createdAt: index,
+        })
+      }
+      for (let index = 0; index < 20; index += 1) {
+        await ctx.db.insert("notifications", {
+          workspaceId: otherWorkspaceId,
+          auditId: otherAuditId,
+          recipientUserId: ownerUserId,
+          type: "first_reopen",
+          idempotencyKey: `count-foreign:${index}`,
+          createdAt: index,
+        })
+      }
+    })
+    const authed = t.withIdentity({ tokenIdentifier: "notifications-owner-token" })
+    assert.deepEqual(await authed.query(api.notifications.unreadCount, {}), {
+      count: 1_000,
+      capped: false,
+    })
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("notifications", {
+        workspaceId,
+        auditId,
+        recipientUserId: ownerUserId,
+        type: "first_reopen",
+        idempotencyKey: "count-owner:1001",
+        createdAt: 2_000,
+      })
+    })
+    assert.deepEqual(await authed.query(api.notifications.unreadCount, {}), {
+      count: 1_000,
+      capped: true,
+    })
   })
 
   test("does not expose notifications without authentication", async () => {
@@ -190,7 +238,7 @@ describe("notifications", () => {
     const authed = t.withIdentity({ tokenIdentifier: "notifications-owner-token" })
 
     await authed.mutation(api.notifications.markRead, { notificationId: firstOpenId })
-    assert.equal(await authed.query(api.notifications.unreadCount, {}), 1)
+    assert.deepEqual(await authed.query(api.notifications.unreadCount, {}), { count: 1, capped: false })
     await assert.rejects(
       () => authed.mutation(api.notifications.markRead, { notificationId: otherNotificationId }),
       /NOT_FOUND|FORBIDDEN/i,
@@ -204,7 +252,7 @@ describe("notifications", () => {
 
     const result = await authed.mutation(api.notifications.markAllRead, {})
     assert.equal(result.updated, 2)
-    assert.equal(await authed.query(api.notifications.unreadCount, {}), 0)
+    assert.deepEqual(await authed.query(api.notifications.unreadCount, {}), { count: 0, capped: false })
 
     const foreign = await t.run((ctx) => ctx.db.get(otherNotificationId))
     assert.equal(foreign?.readAt, undefined)

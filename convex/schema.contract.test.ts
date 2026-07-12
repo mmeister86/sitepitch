@@ -346,6 +346,7 @@ const reportViewStatsIndexes = (schema.tables.reportViewStats as any).indexes.ma
 )
 assert.ok(reportViewStatsIndexes.includes("by_auditId"))
 assert.ok(reportViewStatsIndexes.includes("by_workspaceId_and_auditId"))
+assert.ok(reportViewStatsIndexes.includes("by_viewAggregationState"))
 
 const reportViewIndexes = (schema.tables.reportViews as any).indexes as Array<{
   indexDescriptor: string
@@ -355,6 +356,8 @@ assert.deepEqual(
   reportViewIndexes.find((index) => index.indexDescriptor === "by_auditId_and_viewedAt")?.fields,
   ["auditId", "viewedAt"],
 )
+assert.ok(reportViewIndexes.some((index) => index.indexDescriptor === "by_includedInStats"))
+assert.ok(Object.keys((schema.tables.reportViews as any).validator.fields).includes("includedInStats"))
 
 const leadStatusValues = getValidatorValues(
   (schema.tables.leads as any).validator.fields.status,
@@ -368,7 +371,7 @@ for (const field of ["reportCtaText", "reportCtaUrl", "reportCtaSnapshottedAt"])
 for (const field of ["reportCtaText", "reportCtaUrl"]) {
   assert.ok(Object.keys((schema.tables.leads as any).validator.fields).includes(field))
 }
-for (const field of ["firstViewedAt", "reopenCount", "ctaClicks", "pdfDownloads"]) {
+for (const field of ["firstViewedAt", "reopenCount", "ctaClicks", "pdfDownloads", "viewAggregationState"]) {
   assert.ok(Object.keys((schema.tables.reportViewStats as any).validator.fields).includes(field))
 }
 

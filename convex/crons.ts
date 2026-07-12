@@ -4,6 +4,7 @@ import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import { internalMutation } from "./_generated/server"
 import type { MutationCtx } from "./_generated/server"
+import { hasAccurateViewAggregate } from "./lib/report_view_stats"
 
 const DAY_MS = 86_400_000
 const BATCH_SIZE = 100
@@ -20,9 +21,20 @@ export const purgeExpiredReportViews = internalMutation({
   args: { cursor: v.optional(cursorValidator) },
   handler: async (ctx, args) => {
     const page = await ctx.db.query("reportViews").withIndex("by_viewedAt", (q) => q.lt("viewedAt", Date.now() - 30 * DAY_MS)).paginate({ numItems: BATCH_SIZE, cursor: args.cursor ?? null })
-    for (const row of page.page) await ctx.db.delete(row._id)
+    let deleted = 0
+    for (const row of page.page) {
+      if (row.includedInStats !== true) {
+        const stats = await ctx.db
+          .query("reportViewStats")
+          .withIndex("by_auditId", (q) => q.eq("auditId", row.auditId))
+          .unique()
+        if (!hasAccurateViewAggregate(stats)) continue
+      }
+      await ctx.db.delete(row._id)
+      deleted += 1
+    }
     if (!page.isDone) await ctx.scheduler.runAfter(0, internal.crons.purgeExpiredReportViews, { cursor: page.continueCursor })
-    return { deleted: page.page.length, isDone: page.isDone }
+    return { deleted, isDone: page.isDone }
   },
 })
 

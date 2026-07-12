@@ -18,13 +18,17 @@ export type ReportViewInput = {
  * non-identifying aggregate in the same transaction.
  */
 export async function recordReportView(ctx: MutationCtx, input: ReportViewInput) {
-  await ctx.db.insert("reportViews", input)
+  const previousView = await ctx.db
+    .query("reportViews")
+    .withIndex("by_auditId_and_viewedAt", (q) => q.eq("auditId", input.auditId))
+    .first()
   const stats = await ctx.db
     .query("reportViewStats")
     .withIndex("by_auditId", (q) => q.eq("auditId", input.auditId))
     .unique()
+  await ctx.db.insert("reportViews", { ...input, includedInStats: true })
   if (stats) {
-    const nextReopenCount = stats.totalViews === 0
+    const nextReopenCount = previousView === null
       ? 0
       : (stats.reopenCount ?? Math.max(stats.totalViews - 1, 0)) + 1
     const firstViewedAt = stats.firstViewedAt ?? stats.lastViewedAt ?? input.viewedAt
@@ -34,7 +38,7 @@ export async function recordReportView(ctx: MutationCtx, input: ReportViewInput)
       firstViewedAt,
       reopenCount: nextReopenCount,
     })
-    return stats.totalViews + 1
+    return { totalViews: stats.totalViews + 1, isFirstView: previousView === null }
   }
   await ctx.db.insert("reportViewStats", {
     workspaceId: input.workspaceId,
@@ -45,8 +49,9 @@ export async function recordReportView(ctx: MutationCtx, input: ReportViewInput)
     reopenCount: 0,
     ctaClicks: 0,
     pdfDownloads: 0,
+    viewAggregationState: previousView === null ? "accurate" : "pending",
   })
-  return 1
+  return { totalViews: 1, isFirstView: previousView === null }
 }
 
 export const recordReportViewInternal = internalMutation({
