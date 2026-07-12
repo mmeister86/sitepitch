@@ -24,11 +24,14 @@ export async function recordReportView(ctx: MutationCtx, input: ReportViewInput)
     .withIndex("by_auditId", (q) => q.eq("auditId", input.auditId))
     .unique()
   if (stats) {
-    const nextReopenCount = (stats.reopenCount ?? Math.max(stats.totalViews - 1, 0)) + 1
+    const nextReopenCount = stats.totalViews === 0
+      ? 0
+      : (stats.reopenCount ?? Math.max(stats.totalViews - 1, 0)) + 1
+    const firstViewedAt = stats.firstViewedAt ?? stats.lastViewedAt ?? input.viewedAt
     await ctx.db.patch(stats._id, {
       totalViews: stats.totalViews + 1,
-      lastViewedAt: Math.max(stats.lastViewedAt, input.viewedAt),
-      firstViewedAt: stats.firstViewedAt ?? stats.lastViewedAt,
+      lastViewedAt: Math.max(stats.lastViewedAt ?? input.viewedAt, input.viewedAt),
+      firstViewedAt,
       reopenCount: nextReopenCount,
     })
     return stats.totalViews + 1

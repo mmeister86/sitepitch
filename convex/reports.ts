@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values"
 
-import { mutation, query, type QueryCtx } from "./_generated/server"
+import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server"
 import type { Doc, Id } from "./_generated/dataModel"
 import { CATEGORY_WEIGHTS } from "./lib/audit_scoring"
 import { auditRateLimiter } from "./lib/audit_rate_limit"
@@ -212,6 +212,29 @@ function validatedViewerHash(value: string | undefined) {
 
 function safeViewerHash(value: string | undefined) {
   return validatedViewerHash(value) ?? "anonymous"
+}
+
+async function incrementReportActionAggregate(
+  ctx: MutationCtx,
+  audit: Pick<Doc<"audits">, "_id" | "workspaceId">,
+  field: "ctaClicks" | "pdfDownloads",
+) {
+  const stats = await ctx.db
+    .query("reportViewStats")
+    .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+    .unique()
+  if (stats) {
+    await ctx.db.patch(stats._id, { [field]: (stats[field] ?? 0) + 1 })
+    return
+  }
+  await ctx.db.insert("reportViewStats", {
+    workspaceId: audit.workspaceId,
+    auditId: audit._id,
+    totalViews: 0,
+    reopenCount: 0,
+    ctaClicks: field === "ctaClicks" ? 1 : 0,
+    pdfDownloads: field === "pdfDownloads" ? 1 : 0,
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -654,17 +677,6 @@ export const setPublicReportEnabled = mutation({
       updatedAt: now,
     })
 
-    if (shouldSnapshotCta && audit.leadId) {
-      const lead = await ctx.db.get(audit.leadId)
-      if (lead && lead.workspaceId === workspace._id) {
-        await ctx.db.patch(lead._id, {
-          reportCtaText: workspace.ctaText,
-          reportCtaUrl: workspace.ctaUrl,
-          updatedAt: now,
-        })
-      }
-    }
-
     if (firstShare) {
       const idempotencyKey = `first_shared_report:${workspace._id}`
       const existingMilestone = await ctx.db
@@ -677,7 +689,6 @@ export const setPublicReportEnabled = mutation({
         await ctx.db.insert("usageEvents", {
           workspaceId: workspace._id,
           userId: user._id,
-          auditId: audit._id,
           event: "first_shared_report",
           idempotencyKey,
           createdAt: now,
@@ -873,13 +884,7 @@ export const recordPublicReportCtaClick = mutation({
     }
 
     const now = Date.now()
-    const stats = await ctx.db
-      .query("reportViewStats")
-      .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
-      .unique()
-    if (stats) {
-      await ctx.db.patch(stats._id, { ctaClicks: (stats.ctaClicks ?? 0) + 1 })
-    }
+    await incrementReportActionAggregate(ctx, audit, "ctaClicks")
     await ctx.db.insert("usageEvents", {
       workspaceId: audit.workspaceId,
       auditId: audit._id,
@@ -928,13 +933,7 @@ export const recordPublicReportPdfExport = mutation({
     }
 
     const now = Date.now()
-    const stats = await ctx.db
-      .query("reportViewStats")
-      .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
-      .unique()
-    if (stats) {
-      await ctx.db.patch(stats._id, { pdfDownloads: (stats.pdfDownloads ?? 0) + 1 })
-    }
+    await incrementReportActionAggregate(ctx, audit, "pdfDownloads")
     await ctx.db.insert("usageEvents", {
       workspaceId: audit.workspaceId,
       auditId: audit._id,

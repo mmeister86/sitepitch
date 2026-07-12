@@ -357,18 +357,58 @@ for (const field of ["firstViewedAt", "reopenCount", "ctaClicks", "pdfDownloads"
   assert.ok(Object.keys((schema.tables.reportViewStats as any).validator.fields).includes(field))
 }
 
-const notificationIndexes = (schema.tables.notifications as any).indexes.map(
-  (index: { indexDescriptor: string }) => index.indexDescriptor,
+const notificationIndexes = (schema.tables.notifications as any).indexes as Array<{
+  indexDescriptor: string
+  fields: string[]
+}>
+assert.deepEqual(Object.keys((schema.tables.notifications as any).validator.fields), [
+  "workspaceId",
+  "auditId",
+  "recipientUserId",
+  "type",
+  "idempotencyKey",
+  "readAt",
+  "createdAt",
+])
+assert.deepEqual(
+  notificationIndexes.find((index) => index.indexDescriptor === "by_workspaceId_and_idempotencyKey")?.fields,
+  ["workspaceId", "idempotencyKey"],
 )
-assert.ok(notificationIndexes.includes("by_auditId_and_type"))
-assert.ok(notificationIndexes.includes("by_recipientUserId_and_createdAt"))
-assert.ok(notificationIndexes.includes("by_workspaceId_and_createdAt"))
+assert.deepEqual(
+  notificationIndexes.find((index) => index.indexDescriptor === "by_auditId_and_type")?.fields,
+  ["auditId", "type"],
+)
+assert.deepEqual(
+  notificationIndexes.find((index) => index.indexDescriptor === "by_recipientUserId_and_createdAt")?.fields,
+  ["recipientUserId", "createdAt"],
+)
+assert.deepEqual(
+  notificationIndexes.find((index) => index.indexDescriptor === "by_workspaceId_and_createdAt")?.fields,
+  ["workspaceId", "createdAt"],
+)
 
-const templateIndexes = (schema.tables.outreachTemplates as any).indexes.map(
-  (index: { indexDescriptor: string }) => index.indexDescriptor,
+const templateIndexes = (schema.tables.outreachTemplates as any).indexes as Array<{
+  indexDescriptor: string
+  fields: string[]
+}>
+assert.deepEqual(Object.keys((schema.tables.outreachTemplates as any).validator.fields), [
+  "workspaceId",
+  "createdByUserId",
+  "name",
+  "type",
+  "subject",
+  "body",
+  "createdAt",
+  "updatedAt",
+])
+assert.deepEqual(
+  templateIndexes.find((index) => index.indexDescriptor === "by_workspaceId_and_updatedAt")?.fields,
+  ["workspaceId", "updatedAt"],
 )
-assert.ok(templateIndexes.includes("by_workspaceId_and_updatedAt"))
-assert.ok(templateIndexes.includes("by_workspaceId_and_type"))
+assert.deepEqual(
+  templateIndexes.find((index) => index.indexDescriptor === "by_workspaceId_and_type")?.fields,
+  ["workspaceId", "type"],
+)
 
 const usageEventValues = getValidatorValues(usageEventTypeValidator)
 assert.ok(usageEventValues.some((value: any) => value.value === "report_reopened"))

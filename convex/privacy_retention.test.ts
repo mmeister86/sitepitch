@@ -162,14 +162,26 @@ describe("privacy retention backend", () => {
     const { storageId, jobId } = await t.run(async (ctx) => {
       const storageId = await ctx.storage.store(new Blob(["image"], { type: "image/png" }))
       await ctx.db.insert("auditAssets", { workspaceId, auditId, type: "desktop_screenshot", storageProvider: "convex", storageId, mimeType: "image/png", createdAt: Date.now() })
+      await ctx.db.insert("usageEvents", {
+        workspaceId,
+        userId,
+        event: "first_shared_report",
+        idempotencyKey: `first_shared_report:${workspaceId}`,
+        createdAt: Date.now(),
+      })
       const jobId = await ctx.db.insert("deletionJobs", { kind: "audit", workspaceId, auditId, phase: "auditAssets", status: "pending", createdAt: Date.now(), updatedAt: Date.now() })
       return { storageId, jobId }
     })
     await t.mutation(internal.deletion.processAuditDeletion, { jobId })
     await t.finishAllScheduledFunctions(() => vi.runAllTimers())
-    const remaining = await t.run(async ctx => ({ audit: await ctx.db.get(auditId), asset: await ctx.db.system.get("_storage", storageId) }))
+    const remaining = await t.run(async ctx => ({
+      audit: await ctx.db.get(auditId),
+      asset: await ctx.db.system.get("_storage", storageId),
+      milestones: await ctx.db.query("usageEvents").withIndex("by_workspaceId_and_event", q => q.eq("workspaceId", workspaceId).eq("event", "first_shared_report")).take(10),
+    }))
     expect(remaining.audit).toBeNull()
     expect(remaining.asset).toBeNull()
+    expect(remaining.milestones).toHaveLength(1)
     vi.useRealTimers()
   })
 

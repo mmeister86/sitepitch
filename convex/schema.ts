@@ -488,7 +488,7 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_auditId_and_type", ["auditId", "type"])
-    .index("by_idempotencyKey", ["idempotencyKey"])
+    .index("by_workspaceId_and_idempotencyKey", ["workspaceId", "idempotencyKey"])
     .index("by_recipientUserId_and_createdAt", ["recipientUserId", "createdAt"])
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"]),
 
@@ -510,7 +510,7 @@ export default defineSchema({
     workspaceId: v.id("workspaces"),
     auditId: v.id("audits"),
     totalViews: v.number(),
-    lastViewedAt: v.number(),
+    lastViewedAt: v.optional(v.number()),
     firstViewedAt: v.optional(v.number()),
     reopenCount: v.optional(v.number()),
     ctaClicks: v.optional(v.number()),

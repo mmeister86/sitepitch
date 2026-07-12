@@ -399,9 +399,38 @@ describe("setPublicReportEnabled", () => {
         .take(10),
     }))
     assert.equal(result.events.length, 1)
+    assert.equal(result.events[0]?.auditId, undefined)
     assert.equal(result.audit?.reportCtaText, "Kostenloses Erstgespräch")
     assert.equal(result.audit?.reportCtaUrl, "https://studio.example.com/contact")
     assert.ok(result.audit?.reportCtaSnapshottedAt)
+  })
+
+  test("does not overwrite an attached lead CTA override when publishing", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t, { isPublic: false })
+    const leadId = await t.run(async (ctx) => {
+      const now = Date.now()
+      const leadId = await ctx.db.insert("leads", {
+        workspaceId,
+        businessName: "Lead with override",
+        sourceProvider: "manual",
+        status: "new",
+        reportCtaText: "Lead-spezifisch",
+        reportCtaUrl: "https://lead.example/cta",
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.patch(auditId, { leadId })
+      return leadId
+    })
+
+    await t
+      .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+      .mutation(api.reports.setPublicReportEnabled, { auditId, enabled: true })
+
+    const lead = await t.run((ctx) => ctx.db.get(leadId))
+    assert.equal(lead?.reportCtaText, "Lead-spezifisch")
+    assert.equal(lead?.reportCtaUrl, "https://lead.example/cta")
   })
 
   test("toggles isPublic for the workspace owner", async () => {
@@ -802,6 +831,36 @@ describe("recordReportCopyEvent", () => {
 // ---------------------------------------------------------------------------
 
 describe("recordPublicReportCtaClick", () => {
+  test("upserts action aggregates before the first report view", async () => {
+    const t = createTest()
+    const { auditId } = await seedCompletedReport(t, {
+      slug: "actions-before-view",
+      isPublic: true,
+    })
+
+    await t.mutation(api.reports.recordPublicReportCtaClick, { slug: "actions-before-view" })
+    await t.mutation(api.reports.recordPublicReportPdfExport, { slug: "actions-before-view" })
+
+    const stats = await t.run((ctx) =>
+      ctx.db.query("reportViewStats").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).unique(),
+    )
+    assert.equal(stats?.totalViews, 0)
+    assert.equal(stats?.firstViewedAt, undefined)
+    assert.equal(stats?.lastViewedAt, undefined)
+    assert.equal(stats?.reopenCount, 0)
+    assert.equal(stats?.ctaClicks, 1)
+    assert.equal(stats?.pdfDownloads, 1)
+
+    await t.mutation(api.reports.recordPublicReportView, { slug: "actions-before-view" })
+    const afterFirstView = await t.run((ctx) =>
+      ctx.db.query("reportViewStats").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).unique(),
+    )
+    assert.equal(afterFirstView?.totalViews, 1)
+    assert.equal(afterFirstView?.reopenCount, 0)
+    assert.ok(afterFirstView?.firstViewedAt)
+    assert.ok(afterFirstView?.lastViewedAt)
+  })
+
   test("records a cta click event for an enabled report", async () => {
     const t = createTest()
     const { auditId, workspaceId } = await seedCompletedReport(t, {
