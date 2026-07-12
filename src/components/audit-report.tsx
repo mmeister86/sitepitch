@@ -298,7 +298,21 @@ export function AuditReport({
 
       {/* CTA */}
       <ReportCTA branding={branding} onCtaClick={onCtaClick} />
+
+      <ReportDisclaimer language={report.reportLanguage} />
     </div>
+  )
+}
+
+function ReportDisclaimer({ language }: { language: AuditReportData["reportLanguage"] }) {
+  return (
+    <footer className="print:break-inside-avoid">
+      <p className="mx-auto max-w-[76ch] px-4 py-2 text-center text-[11px] leading-relaxed text-muted-foreground">
+        {language === "en"
+          ? "This report assesses publicly visible signals at the time of the audit. It is not legal, privacy, or security advice and does not guarantee revenue or business results."
+          : "Dieser Report bewertet öffentlich sichtbare Signale zum Zeitpunkt des Audits. Er ist keine Rechts-, Datenschutz- oder Sicherheitsberatung und garantiert weder Umsatz noch Geschäftserfolg."}
+      </p>
+    </footer>
   )
 }
 

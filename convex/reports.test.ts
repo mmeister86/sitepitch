@@ -247,6 +247,49 @@ describe("getPublicReportBySlug", () => {
     assert.ok(conversion)
     assert.equal(conversion!.weight, 25)
   })
+
+  test("strips URL query data and never exposes provider screenshot URLs", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t, {
+      isPublic: true,
+      slug: "safe-url-slug",
+    })
+    await t.mutation(async (ctx) => {
+      await ctx.db.patch(auditId, {
+        normalizedUrl: "https://acme.com/path?token=canary-secret#private",
+      })
+      await ctx.db.insert("auditAssets", {
+        workspaceId,
+        auditId,
+        type: "desktop_screenshot",
+        storageProvider: "external",
+        url: "https://provider.example/screenshot?signature=canary-secret",
+        createdAt: Date.now(),
+      })
+    })
+
+    const result = await t.query(api.reports.getPublicReportBySlug, { slug: "safe-url-slug" })
+    assert.ok(result)
+    assert.equal(result.normalizedUrl, "https://acme.com/path")
+    assert.equal(result.screenshots.desktop, null)
+    assert.equal(JSON.stringify(result).includes("canary-secret"), false)
+  })
+
+  test("hides every public report as soon as workspace deletion starts", async () => {
+    const t = createTest()
+    const { workspaceId } = await seedCompletedReport(t, {
+      isPublic: true,
+      slug: "workspace-deletion-slug",
+    })
+    await t.mutation((ctx) =>
+      ctx.db.patch(workspaceId, { deletionRequestedAt: Date.now(), updatedAt: Date.now() }),
+    )
+
+    const result = await t.query(api.reports.getPublicReportBySlug, {
+      slug: "workspace-deletion-slug",
+    })
+    assert.equal(result, null)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -281,6 +324,43 @@ describe("getInternalReportById", () => {
     assert.equal(result!.outreachDrafts.length, 0)
     assert.equal(result!.viewCount, 0)
     assert.equal(result!.warnings.includes("outreach_missing"), true)
+  })
+
+  test("returns only safe provider status fields to the browser", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t)
+    await t.mutation(async (ctx) => {
+      await ctx.db.insert("providerCalls", {
+        workspaceId,
+        auditId,
+        provider: "firecrawl",
+        operation: "scrape_homepage",
+        status: "failed",
+        attempt: 1,
+        requestEvidence: "Authorization: Bearer canary-secret",
+        errorCode: "HTTP_401",
+        errorMessage: "Bearer canary-secret",
+        responseStatus: 401,
+        retryCount: 0,
+        startedAt: Date.now(),
+        completedAt: Date.now(),
+        createdAt: Date.now(),
+      })
+    })
+
+    const result = await t
+      .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+      .query(api.reports.getInternalReportById, { auditId })
+
+    assert.ok(result)
+    assert.equal(result.providerCalls.items.length, 1)
+    assert.equal(result.providerCalls.items[0]?.errorCode, "HTTP_401")
+    const json = JSON.stringify(result.providerCalls)
+    assert.equal(json.includes("providerCallId"), false)
+    assert.equal(json.includes("errorMessage"), false)
+    assert.equal(json.includes("responseStatus"), false)
+    assert.equal(json.includes("requestEvidence"), false)
+    assert.equal(json.includes("canary-secret"), false)
   })
 
   test("returns null when a different workspace owner tries to access", async () => {
@@ -394,6 +474,15 @@ describe("recordPublicReportView", () => {
     assert.equal(views[0]!.workspaceId, workspaceId)
     assert.equal(views[0]!.referrer, "https://google.com/search?q=webdesign")
 
+    const aggregate = await t.query((ctx) =>
+      ctx.db
+        .query("reportViewStats")
+        .withIndex("by_auditId", (q) => q.eq("auditId", auditId))
+        .unique(),
+    )
+    assert.equal(aggregate?.totalViews, 1)
+    assert.equal(aggregate?.workspaceId, workspaceId)
+
     const events = await t.query((ctx) =>
       ctx.db
         .query("usageEvents")
@@ -462,13 +551,17 @@ describe("recordPublicReportView", () => {
     )
     assert.equal(events.length, 1)
 
-    assert.equal(mocks.auditRateLimiter.limit.mock.calls.length, 1)
-    const [limitName, opts] = mocks.auditRateLimiter.limit.mock.calls[0]!.slice(1) as [
+    assert.equal(mocks.auditRateLimiter.limit.mock.calls.length, 2)
+    const limits = mocks.auditRateLimiter.limit.mock.calls.map((call) => call.slice(1)) as Array<[
       string,
       { key: string },
-    ]
-    assert.equal(limitName, "publicReportViewsByViewer")
-    assert.ok(opts.key)
+    ]>
+    assert.deepEqual(limits.map(([name]) => name), [
+      "publicReportViewsBySlug",
+      "publicReportViewsByViewer",
+    ])
+    assert.equal(limits[0]?.[1].key, "under-limit-slug")
+    assert.ok(limits[1]?.[1].key)
   })
 
   test("skips recording and returns rate_limited when over the limit", async () => {

@@ -8,12 +8,14 @@ import type { SubscriptionPlan } from "./lib/rate_limit_helpers"
 import {
   generatePublicSlug,
   normalizeAuditUrl,
+  toSafeDisplayUrl,
   validatePublicAuditTarget,
   type AuditUrlErrorCode,
 } from "./lib/audit_url"
 import { reserveWorkspaceCredit } from "./lib/credits"
 import type { CreditSnapshot } from "./lib/credits"
 import { findAppUser, getWorkspaceByOwner } from "./lib/workspace"
+import { enqueueAuditDeletion } from "./deletion"
 import { auditWorkpool } from "./workpools"
 
 type WorkspaceContext = {
@@ -35,7 +37,7 @@ function toAuditStartResult(audit: Doc<"audits">): AuditStartResult {
   return {
     auditId: audit._id,
     status: "queued",
-    normalizedUrl: audit.normalizedUrl,
+    normalizedUrl: toSafeDisplayUrl(audit.normalizedUrl),
     domain: audit.domain,
     publicSlug: audit.publicSlug,
   }
@@ -45,7 +47,7 @@ function throwUrlError(code: AuditUrlErrorCode, message: string): never {
   throw new ConvexError({ code, message })
 }
 
-export const getById = query({
+export const getById = internalQuery({
   args: { auditId: v.id("audits") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.auditId)
@@ -73,7 +75,7 @@ export const listMyAudits = query({
       .take(50)
 
     const items = await Promise.all(
-      audits.map(async (audit) => {
+      audits.filter((audit) => audit.deletionRequestedAt === undefined).map(async (audit) => {
         const scoreDoc = await ctx.db
           .query("auditScores")
           .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
@@ -81,10 +83,16 @@ export const listMyAudits = query({
 
         const lead = audit.leadId ? await ctx.db.get(audit.leadId) : null
 
-        const views = await ctx.db
-          .query("reportViews")
-          .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
-          .take(100)
+        const [viewStats, views] = await Promise.all([
+          ctx.db
+            .query("reportViewStats")
+            .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+            .unique(),
+          ctx.db
+            .query("reportViews")
+            .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+            .take(100),
+        ])
 
         const outreach = await ctx.db
           .query("outreachDrafts")
@@ -94,7 +102,7 @@ export const listMyAudits = query({
         return {
           _id: audit._id,
           domain: audit.domain,
-          normalizedUrl: audit.normalizedUrl,
+          normalizedUrl: toSafeDisplayUrl(audit.normalizedUrl),
           status: audit.status,
           auditType: audit.auditType,
           overallScore: audit.overallScore ?? scoreDoc?.overallScore ?? null,
@@ -106,13 +114,13 @@ export const listMyAudits = query({
           businessName: lead?.businessName ?? null,
           city: lead?.city ?? null,
           category: lead?.category ?? null,
-          viewCount: views.length,
+          viewCount: viewStats?.totalViews ?? views.length,
           hasOutreach: outreach.length > 0,
         }
       }),
     )
 
-    return { items, total: audits.length }
+    return { items, total: items.length }
   },
 })
 
@@ -341,61 +349,8 @@ export const deleteAudit = mutation({
       throw new ConvexError({ code: "FORBIDDEN", message: "Workspace access denied" })
     }
 
-    const relatedTables = [
-      "auditScores",
-      "auditSummaries",
-      "auditFindings",
-      "auditChecks",
-      "auditAssets",
-      "auditPerformance",
-      "auditRawData",
-      "auditPages",
-      "auditBusinessData",
-      "outreachDrafts",
-      "reportViews",
-      "providerCalls",
-      "providerCosts",
-      "auditPipelineStates",
-      "auditAgentRuns",
-    ] as const
-
-    let deleted = 0
-    for (const table of relatedTables) {
-      const rows = await ctx.db
-        .query(table)
-        .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
-        .take(500)
-      for (const row of rows) {
-        await ctx.db.delete(row._id)
-        deleted++
-      }
-    }
-
-    const usageEvents = await ctx.db
-      .query("usageEvents")
-      .withIndex("by_workspaceId_and_auditId", (q) =>
-        q.eq("workspaceId", workspace._id).eq("auditId", args.auditId),
-      )
-      .take(500)
-    for (const row of usageEvents) {
-      await ctx.db.delete(row._id)
-      deleted++
-    }
-
-    const linkedLeads = await ctx.db
-      .query("leads")
-      .withIndex("by_workspaceId_and_auditId", (q) =>
-        q.eq("workspaceId", workspace._id).eq("auditId", args.auditId),
-      )
-      .take(10)
-    for (const lead of linkedLeads) {
-      await ctx.db.patch(lead._id, { auditId: undefined, updatedAt: Date.now() })
-    }
-
-    await ctx.db.delete(args.auditId)
-    deleted++
-
-    return { deleted }
+    const jobId = await enqueueAuditDeletion(ctx, args.auditId, workspace._id)
+    return { jobId }
   },
 })
 

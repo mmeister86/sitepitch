@@ -262,6 +262,10 @@ export const startAuditAgentRun = internalMutation({
     skillVersions: v.optional(v.record(v.string(), v.string())),
   },
   handler: async (ctx, args) => {
+    const audit = await ctx.db.get(args.auditId)
+    if (!audit || audit.deletionRequestedAt || audit.status === "cancelled") {
+      throw new ConvexError({ code: "AUDIT_DELETION_PENDING", message: "Audit deletion is pending" })
+    }
     return await ctx.db.insert("auditAgentRuns", {
       workspaceId: args.workspaceId,
       auditId: args.auditId,
@@ -287,6 +291,10 @@ export const finishAuditAgentRun = internalMutation({
   handler: async (ctx, args) => {
     const run = await ctx.db.get(args.auditAgentRunId)
     if (!run) return
+    const audit = await ctx.db.get(run.auditId)
+    if (!audit || audit.deletionRequestedAt || audit.status === "cancelled") {
+      throw new ConvexError({ code: "AUDIT_DELETION_PENDING", message: "Audit deletion is pending" })
+    }
 
     await ctx.db.patch(args.auditAgentRunId, {
       status: args.status,
@@ -335,6 +343,9 @@ export const saveAuditAgentOutput = internalMutation({
     const audit = await ctx.db.get(args.auditId)
     if (!audit) {
       throw new ConvexError({ code: "NOT_FOUND", message: "Audit not found" })
+    }
+    if (audit.deletionRequestedAt || audit.status === "cancelled") {
+      throw new ConvexError({ code: "AUDIT_DELETION_PENDING", message: "Audit deletion is pending" })
     }
 
     const parseResult = auditAgentOutputSchema.safeParse(args.output)
@@ -432,6 +443,9 @@ export const saveAuditPersonaReviews = internalMutation({
     if (!audit) {
       throw new ConvexError({ code: "NOT_FOUND", message: "Audit not found" })
     }
+    if (audit.deletionRequestedAt || audit.status === "cancelled") {
+      throw new ConvexError({ code: "AUDIT_DELETION_PENDING", message: "Audit deletion is pending" })
+    }
 
     const parseResult = personaPanelOutputSchema.safeParse({ reviews: args.reviews })
     if (!parseResult.success) {
@@ -486,6 +500,9 @@ export const saveAuditCopyReview = internalMutation({
     if (!audit) {
       throw new ConvexError({ code: "NOT_FOUND", message: "Audit not found" })
     }
+    if (audit.deletionRequestedAt || audit.status === "cancelled") {
+      throw new ConvexError({ code: "AUDIT_DELETION_PENDING", message: "Audit deletion is pending" })
+    }
 
     const parseResult = copyReviewOutputSchema.safeParse(args.review)
     if (!parseResult.success) {
@@ -534,6 +551,9 @@ export const saveAuditDesignCritique = internalMutation({
     const audit = await ctx.db.get(args.auditId)
     if (!audit) {
       throw new ConvexError({ code: "NOT_FOUND", message: "Audit not found" })
+    }
+    if (audit.deletionRequestedAt || audit.status === "cancelled") {
+      throw new ConvexError({ code: "AUDIT_DELETION_PENDING", message: "Audit deletion is pending" })
     }
 
     const parseResult = designCritiqueOutputSchema.safeParse(args.critique)
@@ -597,7 +617,7 @@ export const completeAuditFromAgent = internalMutation({
     if (!audit) {
       return null
     }
-    if (audit.status === "completed" || audit.status === "failed" || audit.status === "cancelled") {
+    if (audit.deletionRequestedAt || audit.status === "completed" || audit.status === "failed" || audit.status === "cancelled") {
       return null
     }
 
@@ -653,7 +673,7 @@ export const setAuditAgentStage = internalMutation({
     if (!audit) {
       return null
     }
-    if (audit.status === "completed" || audit.status === "failed" || audit.status === "cancelled") {
+    if (audit.deletionRequestedAt || audit.status === "completed" || audit.status === "failed" || audit.status === "cancelled") {
       return null
     }
     await ctx.db.patch(args.auditId, {
@@ -676,7 +696,7 @@ export const markAuditAgentFailed = internalMutation({
     if (!audit) {
       return null
     }
-    if (audit.status === "completed" || audit.status === "cancelled") {
+    if (audit.deletionRequestedAt || audit.status === "completed" || audit.status === "cancelled") {
       return null
     }
 

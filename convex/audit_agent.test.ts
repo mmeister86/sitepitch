@@ -7,7 +7,7 @@ import {
   safeParseAgentOutput,
   type AuditAgentOutput,
 } from "./lib/audit_agent_schemas"
-import { reviewClaimSafety } from "./lib/audit_agent_claim_safety"
+import { reviewClaimSafety, reviewTextsClaimSafety } from "./lib/audit_agent_claim_safety"
 import { buildEvidenceRefs, validateFindingEvidence } from "./lib/audit_agent_evidence"
 import type { CheckInput } from "./lib/audit_scoring"
 
@@ -108,6 +108,31 @@ describe("claim safety", () => {
     output.findings[0].salesAngle = "Garantiert mehr Umsatz."
     const result = reviewClaimSafety(output)
     assert.ok(!result.ok)
+  })
+
+  test.each([
+    ["de legal", "Die Website ist rechtskonform."],
+    ["en legal", "This website is legally compliant."],
+    ["de privacy", "Die Seite ist DSGVO-konform."],
+    ["en privacy", "The site passed a privacy assessment."],
+    ["de security", "Die Website gilt als vollständig sicher."],
+    ["en security", "The website passed a security audit."],
+    ["de outcome", "Diese Änderung wird den Umsatz deutlich steigern."],
+    ["en outcome", "This change guarantees more revenue and leads."],
+  ])("blocks %s assessment or guarantee claims", (_label, text) => {
+    const result = reviewTextsClaimSafety([{ text, path: "claim" }])
+    assert.ok(!result.ok, text)
+    assert.equal(result.issues[0]?.path, "claim")
+  })
+
+  test.each([
+    "Dies ist keine Rechts-, Datenschutz- oder Sicherheitsberatung.",
+    "This is not legal, privacy, or security advice and does not guarantee business results.",
+    "Ein klarerer CTA könnte die Conversion unterstützen.",
+    "A clearer CTA may help improve conversion.",
+  ])("allows appropriately qualified language: %s", (text) => {
+    const result = reviewTextsClaimSafety([{ text, path: "qualified" }])
+    assert.ok(result.ok, JSON.stringify(result.issues))
   })
 
   test("blocks shaming language", () => {

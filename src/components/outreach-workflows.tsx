@@ -330,10 +330,10 @@ function ComplianceCard() {
             <p className="text-sm font-medium">Verantwortung Outreach</p>
           </div>
           <p className="text-xs text-muted-foreground">
-            Du entscheidest selbst, wen du kontaktierst. SitePitch versendet nichts
+            Diese Texte sind bearbeitbare Entwürfe. SitePitch versendet nichts
             automatisch, reichert keine Kontakte an und prüft keine Rechtsgrundlage für
-            deine Kontaktaufnahme. Du bist für die Einhaltung geltender Gesetze
-            verantwortlich.
+            deine Kontaktaufnahme. Du entscheidest selbst, wen du kontaktierst, und bist
+            für Prüfung, Versand und die Einhaltung geltender Gesetze verantwortlich.
           </p>
         </CardContent>
       </Card>

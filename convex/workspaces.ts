@@ -18,6 +18,10 @@ import {
   getWorkspaceCreditSnapshot,
 } from "./lib/credits"
 
+const ALLOWED_LOGO_CONTENT_TYPES = new Set(["image/png", "image/jpeg", "image/webp"])
+const MAX_LOGO_BYTES = 2 * 1024 * 1024
+export const RETENTION_POLICY_VERSION = "2026-07-11"
+
 function optionalStorageId(value: string | null): Id<"_storage"> | undefined {
   return value ? (value as Id<"_storage">) : undefined
 }
@@ -47,6 +51,7 @@ export const ensureCurrentWorkspace = mutation({
       contactEmail: user.email,
       ctaText: DEFAULT_WORKSPACE_CTA_TEXT,
       reportLanguage: "de",
+      retentionMode: "standard",
       createdAt: now,
       updatedAt: now,
     })
@@ -110,6 +115,9 @@ export const getMyWorkspace = query({
         ctaText: workspace.ctaText ?? "",
         ctaUrl: workspace.ctaUrl ?? "",
         reportLanguage: workspace.reportLanguage,
+        retentionMode: workspace.retentionMode ?? "standard",
+        retentionConsentAt: workspace.retentionConsentAt ?? null,
+        retentionPolicyVersion: workspace.retentionPolicyVersion ?? null,
         updatedAt: workspace.updatedAt,
         createdAt: workspace.createdAt,
       },
@@ -198,9 +206,23 @@ export const updateBranding = mutation({
       })
     }
 
+    const nextLogoStorageId = optionalStorageId(parsed.value.logoStorageId)
+    if (nextLogoStorageId && nextLogoStorageId !== workspace.logoStorageId) {
+      const confirmed = await ctx.db
+        .query("logoUploads")
+        .withIndex("by_storageId", (q) => q.eq("storageId", nextLogoStorageId))
+        .unique()
+      if (!confirmed || confirmed.workspaceId !== workspace._id) {
+        throw new ConvexError({
+          code: "INVALID_LOGO_UPLOAD",
+          message: "Logo upload is not owned by this workspace",
+        })
+      }
+    }
+
     await ctx.db.patch(workspace._id, {
       name: parsed.value.name,
-      logoStorageId: optionalStorageId(parsed.value.logoStorageId),
+      logoStorageId: nextLogoStorageId,
       accentColor: parsed.value.accentColor,
       website: parsed.value.website ?? undefined,
       contactEmail: parsed.value.contactEmail ?? undefined,
@@ -210,6 +232,15 @@ export const updateBranding = mutation({
       brandingCompletedAt: workspace.brandingCompletedAt ?? Date.now(),
       updatedAt: Date.now(),
     })
+
+    if (workspace.logoStorageId && workspace.logoStorageId !== nextLogoStorageId) {
+      await ctx.storage.delete(workspace.logoStorageId)
+      const previousUpload = await ctx.db
+        .query("logoUploads")
+        .withIndex("by_storageId", (q) => q.eq("storageId", workspace.logoStorageId!))
+        .unique()
+      if (previousUpload) await ctx.db.delete(previousUpload._id)
+    }
 
     if (!workspace.brandingCompletedAt) {
       await ctx.db.insert("usageEvents", {
@@ -234,6 +265,72 @@ export const generateLogoUploadUrl = mutation({
   },
 })
 
+export const confirmLogoUpload = mutation({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, args) => {
+    const { workspace } = await requireOwnerWorkspace(ctx)
+    const metadata = await ctx.db.system.get("_storage", args.storageId)
+    if (!metadata) {
+      throw new ConvexError({ code: "UPLOAD_NOT_FOUND", message: "Logo upload not found" })
+    }
+    const contentType = metadata.contentType ?? ""
+    if (!ALLOWED_LOGO_CONTENT_TYPES.has(contentType) || metadata.size > MAX_LOGO_BYTES) {
+      await ctx.storage.delete(args.storageId)
+      return { storageId: null, error: "INVALID_LOGO_UPLOAD" as const }
+    }
+    const existing = await ctx.db
+      .query("logoUploads")
+      .withIndex("by_storageId", (q) => q.eq("storageId", args.storageId))
+      .unique()
+    if (existing && existing.workspaceId !== workspace._id) {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Logo upload belongs to another workspace" })
+    }
+    if (!existing) {
+      await ctx.db.insert("logoUploads", {
+        workspaceId: workspace._id,
+        storageId: args.storageId,
+        contentType,
+        size: metadata.size,
+        createdAt: Date.now(),
+      })
+    }
+    return { storageId: args.storageId, error: null }
+  },
+})
+
+export const setRetentionPreference = mutation({
+  args: {
+    mode: v.union(v.literal("standard"), v.literal("extended")),
+    policyVersion: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { user, workspace } = await requireOwnerWorkspace(ctx)
+    const policyVersion = args.policyVersion.trim()
+    if (policyVersion !== RETENTION_POLICY_VERSION) {
+      throw new ConvexError({ code: "VALIDATION_ERROR", message: "Invalid retention policy version" })
+    }
+    const now = Date.now()
+    await ctx.db.patch(workspace._id, {
+      retentionMode: args.mode,
+      retentionConsentAt: args.mode === "extended" ? now : undefined,
+      retentionPolicyVersion: policyVersion,
+      updatedAt: now,
+    })
+    await ctx.db.insert("retentionPreferenceEvents", {
+      workspaceId: workspace._id,
+      userId: user.userId,
+      mode: args.mode,
+      policyVersion,
+      createdAt: now,
+    })
+    return {
+      mode: args.mode,
+      consentAt: args.mode === "extended" ? now : null,
+      policyVersion,
+    }
+  },
+})
+
 export const clearLogo = mutation({
   args: {},
   handler: async (ctx) => {
@@ -246,6 +343,14 @@ export const clearLogo = mutation({
       logoStorageId: undefined,
       updatedAt: Date.now(),
     })
+    if (workspace.logoStorageId) {
+      await ctx.storage.delete(workspace.logoStorageId)
+      const upload = await ctx.db
+        .query("logoUploads")
+        .withIndex("by_storageId", (q) => q.eq("storageId", workspace.logoStorageId!))
+        .unique()
+      if (upload) await ctx.db.delete(upload._id)
+    }
   },
 })
 

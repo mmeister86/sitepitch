@@ -1,7 +1,19 @@
 "use client"
 
-import { useQuery } from "convex/react"
-import { Palette, Mail, Sparkles, ImageIcon, ArrowRight } from "lucide-react"
+import { useState } from "react"
+import { useMutation, useQuery } from "convex/react"
+import {
+  AlertTriangle,
+  ArrowRight,
+  Database,
+  ImageIcon,
+  Loader2,
+  Mail,
+  Palette,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+} from "lucide-react"
 
 import {
   Card,
@@ -12,14 +24,44 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Spinner } from "@/components/ui/spinner"
+import { Switch } from "@/components/ui/switch"
+import { toast } from "@/components/ui/sonner"
+import { authClient } from "@/lib/auth-client"
+import {
+  ACCOUNT_DELETE_CONFIRMATION,
+  blocksSelfServiceAccountDeletion,
+  canConfirmAccountDeletion,
+  formatConsentDate,
+  RETENTION_POLICY_VERSION,
+  type RetentionMode,
+} from "@/lib/privacy-settings"
 import { useRouter } from "@/lib/router"
 import { api } from "../../convex/_generated/api"
 
 export function SettingsView() {
   const data = useQuery(api.workspaces.getMyWorkspace)
+  const setRetentionPreference = useMutation(api.workspaces.setRetentionPreference)
   const { navigate } = useRouter()
+  const [retentionPending, setRetentionPending] = useState(false)
+  const [withdrawRetentionOpen, setWithdrawRetentionOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteConfirmation, setDeleteConfirmation] = useState("")
+  const [password, setPassword] = useState("")
+  const [deletePending, setDeletePending] = useState(false)
 
   if (data === undefined) {
     return (
@@ -33,6 +75,74 @@ export function SettingsView() {
   const monthlyCredits = data?.credits.total ?? 0
   const used = data?.credits.used ?? 0
   const pct = monthlyCredits > 0 ? (used / monthlyCredits) * 100 : 0
+  const retentionMode: RetentionMode = data?.workspace.retentionMode ?? "standard"
+  const retentionConsentDate = formatConsentDate(data?.workspace.retentionConsentAt)
+  const deletionBlocked = blocksSelfServiceAccountDeletion(data?.subscription)
+
+  async function updateRetention(mode: RetentionMode) {
+    setRetentionPending(true)
+    try {
+      await setRetentionPreference({ mode, policyVersion: RETENTION_POLICY_VERSION })
+      toast.success(
+        mode === "extended"
+          ? "Dauerhafte Aufbewahrung aktiviert"
+          : "Standard-Aufbewahrung aktiviert",
+        {
+          description:
+            mode === "extended"
+              ? "Vorhandene und zukünftige Workspace-Daten bleiben erhalten, bis du sie löschst oder diese Einstellung änderst."
+              : "Bereits abgelaufene Daten werden beim nächsten Aufbewahrungslauf gelöscht.",
+        },
+      )
+      setWithdrawRetentionOpen(false)
+    } catch {
+      toast.error("Aufbewahrungseinstellung konnte nicht gespeichert werden")
+    } finally {
+      setRetentionPending(false)
+    }
+  }
+
+  function resetDeleteDialog() {
+    setDeleteOpen(false)
+    setDeleteConfirmation("")
+    setPassword("")
+  }
+
+  async function deleteAccount() {
+    if (
+      !canConfirmAccountDeletion({
+        confirmation: deleteConfirmation,
+        password,
+        blockedBySubscription: deletionBlocked,
+        pending: deletePending,
+      })
+    ) {
+      return
+    }
+
+    setDeletePending(true)
+    try {
+      const result = await authClient.deleteUser({ password })
+      if (result.error) {
+        const code = result.error.code ?? ""
+        toast.error("Account konnte nicht gelöscht werden", {
+          description: code.includes("INVALID_PASSWORD")
+            ? "Das eingegebene Passwort ist nicht korrekt."
+            : "Prüfe dein Passwort und dein Abonnement oder versuche es später erneut.",
+        })
+        setDeletePending(false)
+        return
+      }
+
+      toast.success("Account-Löschung gestartet")
+      window.location.assign("/")
+    } catch {
+      toast.error("Account konnte nicht gelöscht werden", {
+        description: "Die Verbindung ist fehlgeschlagen. Bitte versuche es erneut.",
+      })
+      setDeletePending(false)
+    }
+  }
 
   return (
     <div className="mx-auto w-full max-w-[900px] space-y-6 p-4 md:p-6">
@@ -103,6 +213,67 @@ export function SettingsView() {
 
       <Card>
         <CardHeader>
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <Database className="size-4" />
+            </div>
+            <div>
+              <CardTitle>Datenaufbewahrung</CardTitle>
+              <CardDescription>
+                Entscheide, ob SitePitch deine Workspace-Daten über die Standardfristen
+                hinaus aufbewahren darf.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
+            <div className="space-y-1">
+              <Label htmlFor="extended-retention" className="text-sm font-medium">
+                Daten dauerhaft aufbewahren
+              </Label>
+              <p id="extended-retention-description" className="max-w-[68ch] text-sm leading-relaxed text-muted-foreground">
+                Wenn aktiviert, bewahren wir vorhandene und zukünftige Workspace-Daten
+                auf, bis du sie selbst löschst, diese Einstellung ausschaltest oder
+                deinen Account löschst.
+              </p>
+            </div>
+            <Switch
+              id="extended-retention"
+              className="mt-0.5"
+              checked={retentionMode === "extended"}
+              disabled={retentionPending}
+              aria-describedby="extended-retention-description"
+              onCheckedChange={(checked) => {
+                if (checked) void updateRetention("extended")
+                else setWithdrawRetentionOpen(true)
+              }}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <Badge variant="outline" className="gap-1.5 font-normal">
+              <ShieldCheck className="size-3" />
+              {retentionMode === "extended" ? "Einwilligung aktiv" : "Standardfristen aktiv"}
+            </Badge>
+            {retentionConsentDate ? <span>Einwilligung vom {retentionConsentDate}</span> : null}
+            <span>Policy {data?.workspace.retentionPolicyVersion ?? RETENTION_POLICY_VERSION}</span>
+          </div>
+
+          <Alert>
+            <AlertTriangle className="size-4" />
+            <AlertDescription>
+              Bereits gelöschte Daten lassen sich durch Einschalten nicht wiederherstellen.
+              Diese Option ersetzt kein eigenes Backup und garantiert keine unbegrenzte
+              Produktverfügbarkeit. Identifizierende Report-Aufrufdaten werden immer nach
+              30 Tagen gelöscht; für Abrechnungsdaten gelten gesetzliche Fristen.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <CardTitle>Plan & Credits</CardTitle>
@@ -166,6 +337,134 @@ export function SettingsView() {
           </div>
         </CardContent>
       </Card>
+
+      <Card className="border-destructive/35">
+        <CardHeader>
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md bg-destructive/10 text-destructive">
+              <Trash2 className="size-4" />
+            </div>
+            <div>
+              <CardTitle>Account löschen</CardTitle>
+              <CardDescription>
+                Löscht deinen Workspace samt Audits, Reports, Leads, Kampagnen, Branding
+                und gespeicherten Dateien dauerhaft.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {deletionBlocked ? (
+            <Alert variant="destructive">
+              <AlertTriangle className="size-4" />
+              <AlertDescription>
+                Dein Bezahl-Abonnement ist noch aktiv. Beende es zuerst im Billing-Portal;
+                die Account-Löschung ist nach Ablauf des Abonnements möglich.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="max-w-[64ch] text-sm text-muted-foreground">
+              Die Löschung kann nicht rückgängig gemacht werden. Gesetzlich
+              aufbewahrungspflichtige Abrechnungsdaten bleiben ohne Workspace-Verknüpfung
+              erhalten.
+            </p>
+            <Button
+              variant={deletionBlocked ? "outline" : "destructive"}
+              className="shrink-0"
+              onClick={() => {
+                if (deletionBlocked) navigate({ name: "billing-settings" })
+                else setDeleteOpen(true)
+              }}
+            >
+              {deletionBlocked ? "Abonnement verwalten" : "Account löschen"}
+              {deletionBlocked ? <ArrowRight className="size-4" /> : <Trash2 className="size-4" />}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={withdrawRetentionOpen} onOpenChange={setWithdrawRetentionOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Dauerhafte Aufbewahrung ausschalten?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Danach gelten die Standardfristen wieder ab dem ursprünglichen
+              Erstellungsdatum. Bereits abgelaufene Daten werden beim nächsten
+              Aufbewahrungslauf dauerhaft gelöscht.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={retentionPending}>Beibehalten</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={retentionPending}
+              onClick={() => void updateRetention("standard")}
+            >
+              {retentionPending ? <Loader2 className="size-4 animate-spin" /> : null}
+              Standardfristen aktivieren
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          if (!open && !deletePending) resetDeleteDialog()
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>SitePitch-Account dauerhaft löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Alle Workspace-Daten werden zur Löschung eingeplant und öffentliche Reports
+              sofort deaktiviert. Dieser Vorgang kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="delete-confirmation">
+                Tippe <span className="font-semibold text-foreground">{ACCOUNT_DELETE_CONFIRMATION}</span>
+              </Label>
+              <Input
+                id="delete-confirmation"
+                autoComplete="off"
+                value={deleteConfirmation}
+                onChange={(event) => setDeleteConfirmation(event.target.value)}
+                disabled={deletePending}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="delete-password">Aktuelles Passwort</Label>
+              <Input
+                id="delete-password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                disabled={deletePending}
+              />
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletePending}>Abbrechen</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={!canConfirmAccountDeletion({
+                confirmation: deleteConfirmation,
+                password,
+                blockedBySubscription: deletionBlocked,
+                pending: deletePending,
+              })}
+              onClick={() => void deleteAccount()}
+            >
+              {deletePending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              Endgültig löschen
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

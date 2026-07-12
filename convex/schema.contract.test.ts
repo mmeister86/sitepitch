@@ -36,14 +36,18 @@ assert.deepEqual(tableNames, [
   "campaigns",
   "creditBalances",
   "creditLedger",
+  "deletionJobs",
   "leadActivities",
   "leadSearchSnapshots",
   "leads",
+  "logoUploads",
   "outreachDrafts",
   "providerBillingSnapshots",
   "providerCalls",
   "providerCosts",
+  "reportViewStats",
   "reportViews",
+  "retentionPreferenceEvents",
   "subscriptions",
   "usageEvents",
   "users",
@@ -305,5 +309,36 @@ const adminActionsIndexes = (schema.tables.adminActions as any).indexes.map(
 assert.ok(adminActionsIndexes.includes("by_workspaceId_and_createdAt"))
 assert.ok(adminActionsIndexes.includes("by_auditId_and_createdAt"))
 assert.ok(adminActionsIndexes.includes("by_actorUserId_and_createdAt"))
+
+// TASK-4.14 privacy, retention, and deletion additions.
+const privacyWorkspaceFields = Object.keys((schema.tables.workspaces as any).validator.fields)
+assert.ok(privacyWorkspaceFields.includes("retentionMode"))
+assert.ok(privacyWorkspaceFields.includes("retentionConsentAt"))
+assert.ok(privacyWorkspaceFields.includes("retentionPolicyVersion"))
+assert.ok(privacyWorkspaceFields.includes("deletionRequestedAt"))
+assert.ok(Object.keys((schema.tables.audits as any).validator.fields).includes("deletionRequestedAt"))
+
+const deletionJobIndexes = (schema.tables.deletionJobs as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(deletionJobIndexes.includes("by_auditId"))
+assert.ok(deletionJobIndexes.includes("by_workspaceId_and_status"))
+assert.ok(deletionJobIndexes.includes("by_status_and_updatedAt"))
+
+const logoUploadIndexes = (schema.tables.logoUploads as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(logoUploadIndexes.includes("by_storageId"))
+assert.ok(logoUploadIndexes.includes("by_workspaceId"))
+
+const reportViewStatsIndexes = (schema.tables.reportViewStats as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(reportViewStatsIndexes.includes("by_auditId"))
+assert.ok(reportViewStatsIndexes.includes("by_workspaceId_and_auditId"))
+assert.ok((schema.tables.auditRawData as any).indexes.some((index: { indexDescriptor: string }) => index.indexDescriptor === "by_createdAt"))
+assert.ok((schema.tables.auditAssets as any).indexes.some((index: { indexDescriptor: string }) => index.indexDescriptor === "by_createdAt"))
+assert.ok((schema.tables.auditAgentRuns as any).indexes.some((index: { indexDescriptor: string }) => index.indexDescriptor === "by_createdAt"))
+assert.ok((schema.tables.audits as any).indexes.some((index: { indexDescriptor: string }) => index.indexDescriptor === "by_rerunOfAuditId"))
 
 console.log("schema contract tests passed")

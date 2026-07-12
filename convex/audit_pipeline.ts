@@ -147,6 +147,29 @@ function defaultPort(protocol: string) {
   return protocol === "https:" ? 443 : 80
 }
 
+function assertSafeOutboundUrl(target: URL) {
+  if (target.protocol !== "http:" && target.protocol !== "https:") {
+    throw new ProviderFetchError("UNSAFE_URL", "Nur HTTP- und HTTPS-Ziele sind erlaubt.", { retryable: false })
+  }
+  if (target.username || target.password) {
+    throw new ProviderFetchError("UNSAFE_URL", "URLs mit Zugangsdaten sind nicht erlaubt.", { retryable: false })
+  }
+  if (target.port && target.port !== "80" && target.port !== "443") {
+    throw new ProviderFetchError("UNSAFE_URL", "Nur die Web-Ports 80 und 443 sind erlaubt.", { retryable: false })
+  }
+}
+
+async function assertPublicProviderTarget(inputUrl: string) {
+  let target: URL
+  try {
+    target = new URL(inputUrl)
+  } catch {
+    throw new ProviderFetchError("INVALID_URL", "Die Ziel-URL ist ungültig.", { retryable: false })
+  }
+  assertSafeOutboundUrl(target)
+  await resolvePinnedHostname(target.hostname)
+}
+
 async function resolvePinnedHostname(hostname: string) {
   const validation = await validatePublicAuditTarget(hostname)
   if (!("ok" in validation)) {
@@ -169,6 +192,7 @@ async function requestOnce(
     bodyLimitBytes: number
   },
 ): Promise<FetchResult> {
+  assertSafeOutboundUrl(target)
   const pinnedAddress = await resolvePinnedHostname(target.hostname)
   const transport = target.protocol === "https:" ? https : http
   const requestHeaders = {
@@ -257,6 +281,7 @@ async function requestWithRedirects(
   },
 ): Promise<FetchResult> {
   let current = new URL(inputUrl)
+  assertSafeOutboundUrl(current)
   const redirectChain: string[] = []
   const maxRedirects = options.maxRedirects ?? 5
 
@@ -269,6 +294,7 @@ async function requestWithRedirects(
         throw new ProviderFetchError("REDIRECT_ERROR", "Die Weiterleitung war ungültig.", { retryable: false })
       }
       const next = new URL(location, current)
+      assertSafeOutboundUrl(next)
       if (next.protocol !== "http:" && next.protocol !== "https:") {
         throw new ProviderFetchError("REDIRECT_ERROR", "Die Weiterleitung war ungültig.", { retryable: false })
       }
@@ -585,6 +611,7 @@ async function scrapeHomepageWithFirecrawl(
     "scrape_homepage",
     `firecrawl:scrape:${url}`,
     async () => {
+      await assertPublicProviderTarget(url)
       const response = await requestJson<unknown>(`${firecrawlBaseUrl()}/v2/scrape`, {
         method: "POST",
         headers: firecrawlRequestHeaders(),
@@ -647,6 +674,7 @@ async function scrapePriorityPageWithFirecrawl(
     "scrape_priority_page",
     `firecrawl:scrape:${url}`,
     async () => {
+      await assertPublicProviderTarget(url)
       const response = await requestJson<unknown>(`${firecrawlBaseUrl()}/v2/scrape`, {
         method: "POST",
         headers: firecrawlRequestHeaders(),
@@ -706,6 +734,7 @@ async function mapWithFirecrawl(ctx: ActionCtx, claim: Claim, baseUrl: string): 
     "map_site_urls",
     `firecrawl:map:${baseUrl}`,
     async () => {
+      await assertPublicProviderTarget(baseUrl)
       const response = await requestJson<unknown>(`${firecrawlBaseUrl()}/v2/map`, {
         method: "POST",
         headers: firecrawlRequestHeaders(),
@@ -918,6 +947,7 @@ async function captureScreenshotWithFirecrawl(
     `capture_${viewport}_screenshot`,
     requestEvidence,
     async () => {
+      await assertPublicProviderTarget(targetUrl)
       const screenshotFormat = {
         type: "screenshot" as const,
         fullPage: true,
@@ -1016,6 +1046,7 @@ async function runPageSpeedAnalysis(ctx: ActionCtx, claim: Claim, targetUrl: str
     `run_${strategy}_pagespeed`,
     `pagespeed:${strategy}:${targetUrl}`,
     async () => {
+      await assertPublicProviderTarget(targetUrl)
       const response = await requestJson<{ lighthouseResult?: unknown }>(pagespeedUrl.toString(), {
         timeoutMs: timeout,
         bodyLimitBytes: 8_000_000,
@@ -1251,14 +1282,19 @@ async function storeScreenshot(
   type: "desktop_screenshot" | "mobile_screenshot",
   mimeType: string,
 ) {
-  await ctx.runMutation(internal.audit_state.storeAuditAsset, {
-    workspaceId: claim.workspaceId,
-    auditId: claim.auditId,
-    type,
-    storageId,
-    storageProvider: "convex",
-    mimeType,
-  })
+  try {
+    await ctx.runMutation(internal.audit_state.storeAuditAsset, {
+      workspaceId: claim.workspaceId,
+      auditId: claim.auditId,
+      type,
+      storageId,
+      storageProvider: "convex",
+      mimeType,
+    })
+  } catch (error) {
+    await ctx.storage.delete(storageId)
+    throw error
+  }
 }
 
 export const processAuditPipeline = internalAction({

@@ -1,7 +1,8 @@
 import { v } from "convex/values"
 
-import type { Doc } from "./_generated/dataModel"
+import type { Doc, Id } from "./_generated/dataModel"
 import { internalMutation } from "./_generated/server"
+import type { MutationCtx } from "./_generated/server"
 import { releaseWorkspaceCreditReservation } from "./lib/credits"
 
 function now() {
@@ -12,12 +13,18 @@ function terminalAuditStatus(status: Doc<"audits">["status"]) {
   return status === "completed" || status === "failed" || status === "cancelled"
 }
 
+async function auditAcceptsWrites(ctx: MutationCtx, auditId: Id<"audits">) {
+  const audit = await ctx.db.get(auditId)
+  return Boolean(audit && !audit.deletionRequestedAt && !terminalAuditStatus(audit.status))
+}
+
 export const createAuditPipelineState = internalMutation({
   args: {
     workspaceId: v.id("workspaces"),
     auditId: v.id("audits"),
   },
   handler: async (ctx, args) => {
+    if (!(await auditAcceptsWrites(ctx, args.auditId))) throw new Error("AUDIT_DELETION_PENDING")
     const existing = await ctx.db
       .query("auditPipelineStates")
       .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
@@ -126,7 +133,7 @@ export const finishAuditPipeline = internalMutation({
       .unique()
     const audit = await ctx.db.get(args.auditId)
 
-    if (!state || !audit || state.leaseToken !== args.leaseToken || state.status !== "running") {
+    if (!state || !audit || audit.deletionRequestedAt || terminalAuditStatus(audit.status) || state.leaseToken !== args.leaseToken || state.status !== "running") {
       return null
     }
 
@@ -216,7 +223,7 @@ export const failAuditPipeline = internalMutation({
       .unique()
     const audit = await ctx.db.get(args.auditId)
 
-    if (!state || !audit || state.leaseToken !== args.leaseToken || state.status !== "running") {
+    if (!state || !audit || audit.deletionRequestedAt || terminalAuditStatus(audit.status) || state.leaseToken !== args.leaseToken || state.status !== "running") {
       return null
     }
 
@@ -287,6 +294,7 @@ export const logProviderCallStart = internalMutation({
     retryCount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    if (args.auditId && !(await auditAcceptsWrites(ctx, args.auditId))) throw new Error("AUDIT_DELETION_PENDING")
     return await ctx.db.insert("providerCalls", {
       workspaceId: args.workspaceId,
       auditId: args.auditId,
@@ -313,6 +321,9 @@ export const logProviderCallFinish = internalMutation({
     responseStatus: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const call = await ctx.db.get(args.providerCallId)
+    if (!call) return null
+    if (call.auditId && !(await auditAcceptsWrites(ctx, call.auditId))) throw new Error("AUDIT_DELETION_PENDING")
     await ctx.db.patch(args.providerCallId, {
       status: args.status,
       latencyMs: args.latencyMs,
@@ -360,6 +371,7 @@ export const recordProviderCost = internalMutation({
     requestCount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    if (args.auditId && !(await auditAcceptsWrites(ctx, args.auditId))) throw new Error("AUDIT_DELETION_PENDING")
     const existing = await ctx.db
       .query("providerCosts")
       .withIndex("by_costKey", (q) => q.eq("costKey", args.costKey))
@@ -429,6 +441,7 @@ export const upsertAuditRawData = internalMutation({
     viewportMetaFound: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    if (!(await auditAcceptsWrites(ctx, args.auditId))) throw new Error("AUDIT_DELETION_PENDING")
     const existing = await ctx.db
       .query("auditRawData")
       .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
@@ -494,6 +507,7 @@ export const upsertAuditPage = internalMutation({
     sourceUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    if (!(await auditAcceptsWrites(ctx, args.auditId))) throw new Error("AUDIT_DELETION_PENDING")
     const existing = await ctx.db
       .query("auditPages")
       .withIndex("by_auditId_and_pageIndex", (q) => q.eq("auditId", args.auditId).eq("pageIndex", args.pageIndex))
@@ -539,6 +553,7 @@ export const upsertAuditPerformance = internalMutation({
     speedIndex: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    if (!(await auditAcceptsWrites(ctx, args.auditId))) throw new Error("AUDIT_DELETION_PENDING")
     const existing = await ctx.db
       .query("auditPerformance")
       .withIndex("by_auditId_and_strategy", (q) => q.eq("auditId", args.auditId).eq("strategy", args.strategy))
@@ -578,6 +593,9 @@ export const storeAuditAsset = internalMutation({
     mimeType: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    if (!(await auditAcceptsWrites(ctx, args.auditId))) {
+      throw new Error("AUDIT_DELETION_PENDING")
+    }
     const existing = await ctx.db
       .query("auditAssets")
       .withIndex("by_auditId_and_type", (q) => q.eq("auditId", args.auditId).eq("type", args.type))
@@ -624,6 +642,7 @@ export const upsertAuditBusinessData = internalMutation({
     provenance: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    if (!(await auditAcceptsWrites(ctx, args.auditId))) throw new Error("AUDIT_DELETION_PENDING")
     const existing = await ctx.db
       .query("auditBusinessData")
       .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))

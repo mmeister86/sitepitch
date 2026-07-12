@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 
 import schema from "./schema.ts"
 import { api, internal } from "./_generated/api"
-import { normalizeAuditUrl, validatePublicAuditTarget } from "./lib/audit_url"
+import { normalizeAuditUrl, toSafeDisplayUrl, validatePublicAuditTarget } from "./lib/audit_url"
 
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
@@ -224,6 +224,21 @@ describe("audit URL helpers", () => {
     })
   })
 
+  test("removes credentials, query secrets, and fragments from browser display URLs", () => {
+    assert.equal(
+      toSafeDisplayUrl("https://user:pass@example.com/path?token=canary-secret#private"),
+      "https://example.com/path",
+    )
+    assert.equal(toSafeDisplayUrl("https://example.com/?token=secret#private"), "https://example.com/")
+    assert.equal(toSafeDisplayUrl("javascript:alert(1)"), "")
+    assert.equal(toSafeDisplayUrl("mailto:test@example.com"), "")
+    assert.equal(toSafeDisplayUrl("not a url"), "")
+    assert.equal(
+      toSafeDisplayUrl("https://[2001:db8::1]:443/a%20path?q=secret"),
+      "https://[2001:db8::1]/a%20path",
+    )
+  })
+
   test("rejects unsafe protocols and whitespace", () => {
     const invalid = normalizeAuditUrl("javascript:alert(1)")
     assert.equal("code" in invalid, true)
@@ -233,6 +248,12 @@ describe("audit URL helpers", () => {
 
     const whitespace = normalizeAuditUrl("exa mple.com")
     assert.equal("code" in whitespace, true)
+
+    const unsafePort = normalizeAuditUrl("https://example.com:8443/path")
+    assert.equal("code" in unsafePort, true)
+    if ("code" in unsafePort) {
+      assert.equal(unsafePort.code, "UNSAFE_URL")
+    }
   })
 
   test("treats direct public IPs as safe and rejects private ones", async () => {
@@ -243,6 +264,12 @@ describe("audit URL helpers", () => {
     assert.equal("code" in unsafe, true)
     if ("code" in unsafe) {
       assert.equal(unsafe.code, "UNSAFE_URL")
+    }
+
+    for (const hostname of ["127.0.0.1", "169.254.169.254", "::1", "fe80::1", "::ffff:10.0.0.5"]) {
+      const result = await validatePublicAuditTarget(hostname)
+      assert.equal("code" in result, true, `${hostname} must be rejected`)
+      if ("code" in result) assert.equal(result.code, "UNSAFE_URL")
     }
   })
 
@@ -318,7 +345,7 @@ describe("audit start flow", () => {
     assert.equal(fnName, "audit_pipeline:processAuditPipeline")
     assert.deepEqual(fnArgs, { auditId: result.auditId })
 
-    const audit = await t.query(api.audits.getById, { auditId: result.auditId })
+    const audit = await t.query(internal.audits.getById, { auditId: result.auditId })
     assert.ok(audit)
     if (audit) {
       assert.equal(audit.status, "queued")
@@ -500,7 +527,7 @@ describe("audit start flow", () => {
       }),
     )
 
-    const audit = await t.query(api.audits.getById, { auditId: result.auditId })
+    const audit = await t.query(internal.audits.getById, { auditId: result.auditId })
     assert.ok(audit)
     if (audit) {
       assert.equal(audit.status, "validating_url")
@@ -540,7 +567,7 @@ describe("audit start flow", () => {
       leadId: leadId as any,
     })
 
-    const audit = await t.query(api.audits.getById, { auditId: result.auditId })
+    const audit = await t.query(internal.audits.getById, { auditId: result.auditId })
     assert.ok(audit)
     if (audit) {
       assert.equal(audit.leadId, leadId)

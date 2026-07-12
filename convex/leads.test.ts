@@ -631,7 +631,7 @@ describe("startAuditFromLead", () => {
     assert.equal(lead.status, "audited")
     assert.equal(lead.auditId, result.auditId)
 
-    const audit = await t.query(api.audits.getById, { auditId: result.auditId })
+    const audit = await t.query(internal.audits.getById, { auditId: result.auditId })
     assert.ok(audit)
     assert.equal(audit.leadId, leadId)
   })
@@ -720,7 +720,7 @@ describe("deleteLead", () => {
     assert.ok(list)
     assert.equal(list.items.length, 0)
 
-    const audit = await t.query(api.audits.getById, { auditId: result.auditId })
+    const audit = await t.query(internal.audits.getById, { auditId: result.auditId })
     assert.ok(audit)
     assert.equal(audit.leadId, undefined)
   })

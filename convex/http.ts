@@ -4,6 +4,7 @@ import { authComponent, createAuth } from "./auth"
 import { internal } from "./_generated/api"
 import { env, httpAction } from "./_generated/server"
 import { timingSafeHexEqual } from "./lib/lemonsqueezy"
+import { isJsonContentType, readLimitedRequestText } from "./lib/webhook_request"
 
 function toHex(bytes: ArrayBuffer) {
   return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("")
@@ -37,14 +38,21 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const secret = env.LEMONSQUEEZY_WEBHOOK_SECRET
     if (!secret) return new Response("Webhook not configured", { status: 503 })
-    const body = await request.text()
+    if (!isJsonContentType(request.headers.get("content-type"))) {
+      return new Response("Unsupported media type", { status: 415 })
+    }
+    const body = await readLimitedRequestText(request)
+    if (body === null) return new Response("Payload too large", { status: 413 })
     const signature = request.headers.get("x-signature") ?? ""
     const expected = await hmacSha256(body, secret)
     if (!timingSafeHexEqual(signature, expected)) return new Response("Invalid signature", { status: 401 })
 
     try {
-      const headerId = request.headers.get("x-event-id")
-      const providerEventId = headerId || await sha256(body)
+      JSON.parse(body)
+      // The signature covers the body, not arbitrary transport headers. Using the
+      // signed body hash makes replay deduplication impossible to bypass by changing
+      // an unsigned event-id header.
+      const providerEventId = await sha256(body)
       await ctx.runMutation(internal.billing.processWebhook, { providerEventId, payload: body })
       return new Response("OK", { status: 200 })
     } catch {

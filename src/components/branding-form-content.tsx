@@ -66,6 +66,7 @@ export function BrandingFormContent() {
   const data = useQuery(api.workspaces.getMyWorkspace)
   const updateBranding = useMutation(api.workspaces.updateBranding)
   const generateLogoUploadUrl = useMutation(api.workspaces.generateLogoUploadUrl)
+  const confirmLogoUpload = useMutation(api.workspaces.confirmLogoUpload)
   const clearLogo = useMutation(api.workspaces.clearLogo)
 
   const [name, setName] = useState("")
@@ -141,8 +142,12 @@ export function BrandingFormContent() {
 
   async function handleLogoUpload(file: File | null) {
     if (!file) return
-    if (!file.type.startsWith("image/")) {
-      toast.error("Bitte lade eine Bilddatei hoch.")
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      toast.error("Bitte lade ein PNG-, JPEG- oder WebP-Bild hoch.")
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Das Logo darf höchstens 2 MB groß sein.")
       return
     }
 
@@ -156,6 +161,8 @@ export function BrandingFormContent() {
       })
       if (!response.ok) throw new Error("Upload failed")
       const result = (await response.json()) as { storageId: string }
+      const confirmation = await confirmLogoUpload({ storageId: result.storageId as Id<"_storage"> })
+      if (!confirmation.storageId) throw new Error(confirmation.error ?? "Invalid logo upload")
       setLogoStorageId(result.storageId)
       setLogoUrl(URL.createObjectURL(file))
     } catch {
@@ -251,7 +258,7 @@ export function BrandingFormContent() {
                   <input
                     className="sr-only"
                     type="file"
-                    accept="image/*"
+                    accept="image/png,image/jpeg,image/webp"
                     onChange={(event) => void handleLogoUpload(event.target.files?.[0] ?? null)}
                   />
                 </label>

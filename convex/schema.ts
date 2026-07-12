@@ -64,9 +64,52 @@ export default defineSchema({
     ctaUrl: v.optional(v.string()),
     reportLanguage: reportLanguageValidator,
     brandingCompletedAt: v.optional(v.number()),
+    retentionMode: v.optional(v.union(v.literal("standard"), v.literal("extended"))),
+    retentionConsentAt: v.optional(v.number()),
+    retentionPolicyVersion: v.optional(v.string()),
+    deletionRequestedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_ownerUserId", ["ownerUserId"]),
+
+  retentionPreferenceEvents: defineTable({
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    mode: v.union(v.literal("standard"), v.literal("extended")),
+    policyVersion: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"]),
+
+  logoUploads: defineTable({
+    workspaceId: v.id("workspaces"),
+    storageId: v.id("_storage"),
+    contentType: v.string(),
+    size: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_storageId", ["storageId"])
+    .index("by_workspaceId", ["workspaceId"]),
+
+  deletionJobs: defineTable({
+    kind: v.union(v.literal("audit"), v.literal("workspace")),
+    workspaceId: v.id("workspaces"),
+    auditId: v.optional(v.id("audits")),
+    userId: v.optional(v.id("users")),
+    phase: v.string(),
+    status: v.union(
+      v.literal("prepared"),
+      v.literal("pending"),
+      v.literal("running"),
+      v.literal("completed"),
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_auditId", ["auditId"])
+    .index("by_workspaceId_and_status", ["workspaceId", "status"])
+    .index("by_status_and_updatedAt", ["status", "updatedAt"]),
 
   workspaceMembers: defineTable({
     workspaceId: v.id("workspaces"),
@@ -240,6 +283,7 @@ export default defineSchema({
     cancelledAt: v.optional(v.number()),
     errorMessage: v.optional(v.string()),
     errorCode: v.optional(v.string()),
+    deletionRequestedAt: v.optional(v.number()),
     queuedAt: v.optional(v.number()),
     startedAt: v.optional(v.number()),
     createdAt: v.number(),
@@ -252,6 +296,7 @@ export default defineSchema({
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
     .index("by_leadId", ["leadId"])
     .index("by_publicSlug", ["publicSlug"])
+    .index("by_rerunOfAuditId", ["rerunOfAuditId"])
     .index("by_workspaceId_and_publicSlug", ["workspaceId", "publicSlug"])
     .index("by_status_and_createdAt", ["status", "createdAt"]),
 
@@ -291,7 +336,8 @@ export default defineSchema({
   })
     .index("by_workspaceId", ["workspaceId"])
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
-    .index("by_auditId", ["auditId"]),
+    .index("by_auditId", ["auditId"])
+    .index("by_createdAt", ["createdAt"]),
 
   auditAssets: defineTable({
     workspaceId: v.id("workspaces"),
@@ -307,7 +353,8 @@ export default defineSchema({
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
     .index("by_auditId", ["auditId"])
     .index("by_auditId_and_type", ["auditId", "type"])
-    .index("by_workspaceId_and_type", ["workspaceId", "type"]),
+    .index("by_workspaceId_and_type", ["workspaceId", "type"])
+    .index("by_createdAt", ["createdAt"]),
 
   auditPerformance: defineTable({
     workspaceId: v.id("workspaces"),
@@ -426,6 +473,15 @@ export default defineSchema({
     .index("by_auditId", ["auditId"])
     .index("by_workspaceId_and_viewedAt", ["workspaceId", "viewedAt"])
     .index("by_viewedAt", ["viewedAt"]),
+
+  reportViewStats: defineTable({
+    workspaceId: v.id("workspaces"),
+    auditId: v.id("audits"),
+    totalViews: v.number(),
+    lastViewedAt: v.number(),
+  })
+    .index("by_auditId", ["auditId"])
+    .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"]),
 
   usageEvents: defineTable({
     workspaceId: v.id("workspaces"),
@@ -551,7 +607,8 @@ export default defineSchema({
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
     .index("by_auditId", ["auditId"])
     .index("by_workspaceId_and_purpose", ["workspaceId", "purpose"])
-    .index("by_workspaceId_and_status", ["workspaceId", "status"]),
+    .index("by_workspaceId_and_status", ["workspaceId", "status"])
+    .index("by_createdAt", ["createdAt"]),
 
   auditPersonaReviews: defineTable({
     workspaceId: v.id("workspaces"),

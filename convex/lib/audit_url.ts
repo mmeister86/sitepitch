@@ -10,6 +10,8 @@ export type NormalizedAuditUrl = {
   protocol: "http:" | "https:"
 }
 
+const ALLOWED_PORTS = new Set(["", "80", "443"])
+
 export type AuditUrlErrorCode = "INVALID_URL" | "UNSAFE_URL" | "URL_UNRESOLVABLE"
 
 export type AuditUrlError = {
@@ -73,6 +75,13 @@ export function normalizeAuditUrl(input: string): NormalizedAuditUrl | AuditUrlE
     return {
       code: "INVALID_URL",
       message: "URLs mit Zugangsdaten sind nicht erlaubt.",
+    }
+  }
+
+  if (!ALLOWED_PORTS.has(url.port)) {
+    return {
+      code: "UNSAFE_URL",
+      message: "Nur die Web-Ports 80 und 443 sind erlaubt.",
     }
   }
 
@@ -156,6 +165,20 @@ export function generatePublicSlug() {
   const bytes = new Uint8Array(16)
   crypto.getRandomValues(bytes)
   return toBase64Url(bytes)
+}
+
+export function toSafeDisplayUrl(value: string): string {
+  try {
+    const url = new URL(value)
+    if ((url.protocol !== "http:" && url.protocol !== "https:") || !url.host) return ""
+    // Convex's standard query runtime supports URL parsing, but not the
+    // username/password/search/hash setters. Reconstructing from read-only
+    // components also guarantees that credentials, query data, and fragments
+    // cannot reach browser DTOs.
+    return `${url.protocol}//${url.host}${url.pathname}`
+  } catch {
+    return ""
+  }
 }
 
 async function fetchDnsRecords(

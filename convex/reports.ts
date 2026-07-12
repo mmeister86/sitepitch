@@ -4,8 +4,10 @@ import { mutation, query, type QueryCtx } from "./_generated/server"
 import type { Doc, Id } from "./_generated/dataModel"
 import { CATEGORY_WEIGHTS } from "./lib/audit_scoring"
 import { auditRateLimiter } from "./lib/audit_rate_limit"
+import { toSafeDisplayUrl } from "./lib/audit_url"
 import { DEFAULT_WORKSPACE_ACCENT, findAppUser, getWorkspaceByOwner } from "./lib/workspace"
 import { outreachDraftTypeValidator } from "../src/lib/convex-schema-values.ts"
+import { recordReportView } from "./retention"
 
 // ---------------------------------------------------------------------------
 // Category metadata
@@ -164,17 +166,12 @@ export interface DesignCritiqueDto {
 }
 
 export interface ProviderCallDto {
-  providerCallId: string
   provider: string
   operation: string
   status: "queued" | "started" | "completed" | "failed"
   attempt: number
   latencyMs?: number
   errorCode?: string
-  errorMessage?: string
-  responseStatus?: number
-  startedAt: number
-  completedAt?: number
 }
 
 export interface ProviderCallsSummaryDto {
@@ -184,17 +181,12 @@ export interface ProviderCallsSummaryDto {
 
 function buildProviderCallDto(call: Doc<"providerCalls">): ProviderCallDto {
   return {
-    providerCallId: call._id,
     provider: call.provider,
     operation: call.operation,
     status: call.status,
     attempt: call.attempt,
     latencyMs: call.latencyMs ?? undefined,
     errorCode: call.errorCode ?? undefined,
-    errorMessage: call.errorMessage ?? undefined,
-    responseStatus: call.responseStatus ?? undefined,
-    startedAt: call.startedAt,
-    completedAt: call.completedAt ?? undefined,
   }
 }
 
@@ -212,6 +204,14 @@ function buildProviderCallsSummary(calls: Doc<"providerCalls">[]): ProviderCalls
     return { items, overall: "failed" }
   }
   return { items, overall: "completed" }
+}
+
+function validatedViewerHash(value: string | undefined) {
+  return value && /^[a-f0-9]{64}$/i.test(value) ? value.toLowerCase() : undefined
+}
+
+function safeViewerHash(value: string | undefined) {
+  return validatedViewerHash(value) ?? "anonymous"
 }
 
 // ---------------------------------------------------------------------------
@@ -399,7 +399,7 @@ async function resolveScreenshotUrls(
     if (asset.storageId) {
       return await ctx.storage.getUrl(asset.storageId)
     }
-    return asset.url ?? null
+    return null
   }
 
   return {
@@ -443,9 +443,9 @@ export const getInternalReportById = query({
     if (!audit) return null
 
     const workspace = await getWorkspaceByOwner(ctx, user._id)
-    if (!workspace || audit.workspaceId !== workspace._id) return null
+    if (!workspace || workspace.deletionRequestedAt || audit.workspaceId !== workspace._id) return null
 
-    const [score, summary, findings, checks, outreach, performanceRows, reportViews, personaReviews, copyReviewDoc, designCritiqueDoc, providerCalls] =
+    const [score, summary, findings, checks, outreach, performanceRows, reportViews, reportViewStats, personaReviews, copyReviewDoc, designCritiqueDoc, providerCalls] =
       await Promise.all([
         ctx.db
           .query("auditScores")
@@ -475,6 +475,10 @@ export const getInternalReportById = query({
           .query("reportViews")
           .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
           .take(100),
+        ctx.db
+          .query("reportViewStats")
+          .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+          .unique(),
         ctx.db
           .query("auditPersonaReviews")
           .withIndex("by_auditId_and_sortOrder", (q) => q.eq("auditId", args.auditId))
@@ -516,7 +520,7 @@ export const getInternalReportById = query({
       publicSlug: audit.publicSlug,
       reportLanguage: audit.reportLanguage,
       domain: audit.domain,
-      normalizedUrl: audit.normalizedUrl,
+      normalizedUrl: toSafeDisplayUrl(audit.normalizedUrl),
       auditType: audit.auditType,
       overallScore,
       completedAt: audit.completedAt ?? null,
@@ -532,7 +536,7 @@ export const getInternalReportById = query({
       outreachDrafts: buildOutreach(outreach),
       performance: buildPerformance(performanceRows),
       screenshots,
-      viewCount: reportViews.length,
+      viewCount: reportViewStats?.totalViews ?? reportViews.length,
       branding: buildBranding(workspace),
       personaReviews: buildPersonaReviews(personaReviews),
       copyReview: buildCopyReview(copyReviewDoc ?? null),
@@ -560,7 +564,7 @@ export const getPublicReportBySlug = query({
     if (audit.status !== "completed") return null
 
     const workspace = await ctx.db.get(audit.workspaceId)
-    if (!workspace) return null
+    if (!workspace || workspace.deletionRequestedAt) return null
 
     const [score, summary, findings] = await Promise.all([
       ctx.db
@@ -585,7 +589,7 @@ export const getPublicReportBySlug = query({
 
     return {
       domain: audit.domain,
-      normalizedUrl: audit.normalizedUrl,
+      normalizedUrl: toSafeDisplayUrl(audit.normalizedUrl),
       reportLanguage: audit.reportLanguage,
       completedAt: audit.completedAt ?? null,
       overallScore,
@@ -628,6 +632,9 @@ export const setPublicReportEnabled = mutation({
     if (!workspace || audit.workspaceId !== workspace._id) {
       throw new ConvexError({ code: "FORBIDDEN", message: "Workspace access denied" })
     }
+    if (workspace.deletionRequestedAt) {
+      throw new ConvexError({ code: "WORKSPACE_DELETION_PENDING", message: "Workspace deletion is pending" })
+    }
 
     if (args.enabled && audit.status !== "completed") {
       throw new ConvexError({
@@ -665,10 +672,16 @@ export const recordPublicReportView = mutation({
     if (!audit || !audit.isPublic || audit.status !== "completed") {
       return null
     }
+    const workspace = await ctx.db.get(audit.workspaceId)
+    if (!workspace || workspace.deletionRequestedAt) return null
 
-    const viewerKey = args.userAgentHash
-      ? `${audit.publicSlug}:${args.userAgentHash}`
-      : audit.publicSlug
+    const slugLimit = await auditRateLimiter.limit(ctx, "publicReportViewsBySlug", {
+      key: audit.publicSlug,
+    })
+    if (!slugLimit.ok) {
+      return { recorded: false, reason: "rate_limited" as const }
+    }
+    const viewerKey = `${audit.publicSlug}:${safeViewerHash(args.userAgentHash)}`
     const viewLimit = await auditRateLimiter.limit(ctx, "publicReportViewsByViewer", {
       key: viewerKey,
     })
@@ -681,11 +694,11 @@ export const recordPublicReportView = mutation({
       ? args.referrer.slice(0, 200)
       : undefined
 
-    await ctx.db.insert("reportViews", {
+    await recordReportView(ctx, {
       workspaceId: audit.workspaceId,
       auditId: audit._id,
       referrer: truncatedReferrer,
-      userAgentHash: args.userAgentHash,
+      userAgentHash: validatedViewerHash(args.userAgentHash),
       viewedAt: now,
     })
 
@@ -796,10 +809,16 @@ export const recordPublicReportCtaClick = mutation({
     if (!audit || !audit.isPublic || audit.status !== "completed") {
       return null
     }
+    const workspace = await ctx.db.get(audit.workspaceId)
+    if (!workspace || workspace.deletionRequestedAt) return null
 
-    const viewerKey = args.userAgentHash
-      ? `${audit.publicSlug}:cta:${args.userAgentHash}`
-      : `${audit.publicSlug}:cta`
+    const slugLimit = await auditRateLimiter.limit(ctx, "publicReportActionsBySlug", {
+      key: audit.publicSlug,
+    })
+    if (!slugLimit.ok) {
+      return { recorded: false, reason: "rate_limited" as const }
+    }
+    const viewerKey = `${audit.publicSlug}:cta:${safeViewerHash(args.userAgentHash)}`
     const ctaLimit = await auditRateLimiter.limit(ctx, "publicReportCtaByViewer", {
       key: viewerKey,
     })
@@ -838,10 +857,16 @@ export const recordPublicReportPdfExport = mutation({
     if (!audit || !audit.isPublic || audit.status !== "completed") {
       return null
     }
+    const workspace = await ctx.db.get(audit.workspaceId)
+    if (!workspace || workspace.deletionRequestedAt) return null
 
-    const viewerKey = args.userAgentHash
-      ? `${audit.publicSlug}:pdf:${args.userAgentHash}`
-      : `${audit.publicSlug}:pdf`
+    const slugLimit = await auditRateLimiter.limit(ctx, "publicReportActionsBySlug", {
+      key: audit.publicSlug,
+    })
+    if (!slugLimit.ok) {
+      return { recorded: false, reason: "rate_limited" as const }
+    }
+    const viewerKey = `${audit.publicSlug}:pdf:${safeViewerHash(args.userAgentHash)}`
     const pdfLimit = await auditRateLimiter.limit(ctx, "publicReportCtaByViewer", {
       key: viewerKey,
     })
@@ -936,10 +961,16 @@ export const getDashboardSummary = query({
 
     const auditsThisMonth = allAudits.filter((a) => a.createdAt >= utcStartTs).length
 
-    const reportViews = await ctx.db
-      .query("reportViews")
-      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspace._id))
-      .take(500)
+    const [reportViewStats, legacyReportViews] = await Promise.all([
+      ctx.db
+        .query("reportViewStats")
+        .withIndex("by_workspaceId_and_auditId", (q) => q.eq("workspaceId", workspace._id))
+        .take(500),
+      ctx.db
+        .query("reportViews")
+        .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspace._id))
+        .take(500),
+    ])
 
     const usageEvents = await ctx.db
       .query("usageEvents")
@@ -959,13 +990,23 @@ export const getDashboardSummary = query({
 
     const viewCounts = new Map<Id<"audits">, number>()
     for (const auditId of recentAuditIds) {
-      const views = await ctx.db
-        .query("reportViews")
+      const stats = await ctx.db
+        .query("reportViewStats")
         .withIndex("by_workspaceId_and_auditId", (q) =>
           q.eq("workspaceId", workspace._id).eq("auditId", auditId),
         )
-        .take(100)
-      viewCounts.set(auditId, views.length)
+        .unique()
+      if (stats) {
+        viewCounts.set(auditId, stats.totalViews)
+      } else {
+        const views = await ctx.db
+          .query("reportViews")
+          .withIndex("by_workspaceId_and_auditId", (q) =>
+            q.eq("workspaceId", workspace._id).eq("auditId", auditId),
+          )
+          .take(100)
+        viewCounts.set(auditId, views.length)
+      }
     }
 
     const outreachCounts = new Map<Id<"audits">, number>()
@@ -984,7 +1025,7 @@ export const getDashboardSummary = query({
       return {
         _id: audit._id,
         domain: audit.domain,
-        normalizedUrl: audit.normalizedUrl,
+        normalizedUrl: toSafeDisplayUrl(audit.normalizedUrl),
         status: audit.status,
         overallScore: scoreDoc,
         createdAt: audit.createdAt,
@@ -995,10 +1036,20 @@ export const getDashboardSummary = query({
       }
     })
 
+    const aggregateByAudit = new Map(reportViewStats.map((stats) => [stats.auditId, stats.totalViews]))
+    const legacyByAudit = new Map<Id<"audits">, number>()
+    for (const view of legacyReportViews) {
+      legacyByAudit.set(view.auditId, (legacyByAudit.get(view.auditId) ?? 0) + 1)
+    }
+    const totalReportViews = allAudits.reduce(
+      (total, audit) => total + (aggregateByAudit.get(audit._id) ?? legacyByAudit.get(audit._id) ?? 0),
+      0,
+    )
+
     return {
       auditsThisMonth,
       completedAudits,
-      reportViews: reportViews.length,
+      reportViews: totalReportViews,
       hasPublicReport,
       hasOutreachCopy,
       recentAudits,
