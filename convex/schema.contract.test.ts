@@ -162,6 +162,12 @@ assert.ok(
 )
 assert.ok(
   (usageEventsTable as any).indexes.some(
+    (index: { indexDescriptor: string }) =>
+      index.indexDescriptor === "by_workspaceId_and_event_and_createdAt",
+  ),
+)
+assert.ok(
+  (usageEventsTable as any).indexes.some(
     (index: { indexDescriptor: string }) => index.indexDescriptor === "by_workspaceId_and_createdAt",
   ),
 )

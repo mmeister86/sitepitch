@@ -47,6 +47,7 @@ import { authClient } from "@/lib/auth-client"
 import { getFirstName, getUserDisplayName } from "@/lib/user-display"
 import { api } from "../../convex/_generated/api"
 import { Spinner } from "@/components/ui/spinner"
+import { AuditExampleLinks } from "@/components/audit-example-links"
 
 type SummaryData = NonNullable<
   ReturnType<typeof useQuery<typeof api.reports.getDashboardSummary>>
@@ -78,6 +79,7 @@ export function DashboardView() {
   const engagement = useQuery(api.reports.getDashboardEngagement, {
     tzOffsetMinutes: typeof window !== "undefined" ? new Date().getTimezoneOffset() : 0,
   })
+  const activation = useQuery(api.activation.getMyActivationStatus, {})
   const session = authClient.useSession()
 
   const displayName = getUserDisplayName(
@@ -85,7 +87,7 @@ export function DashboardView() {
     ws?.user.email ?? session.data?.user?.email,
   )
 
-  if (ws === undefined || summary === undefined || engagement === undefined) {
+  if (ws === undefined || summary === undefined || engagement === undefined || activation === undefined) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <Spinner className="size-6 text-primary" />
@@ -102,43 +104,35 @@ export function DashboardView() {
     recentAudits: [],
   }
 
-  const workspace = ws?.workspace
-  const brandingDone = workspace
-    ? workspace.updatedAt > workspace.createdAt
-    : false
-  const firstAuditDone = summaryData.auditsThisMonth > 0
-  const completedDone = summaryData.completedAudits > 0
-
   const checklist = [
     {
       label: "Branding einrichten",
-      done: brandingDone,
+      done: activation?.completed.branding ?? false,
       cta: { label: "Branding öffnen", route: { name: "branding-settings" } as const },
+      key: "branding" as const,
     },
     {
-      label: "Ersten Audit starten",
-      done: firstAuditDone,
+      label: "Ersten Audit abschließen",
+      done: activation?.completed.firstAudit ?? false,
       cta: { label: "Ersten Audit starten", route: { name: "new-audit" } as const },
-    },
-    {
-      label: "Audit abschließen",
-      done: completedDone,
-      cta: { label: "Audits ansehen", route: { name: "audits" } as const },
-    },
-    {
-      label: "Report freigeben",
-      done: summaryData.hasPublicReport,
-      cta: { label: "Audits ansehen", route: { name: "audits" } as const },
+      key: "firstAudit" as const,
     },
     {
       label: "Outreach kopieren",
-      done: summaryData.hasOutreachCopy,
-      cta: { label: "Audits ansehen", route: { name: "audits" } as const },
+      done: activation?.completed.outreach ?? false,
+      cta: { label: "Outreach öffnen", route: { name: "audits" } as const },
+      key: "outreach" as const,
+    },
+    {
+      label: "Ersten Report teilen",
+      done: activation?.completed.firstShare ?? false,
+      cta: { label: "Report freigeben", route: { name: "audits" } as const },
+      key: "firstShare" as const,
     },
   ]
-  const doneCount = checklist.filter((c) => c.done).length
+  const doneCount = activation?.completedCount ?? 0
 
-  const firstOpenStep = checklist.find((c) => !c.done)
+  const firstOpenStep = checklist.find((c) => c.key === activation?.nextStep)
   const creditsRemaining = ws?.credits.remaining ?? 0
   const creditsTotal = ws?.credits.total ?? 0
   const recent = summaryData.recentAudits
@@ -154,7 +148,7 @@ export function DashboardView() {
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {total === 0
-              ? "Starte deinen ersten Audit, um Website-Potenziale zu entdecken."
+              ? "In unter fünf Minuten: Beispiel ansehen, Website eingeben und den ersten Audit starten."
               : `${total} Audits diesen Monat · ${summaryData.completedAudits} abgeschlossen · ${summaryData.reportViews} Report Views`}
           </p>
         </div>
@@ -286,10 +280,11 @@ export function DashboardView() {
                 <div>
                   <p className="text-sm font-medium">Noch keine Audits</p>
                   <p className="text-xs text-muted-foreground">
-                    Starte deinen ersten Audit, um loszulegen.
+                    Sieh dir zuerst einen Beispielreport an oder starte direkt mit einer Website.
                   </p>
                 </div>
                 <div className="flex flex-wrap justify-center gap-2">
+                  <AuditExampleLinks className="w-full pb-1" />
                   <Button
                     size="sm"
                     className="gap-1.5"

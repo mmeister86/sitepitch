@@ -76,9 +76,39 @@ Convex bleibt die autoritative Quelle für alle auditierbaren und betriebskritis
 
 ### usageEvents
 
-Ereignistypen: `signed_up`, `workspace_created`, `branding_completed`, `lead_search_started`, `lead_saved`, `audit_started`, `audit_completed`, `audit_failed`, `report_opened`, `report_cta_clicked`, `outreach_copied`, `public_link_copied`, `pdf_exported`, `credits_consumed`, `credits_exhausted`, `upgrade_clicked`, `checkout_started`, `subscription_started`.
+Ereignistypen: `signed_up`, `workspace_created`, `branding_completed`, `lead_search_started`, `lead_saved`, `audit_started`, `audit_completed`, `audit_failed`, `first_shared_report`, `report_opened`, `report_reopened`, `report_cta_clicked`, `outreach_copied`, `public_link_copied`, `pdf_exported`, `credits_consumed`, `credits_exhausted`, `upgrade_clicked`, `checkout_started`, `subscription_started`.
 
-Jedes Ereignis ist idempotent über `idempotencyKey` oder dedizierte Index-Prüfungen.
+Einmalige Server-Meilensteine sind über `idempotencyKey` oder dedizierte Index-Prüfungen idempotent. Interaktionsereignisse wie Outreach-/Link-Kopien und Report-Aktionen sind bewusst append-only, können mehrfach vorkommen und werden bei der Auswertung nach Workspace bzw. Audit dedupliziert; öffentliche Aktionen sind zusätzlich rate-limitiert.
+
+### Aktivierungsereignisse und Source of Truth
+
+Die Aktivierungs-Checkliste und der globale Funnel verwenden ausschließlich serverseitig gespeicherte Convex-Ereignisse. Rybbit, Workspace-`updatedAt`, der aktuelle Kalendermonat und der momentane `isPublic`-Wert sind dafür keine Quelle.
+
+| Meilenstein | Server-Auslöser | Semantik |
+|---|---|---|
+| `signed_up` | Workspace wird angelegt bzw. idempotent initialisiert | Workspace-Start; bleibt Funnel-Schritt, zählt aber nicht zu den vier Checklistenschritten |
+| `branding_completed` | Branding wird erstmals vollständig gespeichert | erster vollständiger Branding-Zustand |
+| `audit_completed` | Audit-Pipeline schließt erfolgreich ab | erster abgeschlossener Audit des Workspace |
+| `outreach_copied` | Nutzer kopiert einen Outreach-Entwurf | unabhängig davon, ob bereits ein Report geteilt wurde |
+| `first_shared_report` | ein zuvor nicht öffentlicher, abgeschlossener Report wird erstmals veröffentlicht | idempotenter Workspace-Meilenstein; entsteht beim Publish, nicht erst beim Kopieren des Links |
+| `public_link_copied` | Link eines öffentlichen Reports wird kopiert | Basis für die Open-Rate-Stichprobe; kann nach dem Publish mehrfach vorkommen |
+
+Ein deaktivierter und später erneut veröffentlichter Report erzeugt keinen zweiten `first_shared_report`-Meilenstein. Legacy-Daten werden über `backfillSignedUpEvents` ergänzt; die Migration ist operativ separat auszuführen und wird durch diese Dokumentation nicht als bereits gelaufen dargestellt.
+
+### Report geöffnet und erneut geöffnet
+
+`recordPublicReportView` ist die serverseitige Quelle für Views. Der erste akzeptierte View eines Audits erhöht `reportViewStats.totalViews` auf 1 und schreibt `report_opened`; jeder weitere akzeptierte View schreibt `report_reopened` und erhöht den Reopen-Zähler. Rate Limits und die browserseitige Session-Deduplizierung reduzieren Reload-Rauschen. `?preview=1` löst weder die View-Mutation noch Rybbit-Events, CTA-Events oder PDF-Events aus. Die statischen `/examples/*` laden kein Rybbit-Script und verwenden keine Convex-Query oder -Mutation.
+
+### Funnel und Raten
+
+`activation.getActivationFunnel` ist nur über den bestehenden Support-Admin-Allowlist-Mechanismus erreichbar. Normale Workspace-Owner können ausschließlich ihren eigenen Aktivierungsstatus lesen.
+
+- Funnel: `Signup → Branding → First Audit → Outreach Copied → First Shared Report`. Gezählt werden eindeutige Workspaces anhand ihres jeweils ersten Ereignis-Zeitpunkts. Ein späterer Schritt zählt nur, wenn sein Zeitstempel mindestens dem vorherigen Schritt entspricht. Deshalb kann ein vor Outreach geteilter Report in der Checkliste als erreicht gelten, zählt im sequentiellen Funnel aber nicht als letzter Schritt.
+- 24h-First-Share-Rate: Nenner sind eindeutige Workspaces mit `signed_up` im gewählten Fenster. Zähler sind diese Workspaces, deren erster Share zwischen Signup und einschließlich `signup + 24h` liegt.
+- Shared-Report-Open-Rate: Nenner sind eindeutige Audit-IDs mit `public_link_copied` im Fenster. Zähler sind diese Audits mit `reportViewStats.totalViews > 0`. Mehrfaches Link-Kopieren desselben Audits erhöht den Nenner nicht.
+- Bei Nenner 0 ist `rate: null`; es wird keine künstliche Division oder Prozentzahl geliefert.
+
+Das Abfragefenster ist auf 90 Tage begrenzt. Pro Ereignistyp werden höchstens 1.000 Zeilen ausgewertet. Sobald eine Quelle darüber liegt, liefert die Antwort `truncated: true`; Dashboards und Exporte müssen dann die Kennzahl als unvollständig markieren oder ein kleineres Fenster abfragen.
 
 ### providerCalls
 
@@ -152,3 +182,14 @@ Eine leere Liste bedeutet: kein Support-Zugang für niemanden.
 | Audit-Reports, Scores, Findings | bis Nutzer löscht |
 
 Die Retention wird über tägliche Cron-Jobs in `convex/crons.ts` in gebatchten Löschmutationen ausgeführt.
+
+Aktivierungs- und Funnel-Auswertungen enthalten nur opaque Workspace-/Audit-Bezüge und aggregierte Zähler; sie geben keine Domains, Namen oder E-Mail-Adressen zurück. Nach Ablauf der 24-monatigen `usageEvents`-Retention können historische Funnel-Fenster nicht rekonstruiert werden. Die Open-Rate liest den langlebigen Aggregatwert `reportViewStats.totalViews`, nicht die nach 30 Tagen gelöschten einzelnen IP-/UA-Hashes.
+
+## 6. Rollout, Migration und Rollback
+
+1. Schema und Code deployen, damit der neue zusammengesetzte Usage-Event-Index verfügbar ist.
+2. Migration zuerst als Dry-Run prüfen: `npx convex run migrations:backfillSignedUpEvents '{"dryRun": true}'` (für Produktion zusätzlich `--prod`).
+3. Erst nach Prüfung mit `npx convex run migrations:backfillSignedUpEvents` (Produktion: `--prod`) starten und den Status mit `npx convex run --component migrations lib:getStatus --watch` beobachten. Diese Schritte sind hier nur beschrieben; es wird nicht behauptet, dass sie ausgeführt wurden.
+4. Aktivierungsstatus mit einem Test-Workspace und Admin-Funnel mit einem kleinen Zeitfenster prüfen; `truncated` explizit überwachen.
+
+Rollback/Disable: Die Dashboard-Query kann auf Deployment-Ebene auf die vorherige UI zurückgerollt werden; die Admin-Funnel-Abfrage wird durch Entfernen des UI-Aufrufs bzw. Leeren von `SUPPORT_ADMIN_EMAILS` effektiv deaktiviert. Neue Events und der zusätzliche Index sind rückwärtskompatibel und sollten bei einem UI-Rollback zunächst erhalten bleiben. Keine Usage-Events löschen, solange Metrik- oder Compliance-Prüfungen laufen.

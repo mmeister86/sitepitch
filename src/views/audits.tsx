@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils"
 import { api } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
 import { Spinner } from "@/components/ui/spinner"
+import { AuditExampleLinks } from "@/components/audit-example-links"
 import {
   Select,
   SelectContent,
@@ -279,19 +280,22 @@ export function AuditsView() {
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {totalCount === 0
-                    ? "Starte deinen ersten Audit, um loszulegen."
+                    ? "Sieh dir den fertigen Ablauf an oder starte direkt mit einer Website."
                     : "Passe die Filter an oder starte einen neuen Audit."}
                 </p>
               </div>
               {totalCount === 0 ? (
-                <NewAuditDialog
-                  trigger={
-                    <Button size="sm" className="gap-1.5">
-                      <Plus className="size-4" />
-                      Ersten Audit starten
-                    </Button>
-                  }
-                />
+                <div className="flex flex-col items-center gap-3">
+                  <AuditExampleLinks />
+                  <NewAuditDialog
+                    trigger={
+                      <Button size="sm" className="gap-1.5">
+                        <Plus className="size-4" />
+                        Ersten Audit starten
+                      </Button>
+                    }
+                  />
+                </div>
               ) : (
                 <Button
                   variant="outline"

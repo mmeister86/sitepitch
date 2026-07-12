@@ -42,6 +42,7 @@ import { toast } from "@/components/ui/sonner"
 import { LeadSearchPanel } from "@/components/lead-search"
 import { LeadDetailPanel, LeadSummary } from "@/components/lead-common"
 import { LeadEditDialog, LeadEditButton } from "@/components/lead-edit-dialog"
+import { AuditExampleLinks } from "@/components/audit-example-links"
 import { useRouter } from "@/lib/router"
 import { cn } from "@/lib/utils"
 import { api } from "../../convex/_generated/api"
@@ -312,9 +313,10 @@ export function LeadsView() {
               <div>
                 <p className="text-sm font-medium">Noch keine Leads</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Nutze die Suche oben, um lokale Unternehmen zu finden und zu speichern.
+                  Suche oben ein Unternehmen, speichere es und starte danach direkt den Website-Audit.
                 </p>
               </div>
+              <AuditExampleLinks />
             </div>
           ) : (
             <Expandable type="single" collapsible className="divide-y">

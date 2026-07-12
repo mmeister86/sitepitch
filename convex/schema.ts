@@ -536,6 +536,7 @@ export default defineSchema({
     .index("by_workspaceId", ["workspaceId"])
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
     .index("by_workspaceId_and_event", ["workspaceId", "event"])
+    .index("by_workspaceId_and_event_and_createdAt", ["workspaceId", "event", "createdAt"])
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
     .index("by_workspaceId_and_idempotencyKey", ["workspaceId", "idempotencyKey"])
     .index("by_auditId_and_event", ["auditId", "event"])
