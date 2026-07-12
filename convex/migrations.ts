@@ -13,6 +13,25 @@ const migrations = new Migrations<DataModel, typeof schema>(components.migration
   defaultBatchSize: 50,
 })
 
+const FEED_ACTIVITY_EVENT_TYPES = new Set([
+  "report_opened",
+  "report_reopened",
+  "report_cta_clicked",
+  "outreach_copied",
+  "public_link_copied",
+  "pdf_exported",
+  "audit_completed",
+])
+
+/** Marks legacy dashboard-visible events for the indexed activity feed. */
+export const backfillFeedActivityDiscriminator = migrations.define({
+  table: "usageEvents",
+  migrateOne: (_ctx, event) => {
+    if (event.isFeedActivity === true || !FEED_ACTIVITY_EVENT_TYPES.has(event.event)) return
+    return { isFeedActivity: true }
+  },
+})
+
 /** Deploy-1 migration: legacy rows remain schema-valid until this has completed. */
 export const canonicalizeLeadStatuses = migrations.define({
   table: "leads",

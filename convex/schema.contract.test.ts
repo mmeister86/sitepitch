@@ -171,6 +171,16 @@ assert.ok(
     (index: { indexDescriptor: string }) => index.indexDescriptor === "by_workspaceId_and_createdAt",
   ),
 )
+assert.ok(
+  (usageEventsTable as any).indexes.some(
+    (index: { indexDescriptor: string }) =>
+      index.indexDescriptor === "by_workspaceId_and_isFeedActivity_and_createdAt",
+  ),
+)
+assert.ok(
+  Object.keys((usageEventsTable as any).validator.fields).includes("isFeedActivity"),
+  "usageEvents should include the optional feed discriminator",
+)
 
 const campaignsTable = schema.tables.campaigns as any
 const campaignIndexes = campaignsTable.indexes.map(

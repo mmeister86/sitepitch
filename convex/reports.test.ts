@@ -659,6 +659,7 @@ describe("recordPublicReportView", () => {
       "report_reopened",
       "report_reopened",
     ])
+    assert.equal(result.events.every((event) => event.isFeedActivity === true), true)
     assert.deepEqual(result.notifications.map((notification) => notification.type).sort(), [
       "first_open",
       "first_reopen",
@@ -872,6 +873,7 @@ describe("recordReportCopyEvent", () => {
     )
     const copyEvent = events.find((e) => e.event === "outreach_copied")
     assert.ok(copyEvent)
+    assert.equal(copyEvent!.isFeedActivity, true)
     assert.equal(copyEvent!.metadata?.draftType, "email")
     assert.equal(copyEvent!.metadata?.edited, true)
     assert.equal(copyEvent!.metadata?.includedReportLink, true)
@@ -908,6 +910,7 @@ describe("recordReportCopyEvent", () => {
     )
     const linkEvents = events.filter((e) => e.event === "public_link_copied")
     assert.equal(linkEvents.length, 2)
+    assert.equal(linkEvents.every((event) => event.isFeedActivity === true), true)
     const milestones = await t.query((ctx) =>
       ctx.db
         .query("usageEvents")
@@ -1115,6 +1118,7 @@ describe("recordPublicReportCtaClick", () => {
     )
     const ctaEvent = events.find((e) => e.event === "report_cta_clicked")
     assert.ok(ctaEvent)
+    assert.equal(ctaEvent!.isFeedActivity, true)
     const stats = await t.run((ctx) =>
       ctx.db.query("reportViewStats").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).unique(),
     )
@@ -1184,6 +1188,7 @@ describe("recordPublicReportPdfExport", () => {
     )
     const pdfEvent = events.find((e) => e.event === "pdf_exported")
     assert.ok(pdfEvent)
+    assert.equal(pdfEvent!.isFeedActivity, true)
     const stats = await t.run((ctx) =>
       ctx.db.query("reportViewStats").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).unique(),
     )
@@ -1233,6 +1238,7 @@ describe("getDashboardEngagement", () => {
     assert.ok(result)
     assert.equal(result!.hasData, false)
     assert.equal(result!.activity.length, 0)
+    assert.equal(result!.activityHasMore, false)
     assert.equal(result!.series.length, 14)
     assert.equal(result!.totals.views, 0)
   })
@@ -1260,12 +1266,14 @@ describe("getDashboardEngagement", () => {
         workspaceId,
         auditId,
         event: "report_cta_clicked",
+        isFeedActivity: true,
         createdAt: now,
       })
       await ctx.db.insert("usageEvents", {
         workspaceId,
         auditId,
         event: "audit_completed",
+        isFeedActivity: true,
         createdAt: now - 2000,
       })
     })
@@ -1312,6 +1320,7 @@ describe("getDashboardEngagement", () => {
         workspaceId,
         auditId,
         event: "report_opened",
+        isFeedActivity: true,
         createdAt: now,
       })
     })
@@ -1324,6 +1333,165 @@ describe("getDashboardEngagement", () => {
     const viewed = result!.activity.find((a) => a.event === "report_opened")
     assert.ok(viewed)
     assert.equal(viewed!.businessName, "Acme Bakery")
+  })
+
+  test("returns at most 15 indexed activities and signals additional entries", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t)
+
+    await t.mutation(async (ctx) => {
+      for (let index = 0; index < 17; index++) {
+        await ctx.db.insert("usageEvents", {
+          workspaceId,
+          auditId,
+          event: "report_opened",
+          isFeedActivity: true,
+          createdAt: 1_800_000_000_000 + index,
+        })
+      }
+      await ctx.db.insert("usageEvents", {
+        workspaceId,
+        auditId,
+        event: "audit_started",
+        createdAt: 1_900_000_000_000,
+      })
+    })
+
+    const result = await t
+      .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+      .query(api.reports.getDashboardEngagement, { tzOffsetMinutes: 0 })
+
+    assert.ok(result)
+    assert.equal(result.activity.length, 15)
+    assert.equal(result.activityHasMore, true)
+    assert.equal(result.activity[0]?.createdAt, 1_800_000_000_016)
+    assert.equal(result.activity.every((item) => item.event === "report_opened"), true)
+  })
+
+  test("keeps engagement totals independent from the 16-item activity preview", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t)
+
+    await t.mutation(async (ctx) => {
+      await ctx.db.insert("usageEvents", {
+        workspaceId,
+        auditId,
+        event: "outreach_copied",
+        isFeedActivity: true,
+        createdAt: 1_800_000_000_000,
+      })
+      for (let index = 1; index <= 20; index++) {
+        await ctx.db.insert("usageEvents", {
+          workspaceId,
+          auditId,
+          event: "report_opened",
+          isFeedActivity: true,
+          createdAt: 1_800_000_000_000 + index,
+        })
+      }
+    })
+
+    const result = await t
+      .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+      .query(api.reports.getDashboardEngagement, { tzOffsetMinutes: 0 })
+
+    assert.ok(result)
+    assert.equal(result.activity.some((item) => item.event === "outreach_copied"), false)
+    assert.equal(result.totals.outreachCopied, 1)
+  })
+})
+
+describe("listActivity", () => {
+  test("requires authentication", async () => {
+    const t = createTest()
+    await seedCompletedReport(t)
+
+    await assert.rejects(
+      () => t.query(api.reports.listActivity, { paginationOpts: { numItems: 25, cursor: null } }),
+      /UNAUTHENTICATED|Not authenticated/i,
+    )
+  })
+
+  test("returns an exhausted pagination shape when the authenticated user has no workspace", async () => {
+    const t = createTest()
+    await t.mutation(async (ctx) => {
+      await ctx.db.insert("users", {
+        tokenIdentifier: "workspace-missing-user",
+        betterAuthUserId: "workspace-missing-user",
+        email: "missing@example.com",
+        createdAt: 1_700_000_000_000,
+      })
+    })
+
+    const result = await t
+      .withIdentity({ tokenIdentifier: "workspace-missing-user", email: "missing@example.com" })
+      .query(api.reports.listActivity, { paginationOpts: { numItems: 25, cursor: null } })
+
+    assert.deepEqual(result, { page: [], isDone: true, continueCursor: "" })
+  })
+
+  test("paginates newest-first without duplicates and isolates the workspace", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t)
+
+    await t.mutation(async (ctx) => {
+      for (let index = 0; index < 30; index++) {
+        await ctx.db.insert("usageEvents", {
+          workspaceId,
+          auditId,
+          event: index % 2 === 0 ? "report_opened" : "report_reopened",
+          isFeedActivity: true,
+          createdAt: 1_800_000_000_000 + index,
+        })
+      }
+      await ctx.db.insert("usageEvents", {
+        workspaceId,
+        auditId,
+        event: "audit_started",
+        createdAt: 1_900_000_000_000,
+      })
+
+      const otherUserId = await ctx.db.insert("users", {
+        tokenIdentifier: "other-report-user",
+        betterAuthUserId: "other-report-user",
+        email: "other@example.com",
+        createdAt: 1_700_000_000_000,
+      })
+      const otherWorkspaceId = await ctx.db.insert("workspaces", {
+        name: "Other",
+        ownerUserId: otherUserId,
+        reportLanguage: "de",
+        createdAt: 1_700_000_000_000,
+        updatedAt: 1_700_000_000_000,
+      })
+      await ctx.db.insert("usageEvents", {
+        workspaceId: otherWorkspaceId,
+        event: "report_opened",
+        isFeedActivity: true,
+        createdAt: 2_000_000_000_000,
+      })
+    })
+
+    const asOwner = t.withIdentity({
+      tokenIdentifier: "report-test-token",
+      email: "studio@example.com",
+    })
+    const firstPage = await asOwner.query(api.reports.listActivity, {
+      paginationOpts: { numItems: 25, cursor: null },
+    })
+    const secondPage = await asOwner.query(api.reports.listActivity, {
+      paginationOpts: { numItems: 25, cursor: firstPage.continueCursor },
+    })
+
+    assert.equal(firstPage.page.length, 25)
+    assert.equal(firstPage.isDone, false)
+    assert.equal(secondPage.page.length, 5)
+    assert.equal(secondPage.isDone, true)
+    const combined = [...firstPage.page, ...secondPage.page]
+    assert.equal(new Set(combined.map((item) => item.id)).size, 30)
+    assert.equal(combined[0]?.createdAt, 1_800_000_000_029)
+    assert.equal(combined[29]?.createdAt, 1_800_000_000_000)
+    assert.equal(combined.every((item) => item.domain === "acme.com"), true)
   })
 })
 

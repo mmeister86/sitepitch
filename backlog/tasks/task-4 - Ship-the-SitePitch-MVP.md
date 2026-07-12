@@ -1,9 +1,10 @@
 ---
 id: TASK-4
 title: Ship the SitePitch MVP
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-07-03 20:02'
+updated_date: '2026-07-12 13:00'
 labels: []
 dependencies: []
 references:
@@ -11,7 +12,7 @@ references:
 documentation:
   - .docs/PRD-SitePitch.md
 priority: high
-ordinal: 4000
+ordinal: 1000
 ---
 
 ## Description
@@ -24,12 +25,20 @@ This is a parent task for implementation work. Execute through focused subtasks 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A new user can complete the MVP workflow from signup to sharing or copying outreach for at least one audited website.
-- [ ] #2 The MVP includes auth, workspace ownership, branding, URL audit creation, live status, report sharing, outreach drafts, credits, billing hooks, rate limiting, analytics, and understandable error handling.
-- [ ] #3 The audit engine separates deterministic checks, provider data collection, scoring, and Eve-generated language outputs.
-- [ ] #4 Public reports never expose API keys, private IDs, sensitive raw data, or unsupported legal/security claims.
+- [x] #1 A new user can complete the MVP workflow from signup to sharing or copying outreach for at least one audited website.
+- [x] #2 The MVP includes auth, workspace ownership, branding, URL audit creation, live status, report sharing, outreach drafts, credits, billing hooks, rate limiting, analytics, and understandable error handling.
+- [x] #3 The audit engine separates deterministic checks, provider data collection, scoring, and Eve-generated language outputs.
+- [x] #4 Public reports never expose API keys, private IDs, sensitive raw data, or unsupported legal/security claims.
 - [ ] #5 Launch readiness is validated against the PRD MVP launch criteria, including at least 10 real test audits and measurable provider cost per audit.
 <!-- AC:END -->
+
+
+
+
+
+
+
+
 
 ## Implementation Plan
 

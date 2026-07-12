@@ -5,6 +5,7 @@ import type { ReactNode } from "react"
 
 export type View =
   | { name: "dashboard" }
+  | { name: "activity" }
   | { name: "audits" }
   | { name: "new-audit" }
   | { name: "audit"; id: string }
@@ -26,6 +27,7 @@ function parsePath(pathname: string): View {
     return { name: "audit", id: decodeURIComponent(parts[1]) }
   }
   if (parts[0] === "audits") return { name: "audits" }
+  if (parts[0] === "activity") return { name: "activity" }
   if (parts[0] === "leads" && parts[1] === "search") {
     return { name: "lead-search" }
   }

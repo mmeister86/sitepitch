@@ -1,4 +1,5 @@
 import { ConvexError, v } from "convex/values"
+import { paginationOptsValidator } from "convex/server"
 
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server"
 import type { Doc, Id } from "./_generated/dataModel"
@@ -805,6 +806,7 @@ export const recordPublicReportView = mutation({
       workspaceId: audit.workspaceId,
       auditId: audit._id,
       event,
+      isFeedActivity: true,
       metadata: { source: "public_report" },
       createdAt: now,
     })
@@ -880,6 +882,7 @@ export const recordReportCopyEvent = mutation({
         userId: user._id,
         auditId: audit._id,
         event: "outreach_copied",
+        isFeedActivity: true,
         metadata: {
           draftType: args.draftType,
           edited: args.edited ?? false,
@@ -901,6 +904,7 @@ export const recordReportCopyEvent = mutation({
         userId: user._id,
         auditId: audit._id,
         event: "public_link_copied",
+        isFeedActivity: true,
         metadata: { source: "internal_report" },
         createdAt: now,
       })
@@ -968,6 +972,7 @@ export const recordPublicReportCtaClick = mutation({
       workspaceId: audit.workspaceId,
       auditId: audit._id,
       event: "report_cta_clicked",
+      isFeedActivity: true,
       metadata: { source: "public_report" },
       createdAt: now,
     })
@@ -1017,6 +1022,7 @@ export const recordPublicReportPdfExport = mutation({
       workspaceId: audit.workspaceId,
       auditId: audit._id,
       event: "pdf_exported",
+      isFeedActivity: true,
       metadata: { source: "public_report" },
       createdAt: now,
     })
@@ -1174,15 +1180,6 @@ export const getDashboardSummary = query({
 
 const DAY_MS = 86_400_000
 const ENGAGEMENT_WINDOW_DAYS = 14
-const ACTIVITY_EVENT_TYPES = new Set([
-  "report_opened",
-  "report_reopened",
-  "report_cta_clicked",
-  "outreach_copied",
-  "public_link_copied",
-  "pdf_exported",
-  "audit_completed",
-])
 
 export interface EngagementSeriesPoint {
   ts: number
@@ -1198,6 +1195,41 @@ export interface EngagementActivityItem {
   domain: string | null
   businessName: string | null
   detail: string | null
+}
+
+async function enrichActivityEvents(
+  ctx: QueryCtx,
+  workspaceId: Id<"workspaces">,
+  events: Doc<"usageEvents">[],
+): Promise<EngagementActivityItem[]> {
+  const auditIds = new Set<Id<"audits">>()
+  for (const event of events) {
+    if (event.auditId) auditIds.add(event.auditId)
+  }
+
+  const auditMeta = new Map<Id<"audits">, { domain: string; businessName: string | null }>()
+  for (const auditId of auditIds) {
+    const audit = await ctx.db.get(auditId)
+    if (!audit || audit.workspaceId !== workspaceId) continue
+    const lead = audit.leadId ? await ctx.db.get(audit.leadId) : null
+    auditMeta.set(auditId, {
+      domain: audit.domain,
+      businessName: lead?.workspaceId === workspaceId ? lead.businessName : null,
+    })
+  }
+
+  return events.map((event) => {
+    const meta = event.auditId ? auditMeta.get(event.auditId) ?? null : null
+    return {
+      id: event._id,
+      event: event.event,
+      createdAt: event.createdAt,
+      auditId: event.auditId ?? null,
+      domain: meta?.domain ?? null,
+      businessName: meta?.businessName ?? null,
+      detail: activityDetail(event.event, event.metadata),
+    }
+  })
 }
 
 export const getDashboardEngagement = query({
@@ -1251,58 +1283,73 @@ export const getDashboardEngagement = query({
       })
     }
 
-    const recentEvents = await ctx.db
+    const recentActivityEvents = await ctx.db
+      .query("usageEvents")
+      .withIndex("by_workspaceId_and_isFeedActivity_and_createdAt", (q) =>
+        q.eq("workspaceId", workspace._id).eq("isFeedActivity", true),
+      )
+      .order("desc")
+      .take(16)
+
+    const recentUsageEvents = await ctx.db
       .query("usageEvents")
       .withIndex("by_workspaceId_and_createdAt", (q) => q.eq("workspaceId", workspace._id))
       .order("desc")
       .take(40)
 
-    const activityRaw = recentEvents.filter((e) => ACTIVITY_EVENT_TYPES.has(e.event))
-
-    const auditIds = new Set<Id<"audits">>()
-    for (const e of activityRaw) {
-      if (e.auditId) auditIds.add(e.auditId)
-    }
-
-    const auditMeta = new Map<Id<"audits">, { domain: string; businessName: string | null }>()
-    for (const auditId of auditIds) {
-      const audit = await ctx.db.get(auditId)
-      if (!audit) continue
-      const lead = audit.leadId ? await ctx.db.get(audit.leadId) : null
-      auditMeta.set(auditId, {
-        domain: audit.domain,
-        businessName: lead?.businessName ?? null,
-      })
-    }
-
-    const activity: EngagementActivityItem[] = activityRaw
-      .slice(0, 12)
-      .map((e) => {
-        const meta = e.auditId ? auditMeta.get(e.auditId) ?? null : null
-        return {
-          id: e._id,
-          event: e.event,
-          createdAt: e.createdAt,
-          auditId: e.auditId ?? null,
-          domain: meta?.domain ?? null,
-          businessName: meta?.businessName ?? null,
-          detail: activityDetail(e.event, e.metadata),
-        }
-      })
+    const activity = await enrichActivityEvents(
+      ctx,
+      workspace._id,
+      recentActivityEvents.slice(0, 15),
+    )
 
     const totals = {
       views: recentViews.length,
-      outreachCopied: recentEvents.filter((e) => e.event === "outreach_copied").length,
-      publicLinkCopied: recentEvents.filter((e) => e.event === "public_link_copied").length,
-      ctaClicks: recentEvents.filter((e) => e.event === "report_cta_clicked").length,
-      pdfExports: recentEvents.filter((e) => e.event === "pdf_exported").length,
+      outreachCopied: recentUsageEvents.filter((e) => e.event === "outreach_copied").length,
+      publicLinkCopied: recentUsageEvents.filter((e) => e.event === "public_link_copied").length,
+      ctaClicks: recentUsageEvents.filter((e) => e.event === "report_cta_clicked").length,
+      pdfExports: recentUsageEvents.filter((e) => e.event === "pdf_exported").length,
     }
 
     return {
       series,
       activity,
+      activityHasMore: recentActivityEvents.length > 15,
       totals,
       hasData: recentViews.length > 0 || activity.length > 0,
+    }
+  },
+})
+
+export const listActivity = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) {
+      throw new ConvexError({ code: "UNAUTHENTICATED", message: "Not authenticated" })
+    }
+
+    const user = await findAppUser(ctx, identity.tokenIdentifier)
+    if (!user) {
+      throw new ConvexError({ code: "UNAUTHENTICATED", message: "Not authenticated" })
+    }
+
+    const workspace = await getWorkspaceByOwner(ctx, user._id)
+    if (!workspace) {
+      return { page: [], isDone: true, continueCursor: "" }
+    }
+
+    const result = await ctx.db
+      .query("usageEvents")
+      .withIndex("by_workspaceId_and_isFeedActivity_and_createdAt", (q) =>
+        q.eq("workspaceId", workspace._id).eq("isFeedActivity", true),
+      )
+      .order("desc")
+      .paginate(args.paginationOpts)
+
+    return {
+      ...result,
+      page: await enrichActivityEvents(ctx, workspace._id, result.page),
     }
   },
 })

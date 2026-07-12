@@ -655,6 +655,7 @@ export const completeAuditFromAgent = internalMutation({
         workspaceId: audit.workspaceId,
         auditId: args.auditId,
         event: "audit_completed",
+        isFeedActivity: true,
         idempotencyKey: `audit_completed:${args.auditId}`,
         createdAt: current,
       })

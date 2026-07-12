@@ -142,6 +142,8 @@ function useTitle() {
   switch (view.name) {
     case "dashboard":
       return "Übersicht"
+    case "activity":
+      return "Aktivität"
     case "audits":
       return "Audits"
     case "new-audit":

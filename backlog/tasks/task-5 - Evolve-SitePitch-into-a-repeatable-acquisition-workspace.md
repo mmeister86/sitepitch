@@ -1,9 +1,10 @@
 ---
 id: TASK-5
 title: Evolve SitePitch into a repeatable acquisition workspace
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-07-03 20:04'
+updated_date: '2026-07-12 13:00'
 labels:
   - post-mvp
   - prd
@@ -13,7 +14,7 @@ references:
 documentation:
   - .docs/PRD-SitePitch-Post-MVP.md
 priority: medium
-ordinal: 20000
+ordinal: 2000
 ---
 
 ## Description

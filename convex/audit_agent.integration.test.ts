@@ -264,6 +264,7 @@ describe("completeAuditFromAgent", () => {
         .take(2),
     )
     assert.equal(events.length, 1)
+    assert.equal(events[0]?.isFeedActivity, true)
   })
 
   test("promotes only new linked leads and preserves canonical and legacy statuses", async () => {

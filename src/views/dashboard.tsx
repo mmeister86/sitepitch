@@ -11,18 +11,17 @@ import {
   CheckCircle2,
   Sparkles,
   TrendingUp,
-  Bell,
-  MousePointerClick,
-  Copy,
-  Download,
-  Link2,
-  type LucideIcon,
+  ChevronDown,
+  ArrowUpRight,
 } from "lucide-react"
+import { useState } from "react"
 import { useQuery } from "convex/react"
+import { LayoutGroup, motion, useReducedMotion } from "motion/react"
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts"
 
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardFooter,
@@ -47,6 +46,7 @@ import { authClient } from "@/lib/auth-client"
 import { getFirstName, getUserDisplayName } from "@/lib/user-display"
 import { api } from "../../convex/_generated/api"
 import { Spinner } from "@/components/ui/spinner"
+import { ActivityEmptyState, ActivityFeed } from "@/components/activity-feed"
 import { AuditExampleLinks } from "@/components/audit-example-links"
 import { formatReportViewCount } from "@/lib/report-view-count"
 
@@ -62,17 +62,10 @@ const engagementChartConfig = {
   views: { label: "Views", color: "var(--chart-1)" },
 } satisfies ChartConfig
 
-const activityIcon: Record<string, { icon: LucideIcon; tone: string }> = {
-  report_opened: { icon: Eye, tone: "bg-chart-1/12 text-chart-1" },
-  report_cta_clicked: { icon: MousePointerClick, tone: "bg-primary/12 text-primary" },
-  outreach_copied: { icon: Copy, tone: "bg-chart-2/12 text-chart-2" },
-  public_link_copied: { icon: Link2, tone: "bg-chart-3/12 text-chart-3" },
-  pdf_exported: { icon: Download, tone: "bg-chart-4/12 text-chart-4" },
-  audit_completed: { icon: CheckCircle2, tone: "bg-score-strong/15 text-score-strong" },
-}
-
 export function DashboardView() {
   const { navigate } = useRouter()
+  const reduceMotion = useReducedMotion()
+  const [activityExpanded, setActivityExpanded] = useState(false)
   const ws = useQuery(api.workspaces.getMyWorkspace)
   const summary = useQuery(api.reports.getDashboardSummary, {
     tzOffsetMinutes: typeof window !== "undefined" ? new Date().getTimezoneOffset() : 0,
@@ -205,10 +198,50 @@ export function DashboardView() {
       </div>
 
       {/* Engagement + Activity */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <EngagementCard engagement={engagement} />
-        <ActivityCard engagement={engagement} />
-      </div>
+      <LayoutGroup id="dashboard-engagement-activity">
+        <div className="grid gap-4 lg:grid-cols-3 2xl:grid-cols-12">
+          <motion.div
+            layout={!reduceMotion}
+            className={cn(
+              "min-w-0 lg:col-span-2",
+              activityExpanded ? "2xl:col-span-5" : "2xl:col-span-8",
+            )}
+            transition={{
+              layout: reduceMotion
+                ? { duration: 0 }
+                : {
+                    type: "tween",
+                    duration: 0.36,
+                    ease: [0.22, 1, 0.36, 1],
+                  },
+            }}
+          >
+            <EngagementCard engagement={engagement} />
+          </motion.div>
+          <motion.div
+            layout={!reduceMotion}
+            className={cn(
+              "min-w-0 lg:col-span-1",
+              activityExpanded ? "2xl:col-span-7" : "2xl:col-span-4",
+            )}
+            transition={{
+              layout: reduceMotion
+                ? { duration: 0 }
+                : {
+                    type: "tween",
+                    duration: 0.36,
+                    ease: [0.22, 1, 0.36, 1],
+                  },
+            }}
+          >
+            <ActivityCard
+              engagement={engagement}
+              expanded={activityExpanded}
+              onExpandedChange={setActivityExpanded}
+            />
+          </motion.div>
+        </div>
+      </LayoutGroup>
 
       {/* Activation + Recent */}
       <div className="grid gap-4 lg:grid-cols-3">
@@ -351,7 +384,7 @@ function EngagementCard({ engagement }: { engagement: EngagementData | null }) {
   const totalViews = engagement?.totals.views ?? 0
 
   return (
-    <Card className="lg:col-span-2">
+    <Card className="h-full min-w-0">
       <CardHeader>
         <div className="flex items-center justify-between gap-2">
           <div>
@@ -406,57 +439,86 @@ function EngagementCard({ engagement }: { engagement: EngagementData | null }) {
   )
 }
 
-function ActivityCard({ engagement }: { engagement: EngagementData | null }) {
+function ActivityCard({
+  engagement,
+  expanded,
+  onExpandedChange,
+}: {
+  engagement: EngagementData | null
+  expanded: boolean
+  onExpandedChange: (expanded: boolean) => void
+}) {
+  const { navigate } = useRouter()
   const items = engagement?.activity ?? []
   const empty = items.length === 0
+  const compactItems = items.slice(0, 5)
+  const expandedItems = items.slice(0, 15)
+  const canExpand = items.length > 5
+  const hasMore = engagement?.activityHasMore ?? false
 
   return (
-    <Card>
+    <Card className="h-full min-w-0">
       <CardHeader>
         <CardTitle>Aktivität</CardTitle>
         <CardDescription>Was Prospects gerade tun</CardDescription>
+        {canExpand ? (
+          <CardAction className="flex items-center gap-1">
+            {expanded && hasMore ? (
+              <Button
+                variant="link"
+                size="sm"
+                className="hidden px-2 2xl:inline-flex"
+                onClick={() => navigate({ name: "activity" })}
+              >
+                Alle Aktivitäten ansehen
+                <ArrowUpRight className="size-4" aria-hidden="true" />
+              </Button>
+            ) : null}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 2xl:hidden"
+              onClick={() => navigate({ name: "activity" })}
+            >
+              Mehr anzeigen
+              <ArrowUpRight className="size-4" aria-hidden="true" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="hidden gap-1.5 2xl:inline-flex"
+              aria-expanded={expanded}
+              aria-controls="dashboard-activity-feed"
+              onClick={() => onExpandedChange(!expanded)}
+            >
+              {expanded ? "Weniger anzeigen" : "Mehr anzeigen"}
+              <ChevronDown
+                className={cn(
+                  "size-4 motion-safe:transition-transform motion-safe:duration-200",
+                  expanded && "rotate-180",
+                )}
+                aria-hidden="true"
+              />
+            </Button>
+          </CardAction>
+        ) : null}
       </CardHeader>
-      <CardContent>
+      <CardContent
+        id="dashboard-activity-feed"
+        className="relative flex flex-1 flex-col overflow-clip"
+      >
         {empty ? (
-          <div className="flex h-[220px] flex-col items-center justify-center gap-2 text-center">
-            <div className="flex size-10 items-center justify-center rounded-full bg-muted">
-              <Bell className="size-5 text-muted-foreground" />
-            </div>
-            <p className="text-sm font-medium text-muted-foreground">Noch keine Aktivität</p>
-            <p className="max-w-xs text-xs text-muted-foreground/70">
-              Report-Views, CTA-Klicks und Outreach-Kopien erscheinen hier, sobald
-              der erste Prospect interagiert.
-            </p>
-          </div>
+          <ActivityEmptyState className="h-[220px]" />
         ) : (
-          <ul className="divide-y">
-            {items.map((item) => {
-              const meta = activityIcon[item.event] ?? {
-                icon: Bell,
-                tone: "bg-muted text-muted-foreground",
-              }
-              const Icon = meta.icon
-              const label = item.businessName ?? item.domain ?? "Report"
-              return (
-                <li key={item.id} className="flex items-start gap-3 py-2.5 first:pt-0">
-                  <span
-                    className={cn(
-                      "flex size-7 shrink-0 items-center justify-center rounded-full",
-                      meta.tone,
-                    )}
-                  >
-                    <Icon className="size-3.5" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm leading-tight">{item.detail ?? item.event}</p>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {label} · {formatRelativeTs(item.createdAt)}
-                    </p>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
+          <ActivityFeed
+            items={expanded ? expandedItems : compactItems}
+            label="Letzte Aktivitäten"
+            animateFrom={5}
+            compactAfter={5}
+            compact
+            className={cn(expanded && "2xl:grid 2xl:grid-cols-3 2xl:gap-x-6 2xl:divide-y-0")}
+            itemClassName={cn(expanded && "2xl:border-b 2xl:first:pt-2")}
+          />
         )}
       </CardContent>
     </Card>
