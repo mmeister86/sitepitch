@@ -5,10 +5,12 @@ import {
   auditStatusValidator,
   auditPipelineStatusValidator,
   auditTypeValidator,
+  canonicalLeadStatusValidator,
   creditLedgerTypeValidator,
   providerCallProviderValidator,
   providerCallStatusValidator,
   reportLanguageValidator,
+  usageEventTypeValidator,
   workspaceMemberRoleValidator,
 } from "../src/lib/convex-schema-values.ts"
 
@@ -41,7 +43,9 @@ assert.deepEqual(tableNames, [
   "leadSearchSnapshots",
   "leads",
   "logoUploads",
+  "notifications",
   "outreachDrafts",
+  "outreachTemplates",
   "providerBillingSnapshots",
   "providerCalls",
   "providerCosts",
@@ -336,6 +340,48 @@ const reportViewStatsIndexes = (schema.tables.reportViewStats as any).indexes.ma
 )
 assert.ok(reportViewStatsIndexes.includes("by_auditId"))
 assert.ok(reportViewStatsIndexes.includes("by_workspaceId_and_auditId"))
+
+const leadStatusValues = getValidatorValues(
+  (schema.tables.leads as any).validator.fields.status,
+)
+assert.ok(leadStatusValues.some((value: any) => value.value === "follow_up"))
+assert.ok(leadStatusValues.some((value: any) => value.value === "not_interested"))
+
+for (const field of ["reportCtaText", "reportCtaUrl", "reportCtaSnapshottedAt"]) {
+  assert.ok(Object.keys((schema.tables.audits as any).validator.fields).includes(field))
+}
+for (const field of ["reportCtaText", "reportCtaUrl"]) {
+  assert.ok(Object.keys((schema.tables.leads as any).validator.fields).includes(field))
+}
+for (const field of ["firstViewedAt", "reopenCount", "ctaClicks", "pdfDownloads"]) {
+  assert.ok(Object.keys((schema.tables.reportViewStats as any).validator.fields).includes(field))
+}
+
+const notificationIndexes = (schema.tables.notifications as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(notificationIndexes.includes("by_auditId_and_type"))
+assert.ok(notificationIndexes.includes("by_recipientUserId_and_createdAt"))
+assert.ok(notificationIndexes.includes("by_workspaceId_and_createdAt"))
+
+const templateIndexes = (schema.tables.outreachTemplates as any).indexes.map(
+  (index: { indexDescriptor: string }) => index.indexDescriptor,
+)
+assert.ok(templateIndexes.includes("by_workspaceId_and_updatedAt"))
+assert.ok(templateIndexes.includes("by_workspaceId_and_type"))
+
+const usageEventValues = getValidatorValues(usageEventTypeValidator)
+assert.ok(usageEventValues.some((value: any) => value.value === "report_reopened"))
+assert.ok(usageEventValues.some((value: any) => value.value === "first_shared_report"))
+assert.deepEqual(getValidatorValues(canonicalLeadStatusValidator), [
+  { type: "literal", value: "new" },
+  { type: "literal", value: "audited" },
+  { type: "literal", value: "contacted" },
+  { type: "literal", value: "follow_up" },
+  { type: "literal", value: "interested" },
+  { type: "literal", value: "won" },
+  { type: "literal", value: "lost" },
+])
 assert.ok((schema.tables.auditRawData as any).indexes.some((index: { indexDescriptor: string }) => index.indexDescriptor === "by_createdAt"))
 assert.ok((schema.tables.auditAssets as any).indexes.some((index: { indexDescriptor: string }) => index.indexDescriptor === "by_createdAt"))
 assert.ok((schema.tables.auditAgentRuns as any).indexes.some((index: { indexDescriptor: string }) => index.indexDescriptor === "by_createdAt"))

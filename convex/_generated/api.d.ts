@@ -53,6 +53,7 @@ import type * as lib_telemetry_safety from "../lib/telemetry_safety.js";
 import type * as lib_turnstile from "../lib/turnstile.js";
 import type * as lib_webhook_request from "../lib/webhook_request.js";
 import type * as lib_workspace from "../lib/workspace.js";
+import type * as migrations from "../migrations.js";
 import type * as provider_billing from "../provider_billing.js";
 import type * as provider_billing_state from "../provider_billing_state.js";
 import type * as reports from "../reports.js";
@@ -112,6 +113,7 @@ declare const fullApi: ApiFromModules<{
   "lib/turnstile": typeof lib_turnstile;
   "lib/webhook_request": typeof lib_webhook_request;
   "lib/workspace": typeof lib_workspace;
+  migrations: typeof migrations;
   provider_billing: typeof provider_billing;
   provider_billing_state: typeof provider_billing_state;
   reports: typeof reports;
@@ -148,6 +150,7 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   betterAuth: import("@convex-dev/better-auth/_generated/component.js").ComponentApi<"betterAuth">;
+  migrations: import("@convex-dev/migrations/_generated/component.js").ComponentApi<"migrations">;
   rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
   auditWorkpool: import("@convex-dev/workpool/_generated/component.js").ComponentApi<"auditWorkpool">;
   providerWorkpool: import("@convex-dev/workpool/_generated/component.js").ComponentApi<"providerWorkpool">;

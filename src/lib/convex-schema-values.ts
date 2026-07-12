@@ -88,8 +88,21 @@ export const leadStatusValidator = v.union(
   v.literal("new"),
   v.literal("audited"),
   v.literal("contacted"),
+  v.literal("follow_up"),
   v.literal("interested"),
+  // Legacy deploy-1 value. Keep readable until canonicalizeLeadStatuses has
+  // completed and a later narrowing deploy removes it.
   v.literal("not_interested"),
+  v.literal("won"),
+  v.literal("lost"),
+)
+
+export const canonicalLeadStatusValidator = v.union(
+  v.literal("new"),
+  v.literal("audited"),
+  v.literal("contacted"),
+  v.literal("follow_up"),
+  v.literal("interested"),
   v.literal("won"),
   v.literal("lost"),
 )
@@ -186,6 +199,8 @@ export const usageEventTypeValidator = v.union(
   v.literal("audit_completed"),
   v.literal("audit_failed"),
   v.literal("report_opened"),
+  v.literal("report_reopened"),
+  v.literal("first_shared_report"),
   v.literal("report_cta_clicked"),
   v.literal("outreach_copied"),
   v.literal("public_link_copied"),

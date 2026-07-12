@@ -380,6 +380,30 @@ describe("getInternalReportById", () => {
 // ---------------------------------------------------------------------------
 
 describe("setPublicReportEnabled", () => {
+  test("records first_shared_report once and snapshots the CTA on first publish", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t, { isPublic: false })
+
+    const authed = t.withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+    await authed.mutation(api.reports.setPublicReportEnabled, { auditId, enabled: true })
+    await authed.mutation(api.reports.setPublicReportEnabled, { auditId, enabled: false })
+    await authed.mutation(api.reports.setPublicReportEnabled, { auditId, enabled: true })
+
+    const result = await t.run(async (ctx) => ({
+      audit: await ctx.db.get(auditId),
+      events: await ctx.db
+        .query("usageEvents")
+        .withIndex("by_workspaceId_and_event", (q) =>
+          q.eq("workspaceId", workspaceId).eq("event", "first_shared_report"),
+        )
+        .take(10),
+    }))
+    assert.equal(result.events.length, 1)
+    assert.equal(result.audit?.reportCtaText, "Kostenloses Erstgespräch")
+    assert.equal(result.audit?.reportCtaUrl, "https://studio.example.com/contact")
+    assert.ok(result.audit?.reportCtaSnapshottedAt)
+  })
+
   test("toggles isPublic for the workspace owner", async () => {
     const t = createTest()
     const { auditId } = await seedCompletedReport(t, { isPublic: true })
@@ -450,6 +474,25 @@ describe("setPublicReportEnabled", () => {
 // ---------------------------------------------------------------------------
 
 describe("recordPublicReportView", () => {
+  test("tracks first view and reopen aggregates", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t, {
+      slug: "aggregate-view-slug",
+      isPublic: true,
+    })
+
+    await t.mutation(api.reports.recordPublicReportView, { slug: "aggregate-view-slug" })
+    await t.mutation(api.reports.recordPublicReportView, { slug: "aggregate-view-slug" })
+
+    const result = await t.run(async (ctx) => ({
+      stats: await ctx.db.query("reportViewStats").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).unique(),
+      reopenEvents: await ctx.db.query("usageEvents").withIndex("by_workspaceId_and_event", (q) => q.eq("workspaceId", workspaceId).eq("event", "report_reopened")).take(10),
+    }))
+    assert.ok(result.stats?.firstViewedAt)
+    assert.equal(result.stats?.reopenCount, 1)
+    assert.equal(result.reopenEvents.length, 1)
+  })
+
   test("records a view and usage event for an enabled report", async () => {
     const t = createTest()
     const { auditId, workspaceId } = await seedCompletedReport(t, {
@@ -766,6 +809,8 @@ describe("recordPublicReportCtaClick", () => {
       isPublic: true,
     })
 
+    await t.mutation(api.reports.recordPublicReportView, { slug: "cta-test-slug" })
+
     const result = await t.mutation(api.reports.recordPublicReportCtaClick, {
       slug: "cta-test-slug",
     })
@@ -782,6 +827,10 @@ describe("recordPublicReportCtaClick", () => {
     )
     const ctaEvent = events.find((e) => e.event === "report_cta_clicked")
     assert.ok(ctaEvent)
+    const stats = await t.run((ctx) =>
+      ctx.db.query("reportViewStats").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).unique(),
+    )
+    assert.equal(stats?.ctaClicks, 1)
   })
 
   test("returns null for a disabled report", async () => {
@@ -827,6 +876,8 @@ describe("recordPublicReportPdfExport", () => {
       isPublic: true,
     })
 
+    await t.mutation(api.reports.recordPublicReportView, { slug: "pdf-test-slug" })
+
     mocks.auditRateLimiter.limit.mockResolvedValue({ ok: true, retryAfter: null })
 
     const result = await t.mutation(api.reports.recordPublicReportPdfExport, {
@@ -845,6 +896,10 @@ describe("recordPublicReportPdfExport", () => {
     )
     const pdfEvent = events.find((e) => e.event === "pdf_exported")
     assert.ok(pdfEvent)
+    const stats = await t.run((ctx) =>
+      ctx.db.query("reportViewStats").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).unique(),
+    )
+    assert.equal(stats?.pdfDownloads, 1)
   })
 
   test("returns null for a disabled report", async () => {

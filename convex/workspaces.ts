@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values"
 
 import { internalQuery, mutation, query } from "./_generated/server"
+import type { MutationCtx } from "./_generated/server"
 import type { Id } from "./_generated/dataModel"
 import { parseBrandingInput } from "../src/lib/branding-validation"
 import {
@@ -22,6 +23,27 @@ const ALLOWED_LOGO_CONTENT_TYPES = new Set(["image/png", "image/jpeg", "image/we
 const MAX_LOGO_BYTES = 2 * 1024 * 1024
 export const RETENTION_POLICY_VERSION = "2026-07-11"
 
+async function ensureSignedUpEvent(
+  ctx: MutationCtx,
+  workspace: { _id: Id<"workspaces">; ownerUserId: Id<"users">; createdAt: number },
+) {
+  const idempotencyKey = `signed_up:${workspace._id}`
+  const existing = await ctx.db
+    .query("usageEvents")
+    .withIndex("by_workspaceId_and_idempotencyKey", (q) =>
+      q.eq("workspaceId", workspace._id).eq("idempotencyKey", idempotencyKey),
+    )
+    .unique()
+  if (existing) return existing._id
+  return await ctx.db.insert("usageEvents", {
+    workspaceId: workspace._id,
+    userId: workspace.ownerUserId,
+    event: "signed_up",
+    idempotencyKey,
+    createdAt: workspace.createdAt,
+  })
+}
+
 function optionalStorageId(value: string | null): Id<"_storage"> | undefined {
   return value ? (value as Id<"_storage">) : undefined
 }
@@ -32,6 +54,7 @@ export const ensureCurrentWorkspace = mutation({
     const user = await ensureAppUser(ctx)
     const existing = await getWorkspaceByOwner(ctx, user.userId)
     if (existing) {
+      await ensureSignedUpEvent(ctx, existing)
       await ensureWorkspaceCreditBalance(ctx, existing._id, user.userId)
       return {
         workspaceId: existing._id,
@@ -64,6 +87,12 @@ export const ensureCurrentWorkspace = mutation({
     })
 
     await ensureWorkspaceCreditBalance(ctx, workspaceId, user.userId)
+
+    await ensureSignedUpEvent(ctx, {
+      _id: workspaceId,
+      ownerUserId: user.userId,
+      createdAt: now,
+    })
 
     await ctx.db.insert("usageEvents", {
       workspaceId,

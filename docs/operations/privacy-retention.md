@@ -28,6 +28,8 @@ server-side and preference changes are logged without copying user content.
 | Provider calls and agent runs | 30 days | Until explicit deletion or consent withdrawal |
 | Identifying public-report views | 30 days | 30 days (no exception) |
 | Anonymous aggregated report counts | Until audit deletion | Until audit deletion |
+| Report-open notifications and CTA snapshots | Until audit deletion | Until audit deletion |
+| Workspace outreach templates | Until workspace deletion | Until workspace deletion |
 | Usage events, provider costs, admin actions | 24 months | Until explicit deletion or consent withdrawal |
 | Reports, scores, findings | Until explicit deletion | Until explicit deletion |
 | Billing events | Statutory retention; no automatic deletion | Statutory retention; no exception |
@@ -45,12 +47,14 @@ run. Explicit audit, workspace, or account deletion always overrides extended re
 - Deleting an audit immediately disables its public report and hides it from product
   lists. A resumable background job deletes its report content, findings, screenshots,
   provider/agent data, views, outreach drafts, and storage objects.
+  Report-open notifications and the audit's CTA snapshot are removed with the audit.
 - Account deletion is initiated in Settings with the exact confirmation phrase and the
   current password. Active paid subscriptions must first be ended through the billing
   portal; deletion becomes available after the paid access period has ended.
 - Account deletion immediately disables public reports, then removes workspace branding,
   audits, leads, campaigns, product telemetry, storage objects, memberships, and the app
-  user. Billing records that must be retained are detached from the workspace/user.
+  user. Workspace outreach templates are included. Billing records that must be retained
+  are detached from the workspace/user.
 - Deletion jobs are batched, idempotent, and resumable. The scheduled recovery job must
   pick up stale jobs after an interrupted deployment or transient failure.
 

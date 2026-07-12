@@ -38,6 +38,29 @@ async function seedAudit(t: ReturnType<typeof convexTest>, userId: Id<"users">, 
 }
 
 describe("privacy retention backend", () => {
+  test("workspace bootstrap records signed_up once at workspace creation time", async () => {
+    const t = convexTest(schema, modules).withIdentity({
+      tokenIdentifier: "signup-user",
+      email: "signup@example.com",
+      name: "Signup",
+    })
+
+    const first = await t.mutation(api.workspaces.ensureCurrentWorkspace, {})
+    await t.mutation(api.workspaces.ensureCurrentWorkspace, {})
+
+    const result = await t.run(async (ctx) => ({
+      workspace: await ctx.db.get(first.workspaceId),
+      events: await ctx.db
+        .query("usageEvents")
+        .withIndex("by_workspaceId_and_event", (q) =>
+          q.eq("workspaceId", first.workspaceId).eq("event", "signed_up"),
+        )
+        .take(10),
+    }))
+    expect(result.events).toHaveLength(1)
+    expect(result.events[0]?.createdAt).toBe(result.workspace?.createdAt)
+  })
+
   test("requires authentication and the exact policy version for retention consent", async () => {
     const t = convexTest(schema, modules)
     await seedWorkspace(t)
@@ -185,6 +208,8 @@ describe("privacy retention backend", () => {
       const storageId = await ctx.storage.store(new Blob(["workspace-image"], { type: "image/png" }))
       await ctx.db.insert("auditAssets", { workspaceId, auditId, type: "desktop_screenshot", storageProvider: "convex", storageId, createdAt: Date.now() })
       await ctx.db.insert("usageEvents", { workspaceId, userId, auditId, event: "audit_completed", createdAt: Date.now() })
+      await ctx.db.insert("outreachTemplates", { workspaceId, createdByUserId: userId, name: "Follow-up", type: "follow_up", body: "Hallo", createdAt: Date.now(), updatedAt: Date.now() })
+      await ctx.db.insert("notifications", { workspaceId, auditId, recipientUserId: userId, type: "first_open", idempotencyKey: `first_open:${auditId}`, createdAt: Date.now() })
       const billingEventId = await ctx.db.insert("billingEvents", { provider: "lemonsqueezy", providerEventId: "retained-billing", eventName: "order_created", workspaceId, testMode: true, status: "processed", processedAt: Date.now() })
       return { storageId, billingEventId }
     })
@@ -196,6 +221,8 @@ describe("privacy retention backend", () => {
       storage: await ctx.db.system.get("_storage", seeded.storageId), billing: await ctx.db.get(seeded.billingEventId),
       usage: await ctx.db.query("usageEvents").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(1),
       jobs: await ctx.db.query("deletionJobs").take(10),
+      templates: await ctx.db.query("outreachTemplates").withIndex("by_workspaceId_and_updatedAt", q => q.eq("workspaceId", workspaceId)).take(1),
+      notifications: await ctx.db.query("notifications").withIndex("by_workspaceId_and_createdAt", q => q.eq("workspaceId", workspaceId)).take(1),
     }))
     expect(remaining.user).toBeNull()
     expect(remaining.workspace).toBeNull()
@@ -204,6 +231,8 @@ describe("privacy retention backend", () => {
     expect(remaining.usage).toHaveLength(0)
     expect(remaining.billing?.workspaceId).toBeUndefined()
     expect(remaining.jobs).toHaveLength(0)
+    expect(remaining.templates).toHaveLength(0)
+    expect(remaining.notifications).toHaveLength(0)
     vi.useRealTimers()
   })
 })

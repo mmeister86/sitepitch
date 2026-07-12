@@ -19,6 +19,7 @@ const phases = [
   "outreachDrafts",
   "reportViews",
   "reportViewStats",
+  "notifications",
   "providerCalls",
   "auditPipelineStates",
   "auditAgentRuns",
@@ -105,6 +106,7 @@ async function deleteSimplePhase(
     case "outreachDrafts": return await ctx.db.query("outreachDrafts").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
     case "reportViews": return await ctx.db.query("reportViews").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
     case "reportViewStats": return await ctx.db.query("reportViewStats").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
+    case "notifications": return await ctx.db.query("notifications").withIndex("by_auditId_and_type", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
     case "providerCalls": return await ctx.db.query("providerCalls").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
     case "auditPipelineStates": return await ctx.db.query("auditPipelineStates").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
     case "auditAgentRuns": return await ctx.db.query("auditAgentRuns").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
@@ -269,6 +271,7 @@ const workspacePhases = [
   "audits",
   "auditRawData", "auditAssets", "auditPerformance", "auditChecks", "auditScores",
   "auditFindings", "auditSummaries", "outreachDrafts", "reportViews", "reportViewStats",
+  "notifications", "outreachTemplates",
   "auditPipelineStates", "providerCalls", "auditPages", "auditBusinessData", "auditAgentRuns",
   "auditPersonaReviews", "auditCopyReviews", "auditDesignCritiques",
   "leadActivities", "campaignLeads", "campaigns", "leads", "leadSearchSnapshots",
@@ -376,6 +379,8 @@ async function workspaceRows(ctx: MutationCtx, phase: Exclude<WorkspaceDeletionP
     case "outreachDrafts": return await ctx.db.query("outreachDrafts").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "reportViews": return await ctx.db.query("reportViews").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "reportViewStats": return await ctx.db.query("reportViewStats").withIndex("by_workspaceId_and_auditId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "notifications": return await ctx.db.query("notifications").withIndex("by_workspaceId_and_createdAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "outreachTemplates": return await ctx.db.query("outreachTemplates").withIndex("by_workspaceId_and_updatedAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "auditPipelineStates": return await ctx.db.query("auditPipelineStates").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "providerCalls": return await ctx.db.query("providerCalls").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "auditPages": return await ctx.db.query("auditPages").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)

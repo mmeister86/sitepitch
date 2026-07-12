@@ -250,6 +250,8 @@ export default defineSchema({
     sourceId: v.optional(v.string()),
     status: leadStatusValidator,
     auditId: v.optional(v.id("audits")),
+    reportCtaText: v.optional(v.string()),
+    reportCtaUrl: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -284,6 +286,9 @@ export default defineSchema({
     errorMessage: v.optional(v.string()),
     errorCode: v.optional(v.string()),
     deletionRequestedAt: v.optional(v.number()),
+    reportCtaText: v.optional(v.string()),
+    reportCtaUrl: v.optional(v.string()),
+    reportCtaSnapshottedAt: v.optional(v.number()),
     queuedAt: v.optional(v.number()),
     startedAt: v.optional(v.number()),
     createdAt: v.number(),
@@ -460,6 +465,33 @@ export default defineSchema({
     .index("by_auditId", ["auditId"])
     .index("by_workspaceId_and_type", ["workspaceId", "type"]),
 
+  outreachTemplates: defineTable({
+    workspaceId: v.id("workspaces"),
+    createdByUserId: v.id("users"),
+    name: v.string(),
+    type: outreachDraftTypeValidator,
+    subject: v.optional(v.string()),
+    body: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspaceId_and_updatedAt", ["workspaceId", "updatedAt"])
+    .index("by_workspaceId_and_type", ["workspaceId", "type"]),
+
+  notifications: defineTable({
+    workspaceId: v.id("workspaces"),
+    auditId: v.id("audits"),
+    recipientUserId: v.id("users"),
+    type: v.union(v.literal("first_open"), v.literal("first_reopen")),
+    idempotencyKey: v.string(),
+    readAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_auditId_and_type", ["auditId", "type"])
+    .index("by_idempotencyKey", ["idempotencyKey"])
+    .index("by_recipientUserId_and_createdAt", ["recipientUserId", "createdAt"])
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"]),
+
   reportViews: defineTable({
     workspaceId: v.id("workspaces"),
     auditId: v.id("audits"),
@@ -479,6 +511,10 @@ export default defineSchema({
     auditId: v.id("audits"),
     totalViews: v.number(),
     lastViewedAt: v.number(),
+    firstViewedAt: v.optional(v.number()),
+    reopenCount: v.optional(v.number()),
+    ctaClicks: v.optional(v.number()),
+    pdfDownloads: v.optional(v.number()),
   })
     .index("by_auditId", ["auditId"])
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"]),
@@ -496,6 +532,7 @@ export default defineSchema({
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
     .index("by_workspaceId_and_event", ["workspaceId", "event"])
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
+    .index("by_workspaceId_and_idempotencyKey", ["workspaceId", "idempotencyKey"])
     .index("by_auditId_and_event", ["auditId", "event"])
     .index("by_event_and_createdAt", ["event", "createdAt"])
     .index("by_createdAt", ["createdAt"]),

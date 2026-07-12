@@ -644,10 +644,46 @@ export const setPublicReportEnabled = mutation({
     }
 
     const now = Date.now()
+    const firstShare = args.enabled && !audit.isPublic
+    const shouldSnapshotCta = firstShare && audit.reportCtaSnapshottedAt === undefined
     await ctx.db.patch(args.auditId, {
       isPublic: args.enabled,
+      reportCtaText: shouldSnapshotCta ? workspace.ctaText : audit.reportCtaText,
+      reportCtaUrl: shouldSnapshotCta ? workspace.ctaUrl : audit.reportCtaUrl,
+      reportCtaSnapshottedAt: shouldSnapshotCta ? now : audit.reportCtaSnapshottedAt,
       updatedAt: now,
     })
+
+    if (shouldSnapshotCta && audit.leadId) {
+      const lead = await ctx.db.get(audit.leadId)
+      if (lead && lead.workspaceId === workspace._id) {
+        await ctx.db.patch(lead._id, {
+          reportCtaText: workspace.ctaText,
+          reportCtaUrl: workspace.ctaUrl,
+          updatedAt: now,
+        })
+      }
+    }
+
+    if (firstShare) {
+      const idempotencyKey = `first_shared_report:${workspace._id}`
+      const existingMilestone = await ctx.db
+        .query("usageEvents")
+        .withIndex("by_workspaceId_and_idempotencyKey", (q) =>
+          q.eq("workspaceId", workspace._id).eq("idempotencyKey", idempotencyKey),
+        )
+        .unique()
+      if (!existingMilestone) {
+        await ctx.db.insert("usageEvents", {
+          workspaceId: workspace._id,
+          userId: user._id,
+          auditId: audit._id,
+          event: "first_shared_report",
+          idempotencyKey,
+          createdAt: now,
+        })
+      }
+    }
 
     return { auditId: args.auditId, isPublic: args.enabled }
   },
@@ -694,7 +730,7 @@ export const recordPublicReportView = mutation({
       ? args.referrer.slice(0, 200)
       : undefined
 
-    await recordReportView(ctx, {
+    const totalViews = await recordReportView(ctx, {
       workspaceId: audit.workspaceId,
       auditId: audit._id,
       referrer: truncatedReferrer,
@@ -709,6 +745,16 @@ export const recordPublicReportView = mutation({
       metadata: { source: "public_report" },
       createdAt: now,
     })
+
+    if (totalViews > 1) {
+      await ctx.db.insert("usageEvents", {
+        workspaceId: audit.workspaceId,
+        auditId: audit._id,
+        event: "report_reopened",
+        metadata: { source: "public_report" },
+        createdAt: now,
+      })
+    }
 
     return { recorded: true }
   },
@@ -827,6 +873,13 @@ export const recordPublicReportCtaClick = mutation({
     }
 
     const now = Date.now()
+    const stats = await ctx.db
+      .query("reportViewStats")
+      .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+      .unique()
+    if (stats) {
+      await ctx.db.patch(stats._id, { ctaClicks: (stats.ctaClicks ?? 0) + 1 })
+    }
     await ctx.db.insert("usageEvents", {
       workspaceId: audit.workspaceId,
       auditId: audit._id,
@@ -875,6 +928,13 @@ export const recordPublicReportPdfExport = mutation({
     }
 
     const now = Date.now()
+    const stats = await ctx.db
+      .query("reportViewStats")
+      .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+      .unique()
+    if (stats) {
+      await ctx.db.patch(stats._id, { pdfDownloads: (stats.pdfDownloads ?? 0) + 1 })
+    }
     await ctx.db.insert("usageEvents", {
       workspaceId: audit.workspaceId,
       auditId: audit._id,
