@@ -17,7 +17,9 @@ describe("report CTA validation", () => {
     "https://example.com/contact",
     "http://example.com/contact",
     "mailto:hello@example.com",
+    "mailto:user+tag@example.co.uk",
     "tel:+4930123456",
+    "tel:+49 (30) 123-45",
   ])("accepts the allowed URL scheme: %s", (url) => {
     expect(normalizeReportCtaUrl(` ${url} `)).toBe(url)
   })
@@ -31,11 +33,15 @@ describe("report CTA validation", () => {
     "mailto:",
     "tel:",
     "mailto:hello@example.com?subject=%0d%0aBcc:bad@example.com",
+    "mailto:a@example.com/path",
+    "mailto:a@example.com%3Fbcc=x@example.com",
     "mailto:hello%0d%0a@example.com",
     "mailto:hello%250d%250a@example.com",
     "mailto:hello%252525250d@example.com",
     "tel:+4930%0d%0a123",
     "tel:+4930?ext=123",
+    "tel:---",
+    "tel:()",
     "not-a-url",
   ])("rejects unsafe or malformed URL: %s", (url) => {
     expect(() => normalizeReportCtaUrl(url)).toThrow()
