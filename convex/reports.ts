@@ -337,12 +337,13 @@ function buildPerformance(rows: Doc<"auditPerformance">[]): PerformanceDto[] {
   }))
 }
 
-function buildBranding(workspace: Doc<"workspaces">): BrandingDto {
+function buildBranding(workspace: Doc<"workspaces">, audit: Doc<"audits">): BrandingDto {
+  const hasCtaSnapshot = audit.reportCtaSnapshottedAt !== undefined
   return {
     name: workspace.name,
     accentColor: workspace.accentColor ?? DEFAULT_WORKSPACE_ACCENT,
-    ctaText: workspace.ctaText,
-    ctaUrl: workspace.ctaUrl,
+    ctaText: hasCtaSnapshot ? audit.reportCtaText : workspace.ctaText,
+    ctaUrl: hasCtaSnapshot ? audit.reportCtaUrl : workspace.ctaUrl,
     website: workspace.website,
     contactEmail: workspace.contactEmail,
   }
@@ -560,7 +561,7 @@ export const getInternalReportById = query({
       performance: buildPerformance(performanceRows),
       screenshots,
       viewCount: reportViewStats?.totalViews ?? reportViews.length,
-      branding: buildBranding(workspace),
+      branding: buildBranding(workspace, audit),
       personaReviews: buildPersonaReviews(personaReviews),
       copyReview: buildCopyReview(copyReviewDoc ?? null),
       designCritique: buildDesignCritique(designCritiqueDoc ?? null),
@@ -621,7 +622,7 @@ export const getPublicReportBySlug = query({
       findings: buildPublicFindings(findings),
       nextSteps: summaryDto?.nextSteps ?? [],
       screenshots,
-      branding: buildBranding(workspace),
+      branding: buildBranding(workspace, audit),
     }
   },
 })
@@ -669,10 +670,13 @@ export const setPublicReportEnabled = mutation({
     const now = Date.now()
     const firstShare = args.enabled && !audit.isPublic
     const shouldSnapshotCta = firstShare && audit.reportCtaSnapshottedAt === undefined
+    const ctaSnapshot = shouldSnapshotCta
+      ? await resolveReportCtaSnapshot(ctx, audit, workspace)
+      : null
     await ctx.db.patch(args.auditId, {
       isPublic: args.enabled,
-      reportCtaText: shouldSnapshotCta ? workspace.ctaText : audit.reportCtaText,
-      reportCtaUrl: shouldSnapshotCta ? workspace.ctaUrl : audit.reportCtaUrl,
+      reportCtaText: shouldSnapshotCta ? ctaSnapshot?.text : audit.reportCtaText,
+      reportCtaUrl: shouldSnapshotCta ? ctaSnapshot?.url : audit.reportCtaUrl,
       reportCtaSnapshottedAt: shouldSnapshotCta ? now : audit.reportCtaSnapshottedAt,
       updatedAt: now,
     })
@@ -697,6 +701,57 @@ export const setPublicReportEnabled = mutation({
     }
 
     return { auditId: args.auditId, isPublic: args.enabled }
+  },
+})
+
+async function resolveReportCtaSnapshot(
+  ctx: MutationCtx,
+  audit: Doc<"audits">,
+  workspace: Doc<"workspaces">,
+): Promise<{ text?: string; url?: string }> {
+  const lead = audit.leadId ? await ctx.db.get(audit.leadId) : null
+  const ownedLead = lead?.workspaceId === workspace._id ? lead : null
+  return {
+    text: ownedLead?.reportCtaText ?? workspace.ctaText,
+    url:
+      ownedLead?.reportCtaUrl ??
+      workspace.ctaUrl ??
+      workspace.website ??
+      (workspace.contactEmail ? `mailto:${workspace.contactEmail}` : undefined),
+  }
+}
+
+export const refreshPublicReportCta = mutation({
+  args: { auditId: v.id("audits") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) {
+      throw new ConvexError({ code: "UNAUTHENTICATED", message: "Not authenticated" })
+    }
+    const user = await findAppUser(ctx, identity.tokenIdentifier)
+    if (!user) {
+      throw new ConvexError({ code: "UNAUTHENTICATED", message: "Not authenticated" })
+    }
+    const audit = await ctx.db.get(args.auditId)
+    const workspace = await getWorkspaceByOwner(ctx, user._id)
+    if (!audit || !workspace || audit.workspaceId !== workspace._id) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Audit not found" })
+    }
+    if (workspace.deletionRequestedAt) {
+      throw new ConvexError({ code: "WORKSPACE_DELETION_PENDING", message: "Workspace deletion is pending" })
+    }
+    if (audit.status !== "completed") {
+      throw new ConvexError({ code: "REPORT_NOT_READY", message: "Report is not completed" })
+    }
+    const snapshot = await resolveReportCtaSnapshot(ctx, audit, workspace)
+    const now = Date.now()
+    await ctx.db.patch(audit._id, {
+      reportCtaText: snapshot.text,
+      reportCtaUrl: snapshot.url,
+      reportCtaSnapshottedAt: now,
+      updatedAt: now,
+    })
+    return { auditId: audit._id, reportCtaSnapshottedAt: now }
   },
 })
 

@@ -9,8 +9,11 @@ import {
   Info,
   ShieldAlert,
   ChevronRight,
+  Loader2,
+  Save,
+  Trash2,
 } from "lucide-react"
-import { useMutation } from "convex/react"
+import { useMutation, useQuery } from "convex/react"
 
 import {
   Card,
@@ -23,6 +26,22 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { toast } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 import { trackRybbitEvent } from "@/lib/analytics"
@@ -48,6 +67,7 @@ interface OutreachWorkflowsProps {
   outreachDrafts: OutreachDraft[]
   shareUrl: string
   isPublic: boolean
+  language: "de" | "en"
   onEnablePublic?: () => void | Promise<void>
 }
 
@@ -73,9 +93,11 @@ export function OutreachWorkflows({
   outreachDrafts,
   shareUrl,
   isPublic,
+  language,
   onEnablePublic,
 }: OutreachWorkflowsProps) {
   const recordCopy = useMutation(api.reports.recordReportCopyEvent)
+  const templates = useQuery(api.outreach_templates.listMyTemplates)
 
   const recordPublicLinkCopy = async () => {
     try {
@@ -88,13 +110,15 @@ export function OutreachWorkflows({
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-2">
-        {outreachDrafts.map((draft) => (
+        {outreachDrafts.map((draft, index) => (
           <OutreachDraftCard
-            key={draft.type}
+            key={`${auditId}:${draft.type}:${index}`}
             auditId={auditId}
             draft={draft}
             shareUrl={shareUrl}
             isPublic={isPublic}
+            language={language}
+            templates={templates}
             onEnablePublic={onEnablePublic}
             recordCopy={recordCopy}
           />
@@ -142,6 +166,8 @@ function OutreachDraftCard({
   draft,
   shareUrl,
   isPublic,
+  language,
+  templates,
   onEnablePublic,
   recordCopy,
 }: {
@@ -149,6 +175,15 @@ function OutreachDraftCard({
   draft: OutreachDraft
   shareUrl: string
   isPublic: boolean
+  language: "de" | "en"
+  templates: Array<{
+    _id: Id<"outreachTemplates">
+    name: string
+    type: string
+    language: "de" | "en"
+    subject?: string
+    body: string
+  }> | undefined
   onEnablePublic?: () => void | Promise<void>
   recordCopy: ReturnType<typeof useMutation<typeof api.reports.recordReportCopyEvent>>
 }) {
@@ -164,10 +199,74 @@ function OutreachDraftCard({
   const [subject, setSubject] = useState(original.subject)
   const [body, setBody] = useState(original.body)
   const [copied, setCopied] = useState(false)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("")
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+  const [templateName, setTemplateName] = useState(`${label} Vorlage`)
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false)
+  const [isApplyingTemplate, setIsApplyingTemplate] = useState(false)
+  const [isDeletingTemplate, setIsDeletingTemplate] = useState(false)
+  const createTemplate = useMutation(api.outreach_templates.create)
+  const deleteTemplate = useMutation(api.outreach_templates.deleteTemplate)
+  const renderTemplate = useMutation(api.outreach_templates.renderForAudit)
 
   const dirty = subject !== original.subject || body !== original.body
   const draftType = draft.type as OutreachDraftType
   const linkInserted = body.includes(shareUrl)
+  const compatibleTemplates = (templates ?? []).filter((template) => template.type === draft.type)
+
+  const handleSaveTemplate = async () => {
+    if (!templateName.trim() || isSavingTemplate) return
+    setIsSavingTemplate(true)
+    try {
+      await createTemplate({
+        name: templateName,
+        type: draftType,
+        language,
+        subject: subject.trim() || undefined,
+        body,
+      })
+      toast.success("Vorlage gespeichert")
+      setSaveDialogOpen(false)
+    } catch (error) {
+      toast.error((error as Error)?.message ?? "Vorlage konnte nicht gespeichert werden")
+    } finally {
+      setIsSavingTemplate(false)
+    }
+  }
+
+  const handleApplyTemplate = async () => {
+    if (!selectedTemplateId || isApplyingTemplate) return
+    setIsApplyingTemplate(true)
+    try {
+      const rendered = await renderTemplate({
+        templateId: selectedTemplateId as Id<"outreachTemplates">,
+        auditId,
+        reportUrl: shareUrl,
+      })
+      setSubject(rendered.subject ?? "")
+      setBody(rendered.body)
+      toast.success("Vorlage auf die Arbeitskopie angewendet")
+    } catch (error) {
+      toast.error((error as Error)?.message ?? "Vorlage konnte nicht angewendet werden")
+    } finally {
+      setIsApplyingTemplate(false)
+    }
+  }
+
+  const handleDeleteTemplate = async () => {
+    if (!selectedTemplateId || isDeletingTemplate) return
+    if (!window.confirm("Diese Vorlage wirklich löschen?")) return
+    setIsDeletingTemplate(true)
+    try {
+      await deleteTemplate({ templateId: selectedTemplateId as Id<"outreachTemplates"> })
+      setSelectedTemplateId("")
+      toast.success("Vorlage gelöscht")
+    } catch (error) {
+      toast.error((error as Error)?.message ?? "Vorlage konnte nicht gelöscht werden")
+    } finally {
+      setIsDeletingTemplate(false)
+    }
+  }
 
   const insertLink = () => {
     if (!isPublic || linkInserted) return
@@ -278,6 +377,47 @@ function OutreachDraftCard({
           />
         </div>
 
+        <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+              <SelectTrigger className="min-w-0 flex-1">
+                <SelectValue placeholder={templates === undefined ? "Vorlagen laden …" : "Vorlage auswählen"} />
+              </SelectTrigger>
+              <SelectContent>
+                {compatibleTemplates.map((template) => (
+                  <SelectItem key={template._id} value={template._id}>
+                    {template.name} · {template.language.toUpperCase()}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!selectedTemplateId || isApplyingTemplate}
+              onClick={() => void handleApplyTemplate()}
+            >
+              {isApplyingTemplate && <Loader2 className="size-3.5 animate-spin" />}
+              Anwenden
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Vorlage löschen"
+              disabled={!selectedTemplateId || isDeletingTemplate}
+              onClick={() => void handleDeleteTemplate()}
+            >
+              {isDeletingTemplate ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+            </Button>
+          </div>
+          <Button type="button" variant="ghost" size="sm" className="gap-1.5" onClick={() => setSaveDialogOpen(true)}>
+            <Save className="size-3.5" />
+            Als Vorlage speichern
+          </Button>
+        </div>
+
         <div className="flex flex-wrap items-center justify-between gap-2">
           {dirty ? (
             <p className="text-xs text-muted-foreground">
@@ -316,6 +456,31 @@ function OutreachDraftCard({
           )}
         </div>
       </CardContent>
+
+      <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Arbeitskopie als Vorlage speichern</DialogTitle>
+            <DialogDescription>Die aktuelle Betreffzeile und der Text werden geprüft und im Workspace gespeichert.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label htmlFor={`template-name-${draft.type}`}>Vorlagenname</Label>
+            <Input
+              id={`template-name-${draft.type}`}
+              value={templateName}
+              maxLength={80}
+              onChange={(event) => setTemplateName(event.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveDialogOpen(false)} disabled={isSavingTemplate}>Abbrechen</Button>
+            <Button onClick={() => void handleSaveTemplate()} disabled={!templateName.trim() || isSavingTemplate}>
+              {isSavingTemplate ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              Speichern
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

@@ -532,9 +532,11 @@ function LiveCompletedReport({
   navigate: ReturnType<typeof useRouter>["navigate"]
 }) {
   const setPublic = useMutation(api.reports.setPublicReportEnabled)
+  const refreshPublicReportCta = useMutation(api.reports.refreshPublicReportCta)
   const recordCopy = useMutation(api.reports.recordReportCopyEvent)
   const generateDesignCritique = useAction(api.audit_agent_action.generateDesignCritique)
   const [isGeneratingDesignCritique, setIsGeneratingDesignCritique] = useState(false)
+  const [isRefreshingCta, setIsRefreshingCta] = useState(false)
   const shareUrl = buildShareUrl(report.publicSlug)
   const hasOutreach = report.outreachDrafts.length > 0
   const hasChecks = report.checks.length > 0
@@ -558,6 +560,20 @@ function LiveCompletedReport({
       await recordCopy({ auditId: report.auditId, kind: "public_link" })
     } catch {
       /* analytics only */
+    }
+  }
+
+  const handleRefreshCta = async () => {
+    if (isRefreshingCta) return
+    if (!window.confirm("Report-CTA aus den aktuellen Lead- und Workspace-Daten neu übernehmen?")) return
+    setIsRefreshingCta(true)
+    try {
+      await refreshPublicReportCta({ auditId: report.auditId })
+      toast.success("Report-CTA aktualisiert")
+    } catch {
+      toast.error("Report-CTA konnte nicht aktualisiert werden")
+    } finally {
+      setIsRefreshingCta(false)
     }
   }
 
@@ -612,6 +628,15 @@ function LiveCompletedReport({
                   <ExternalLink className="size-4" />
                   Öffnen
                 </a>
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2"
+                disabled={isRefreshingCta}
+                onClick={() => void handleRefreshCta()}
+              >
+                <RefreshCw className={cn("size-4", isRefreshingCta && "animate-spin")} />
+                CTA aktualisieren
               </Button>
               <Button
                 variant="outline"
@@ -738,6 +763,7 @@ function LiveCompletedReport({
               outreachDrafts={report.outreachDrafts}
               shareUrl={shareUrl}
               isPublic={report.isPublic}
+              language={report.reportLanguage}
               onEnablePublic={report.isPublic ? undefined : () => togglePublic(true)}
             />
           </TabsContent>

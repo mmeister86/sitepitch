@@ -105,6 +105,8 @@ export function LeadsView() {
     address?: string
     phone?: string
     businessEmail?: string
+    reportCtaText?: string
+    reportCtaUrl?: string
   } | null>(null)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [websiteInput, setWebsiteInput] = useState("")
@@ -163,6 +165,8 @@ export function LeadsView() {
       address: lead.address,
       phone: lead.phone,
       businessEmail: lead.businessEmail,
+      reportCtaText: lead.reportCtaText,
+      reportCtaUrl: lead.reportCtaUrl,
     })
     setIsEditOpen(true)
   }
@@ -392,6 +396,8 @@ export function LeadsView() {
                               address: lead.address,
                               phone: lead.phone,
                               businessEmail: lead.businessEmail,
+                              reportCtaText: lead.reportCtaText,
+                              reportCtaUrl: lead.reportCtaUrl,
                             }}
                             onClick={() => openEditLead(lead)}
                           />

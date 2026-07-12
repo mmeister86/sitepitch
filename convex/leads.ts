@@ -7,6 +7,7 @@ import { findAppUser, getWorkspaceByOwner, requireExistingAppUser } from "./lib/
 import { normalizeLeadWebsiteUrl, normalizeBusinessEmail } from "./lib/lead_search"
 import { attachLeadToCampaign, type CampaignLeadStatus } from "./lib/campaigns"
 import { canonicalLeadStatusValidator } from "../src/lib/convex-schema-values"
+import { normalizeReportCtaText, normalizeReportCtaUrl } from "./lib/report_cta"
 
 export type LeadListItem = {
   _id: Id<"leads">
@@ -19,6 +20,8 @@ export type LeadListItem = {
   address?: string
   phone?: string
   businessEmail?: string
+  reportCtaText?: string
+  reportCtaUrl?: string
   latitude?: number
   longitude?: number
   sourceProvider: string
@@ -106,6 +109,8 @@ export const listMyLeads = query({
           address: lead.address,
           phone: lead.phone,
           businessEmail: lead.businessEmail,
+          reportCtaText: lead.reportCtaText,
+          reportCtaUrl: lead.reportCtaUrl,
           latitude: lead.latitude,
           longitude: lead.longitude,
           sourceProvider: lead.sourceProvider,
@@ -323,6 +328,8 @@ export const updateLeadProfile = mutation({
     address: v.optional(v.string()),
     phone: v.optional(v.string()),
     businessEmail: v.optional(v.string()),
+    reportCtaText: v.optional(v.string()),
+    reportCtaUrl: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<void> => {
     const user = await requireExistingAppUser(ctx)
@@ -355,6 +362,13 @@ export const updateLeadProfile = mutation({
       phone: args.phone?.trim() || undefined,
       businessEmail,
       updatedAt: Date.now(),
+    }
+
+    if (Object.prototype.hasOwnProperty.call(args, "reportCtaText")) {
+      patch.reportCtaText = normalizeReportCtaText(args.reportCtaText)
+    }
+    if (Object.prototype.hasOwnProperty.call(args, "reportCtaUrl")) {
+      patch.reportCtaUrl = normalizeReportCtaUrl(args.reportCtaUrl)
     }
 
     await ctx.db.patch(args.leadId, patch)

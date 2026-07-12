@@ -36,12 +36,12 @@ const SHAMING_CLUES: RegExp[] = [
   /wirkt (billig|unseriös|amateurhaft)/i,
 ]
 
-interface ClaimSafetyIssue {
+export interface ClaimSafetyIssue {
   path: string
   matched: string
 }
 
-function scanText(text: string, basePath: string): ClaimSafetyIssue[] {
+export function scanClaimSafetyText(text: string, basePath: string): ClaimSafetyIssue[] {
   const issues: ClaimSafetyIssue[] = []
   for (const pattern of [...BLOCKED_CLAIM_PATTERNS, ...SHAMING_CLUES]) {
     const match = text.match(pattern)
@@ -60,7 +60,7 @@ export interface ClaimSafetyResult {
 export function reviewTextsClaimSafety(texts: { text: string; path: string }[]): ClaimSafetyResult {
   const issues: ClaimSafetyIssue[] = []
   for (const entry of texts) {
-    issues.push(...scanText(entry.text, entry.path))
+    issues.push(...scanClaimSafetyText(entry.text, entry.path))
   }
   return { ok: issues.length === 0, issues }
 }
@@ -70,35 +70,35 @@ export function reviewClaimSafety(output: AuditAgentOutput): ClaimSafetyResult {
 
   for (let i = 0; i < output.findings.length; i++) {
     const finding = output.findings[i]
-    issues.push(...scanText(finding.title, `findings[${i}].title`))
-    issues.push(...scanText(finding.evidence, `findings[${i}].evidence`))
-    issues.push(...scanText(finding.explanation, `findings[${i}].explanation`))
-    issues.push(...scanText(finding.recommendation, `findings[${i}].recommendation`))
-    issues.push(...scanText(finding.salesAngle, `findings[${i}].salesAngle`))
+    issues.push(...scanClaimSafetyText(finding.title, `findings[${i}].title`))
+    issues.push(...scanClaimSafetyText(finding.evidence, `findings[${i}].evidence`))
+    issues.push(...scanClaimSafetyText(finding.explanation, `findings[${i}].explanation`))
+    issues.push(...scanClaimSafetyText(finding.recommendation, `findings[${i}].recommendation`))
+    issues.push(...scanClaimSafetyText(finding.salesAngle, `findings[${i}].salesAngle`))
   }
 
-  issues.push(...scanText(output.summary.shortSummary, "summary.shortSummary"))
+  issues.push(...scanClaimSafetyText(output.summary.shortSummary, "summary.shortSummary"))
   for (let i = 0; i < output.summary.strengths.length; i++) {
-    issues.push(...scanText(output.summary.strengths[i], `summary.strengths[${i}]`))
+    issues.push(...scanClaimSafetyText(output.summary.strengths[i], `summary.strengths[${i}]`))
   }
   for (let i = 0; i < output.summary.weaknesses.length; i++) {
-    issues.push(...scanText(output.summary.weaknesses[i], `summary.weaknesses[${i}]`))
+    issues.push(...scanClaimSafetyText(output.summary.weaknesses[i], `summary.weaknesses[${i}]`))
   }
   for (let i = 0; i < output.summary.topOpportunities.length; i++) {
-    issues.push(...scanText(output.summary.topOpportunities[i], `summary.topOpportunities[${i}]`))
+    issues.push(...scanClaimSafetyText(output.summary.topOpportunities[i], `summary.topOpportunities[${i}]`))
   }
   for (let i = 0; i < output.summary.nextSteps.length; i++) {
-    issues.push(...scanText(output.summary.nextSteps[i], `summary.nextSteps[${i}]`))
+    issues.push(...scanClaimSafetyText(output.summary.nextSteps[i], `summary.nextSteps[${i}]`))
   }
   for (let i = 0; i < output.outreach.length; i++) {
     const draft = output.outreach[i]
     if (draft.subject) {
-      issues.push(...scanText(draft.subject, `outreach[${i}].subject`))
+      issues.push(...scanClaimSafetyText(draft.subject, `outreach[${i}].subject`))
     }
-    issues.push(...scanText(draft.body, `outreach[${i}].body`))
+    issues.push(...scanClaimSafetyText(draft.body, `outreach[${i}].body`))
   }
   for (let i = 0; i < output.subjectLines.length; i++) {
-    issues.push(...scanText(output.subjectLines[i], `subjectLines[${i}]`))
+    issues.push(...scanClaimSafetyText(output.subjectLines[i], `subjectLines[${i}]`))
   }
 
   return { ok: issues.length === 0, issues }

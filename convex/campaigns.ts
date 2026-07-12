@@ -91,6 +91,8 @@ export type CampaignLeadListItem = {
   country?: string
   address?: string
   businessEmail?: string
+  reportCtaText?: string
+  reportCtaUrl?: string
   phone?: string
   latitude?: number
   longitude?: number
@@ -307,6 +309,8 @@ export const getMyCampaign = query({
         country: lead?.country ?? undefined,
         address: lead?.address ?? undefined,
         businessEmail: lead?.businessEmail ?? undefined,
+        reportCtaText: lead?.reportCtaText ?? undefined,
+        reportCtaUrl: lead?.reportCtaUrl ?? undefined,
         phone: lead?.phone ?? undefined,
         latitude: lead?.latitude ?? undefined,
         longitude: lead?.longitude ?? undefined,

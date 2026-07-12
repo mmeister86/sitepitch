@@ -405,7 +405,7 @@ describe("setPublicReportEnabled", () => {
     assert.ok(result.audit?.reportCtaSnapshottedAt)
   })
 
-  test("does not overwrite an attached lead CTA override when publishing", async () => {
+  test("snapshots an attached lead CTA override when publishing without mutating the lead", async () => {
     const t = createTest()
     const { auditId, workspaceId } = await seedCompletedReport(t, { isPublic: false })
     const leadId = await t.run(async (ctx) => {
@@ -428,9 +428,82 @@ describe("setPublicReportEnabled", () => {
       .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
       .mutation(api.reports.setPublicReportEnabled, { auditId, enabled: true })
 
-    const lead = await t.run((ctx) => ctx.db.get(leadId))
-    assert.equal(lead?.reportCtaText, "Lead-spezifisch")
-    assert.equal(lead?.reportCtaUrl, "https://lead.example/cta")
+    const result = await t.run(async (ctx) => ({
+      lead: await ctx.db.get(leadId),
+      audit: await ctx.db.get(auditId),
+    }))
+    assert.equal(result.lead?.reportCtaText, "Lead-spezifisch")
+    assert.equal(result.lead?.reportCtaUrl, "https://lead.example/cta")
+    assert.equal(result.audit?.reportCtaText, "Lead-spezifisch")
+    assert.equal(result.audit?.reportCtaUrl, "https://lead.example/cta")
+    assert.ok(result.audit?.reportCtaSnapshottedAt)
+  })
+
+  test("keeps public and internal CTA DTOs stable until explicit refresh", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t, {
+      isPublic: false,
+      slug: "stable-cta-slug",
+    })
+    const leadId = await t.run(async (ctx) => {
+      const now = Date.now()
+      const id = await ctx.db.insert("leads", {
+        workspaceId,
+        businessName: "Snapshot Lead",
+        sourceProvider: "manual",
+        status: "new",
+        reportCtaText: "Lead CTA v1",
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.patch(auditId, { leadId: id })
+      return id
+    })
+    const owner = t.withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+    await owner.mutation(api.reports.setPublicReportEnabled, { auditId, enabled: true })
+
+    let publicReport = await t.query(api.reports.getPublicReportBySlug, { slug: "stable-cta-slug" })
+    assert.equal(publicReport?.branding.ctaText, "Lead CTA v1")
+    assert.equal(publicReport?.branding.ctaUrl, "https://studio.example.com/contact")
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(leadId, {
+        reportCtaText: "Lead CTA v2",
+        reportCtaUrl: "tel:+4930123456",
+      })
+      await ctx.db.patch(workspaceId, {
+        ctaText: "Workspace CTA v2",
+        ctaUrl: "https://studio.example.com/new",
+      })
+    })
+    await owner.mutation(api.reports.setPublicReportEnabled, { auditId, enabled: false })
+    await owner.mutation(api.reports.setPublicReportEnabled, { auditId, enabled: true })
+
+    publicReport = await t.query(api.reports.getPublicReportBySlug, { slug: "stable-cta-slug" })
+    const internalReport = await owner.query(api.reports.getInternalReportById, { auditId })
+    assert.equal(publicReport?.branding.ctaText, "Lead CTA v1")
+    assert.equal(publicReport?.branding.ctaUrl, "https://studio.example.com/contact")
+    assert.equal(internalReport?.branding.ctaText, "Lead CTA v1")
+
+    await owner.mutation(api.reports.refreshPublicReportCta, { auditId })
+    publicReport = await t.query(api.reports.getPublicReportBySlug, { slug: "stable-cta-slug" })
+    assert.equal(publicReport?.branding.ctaText, "Lead CTA v2")
+    assert.equal(publicReport?.branding.ctaUrl, "tel:+4930123456")
+  })
+
+  test("snapshots the effective workspace website fallback when no CTA URL exists", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t, {
+      isPublic: false,
+      slug: "website-fallback-slug",
+    })
+    await t.run((ctx) => ctx.db.patch(workspaceId, { ctaUrl: undefined }))
+    const owner = t.withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
+    await owner.mutation(api.reports.setPublicReportEnabled, { auditId, enabled: true })
+    await t.run((ctx) => ctx.db.patch(workspaceId, { website: "https://studio.example.com/changed" }))
+
+    const report = await t.query(api.reports.getPublicReportBySlug, { slug: "website-fallback-slug" })
+    assert.equal(report?.branding.ctaUrl, "https://studio.example.com")
   })
 
   test("toggles isPublic for the workspace owner", async () => {
@@ -478,6 +551,13 @@ describe("setPublicReportEnabled", () => {
           .withIdentity({ tokenIdentifier: "other-token", email: "other@example.com" })
           .mutation(api.reports.setPublicReportEnabled, { auditId, enabled: false }),
       /FORBIDDEN|Workspace access denied/i,
+    )
+    await assert.rejects(
+      () =>
+        t
+          .withIdentity({ tokenIdentifier: "other-token", email: "other@example.com" })
+          .mutation(api.reports.refreshPublicReportCta, { auditId }),
+      /NOT_FOUND|Audit not found/i,
     )
   })
 

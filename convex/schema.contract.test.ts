@@ -417,6 +417,7 @@ assert.deepEqual(Object.keys((schema.tables.outreachTemplates as any).validator.
   "createdByUserId",
   "name",
   "type",
+  "language",
   "subject",
   "body",
   "createdAt",

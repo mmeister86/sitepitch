@@ -813,6 +813,8 @@ describe("updateLeadProfile", () => {
       address: "Katharinenstraße 1",
       phone: "+49 351 123456",
       businessEmail: "peter@example.com",
+      reportCtaText: " Termin buchen ",
+      reportCtaUrl: "mailto:peter@example.com",
     })
 
     const list = await t.query(api.leads.listMyLeads, {})
@@ -825,6 +827,8 @@ describe("updateLeadProfile", () => {
     assert.equal(lead.address, "Katharinenstraße 1")
     assert.equal(lead.phone, "+49 351 123456")
     assert.equal(lead.businessEmail, "peter@example.com")
+    assert.equal(lead.reportCtaText, "Termin buchen")
+    assert.equal(lead.reportCtaUrl, "mailto:peter@example.com")
   })
 
   test("rejects empty business name", async () => {
@@ -846,5 +850,20 @@ describe("updateLeadProfile", () => {
         businessName: "",
       }),
     ).rejects.toMatchObject({ data: { code: "VALIDATION_ERROR" } })
+  })
+
+  test("rejects unsupported CTA URL schemes", async () => {
+    const t = createTest().withIdentity({ email: "peter@example.com", name: "Peter" })
+    await t.mutation(api.workspaces.ensureCurrentWorkspace, {})
+    const leadId = await t.mutation(api.leads.saveLeadFromSearch, {
+      businessName: "Bäckerei Peter",
+      sourceProvider: "manual",
+      sourceLabel: "Manuell",
+    })
+
+    await expect(t.mutation(api.leads.updateLeadProfile, {
+      leadId: leadId as any,
+      reportCtaUrl: "javascript:alert(1)",
+    })).rejects.toMatchObject({ data: { code: "VALIDATION_ERROR" } })
   })
 })

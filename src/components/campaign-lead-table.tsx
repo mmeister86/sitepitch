@@ -195,6 +195,8 @@ export function CampaignLeadTable({
     address?: string
     phone?: string
     businessEmail?: string
+    reportCtaText?: string
+    reportCtaUrl?: string
   } | null>(null)
   const [isEditOpen, setIsEditOpen] = useState(false)
 
@@ -341,6 +343,8 @@ export function CampaignLeadTable({
       address: lead.address,
       phone: lead.phone,
       businessEmail: lead.businessEmail,
+      reportCtaText: lead.reportCtaText,
+      reportCtaUrl: lead.reportCtaUrl,
     })
     setIsEditOpen(true)
   }

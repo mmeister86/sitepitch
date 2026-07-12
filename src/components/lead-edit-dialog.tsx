@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useMutation } from "convex/react"
 import { Pencil, Loader2, Check } from "lucide-react"
 
@@ -28,6 +28,8 @@ type EditableLeadFields = {
   address?: string
   phone?: string
   businessEmail?: string
+  reportCtaText?: string
+  reportCtaUrl?: string
 }
 
 export type LeadEditDialogProps = {
@@ -46,6 +48,8 @@ export function LeadEditDialog({ lead, open, onOpenChange }: LeadEditDialogProps
   const [address, setAddress] = useState("")
   const [phone, setPhone] = useState("")
   const [businessEmail, setBusinessEmail] = useState("")
+  const [reportCtaText, setReportCtaText] = useState("")
+  const [reportCtaUrl, setReportCtaUrl] = useState("")
   const [emailError, setEmailError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -57,12 +61,14 @@ export function LeadEditDialog({ lead, open, onOpenChange }: LeadEditDialogProps
     setAddress(target.address ?? "")
     setPhone(target.phone ?? "")
     setBusinessEmail(target.businessEmail ?? "")
+    setReportCtaText(target.reportCtaText ?? "")
+    setReportCtaUrl(target.reportCtaUrl ?? "")
     setEmailError(null)
   }
 
-  if (lead && open && businessName !== lead.businessName) {
-    resetForm(lead)
-  }
+  useEffect(() => {
+    if (lead && open) resetForm(lead)
+  }, [lead, open])
 
   async function handleSubmit() {
     if (!lead) return
@@ -86,6 +92,8 @@ export function LeadEditDialog({ lead, open, onOpenChange }: LeadEditDialogProps
         address: address.trim() || undefined,
         phone: phone.trim() || undefined,
         businessEmail: email || undefined,
+        reportCtaText,
+        reportCtaUrl,
       })
       toast.success("Lead-Daten aktualisiert")
       onOpenChange(false)
@@ -183,6 +191,28 @@ export function LeadEditDialog({ lead, open, onOpenChange }: LeadEditDialogProps
               className={emailError ? "border-destructive focus-visible:ring-destructive/30" : ""}
             />
             {emailError && <p className="text-xs font-medium text-destructive">{emailError}</p>}
+          </div>
+
+          <div className="space-y-1.5 border-t pt-4">
+            <Label htmlFor="lead-edit-report-cta-text">Report-CTA (optional)</Label>
+            <Input
+              id="lead-edit-report-cta-text"
+              value={reportCtaText}
+              maxLength={80}
+              onChange={(e) => setReportCtaText(e.target.value)}
+              placeholder="Kostenloses Erstgespräch buchen"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="lead-edit-report-cta-url">Report-CTA-Ziel (optional)</Label>
+            <Input
+              id="lead-edit-report-cta-url"
+              value={reportCtaUrl}
+              onChange={(e) => setReportCtaUrl(e.target.value)}
+              placeholder="https://example.de/kontakt"
+            />
+            <p className="text-xs text-muted-foreground">Erlaubt: http, https, mailto und tel.</p>
           </div>
         </div>
 

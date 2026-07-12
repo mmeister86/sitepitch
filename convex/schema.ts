@@ -470,6 +470,7 @@ export default defineSchema({
     createdByUserId: v.id("users"),
     name: v.string(),
     type: outreachDraftTypeValidator,
+    language: v.optional(reportLanguageValidator),
     subject: v.optional(v.string()),
     body: v.string(),
     createdAt: v.number(),
