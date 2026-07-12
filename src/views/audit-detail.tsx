@@ -608,7 +608,7 @@ function LiveCompletedReport({
             <>
               <CopyButton text={shareUrl} label="Link kopieren" toastMessage="Report-Link kopiert" onCopied={recordPublicLinkCopy} />
               <Button variant="outline" className="gap-2" asChild>
-                <a href={`/r/${report.publicSlug}`} target="_blank" rel="noreferrer">
+                <a href={`/r/${report.publicSlug}?preview=1`} target="_blank" rel="noreferrer">
                   <ExternalLink className="size-4" />
                   Öffnen
                 </a>

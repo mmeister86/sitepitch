@@ -503,23 +503,56 @@ describe("setPublicReportEnabled", () => {
 // ---------------------------------------------------------------------------
 
 describe("recordPublicReportView", () => {
-  test("tracks first view and reopen aggregates", async () => {
+  test("classifies each view once and deduplicates first-open/reopen notifications", async () => {
     const t = createTest()
-    const { auditId, workspaceId } = await seedCompletedReport(t, {
+    const { auditId, workspaceId, userId } = await seedCompletedReport(t, {
       slug: "aggregate-view-slug",
       isPublic: true,
     })
 
     await t.mutation(api.reports.recordPublicReportView, { slug: "aggregate-view-slug" })
     await t.mutation(api.reports.recordPublicReportView, { slug: "aggregate-view-slug" })
+    await t.mutation(api.reports.recordPublicReportView, { slug: "aggregate-view-slug" })
 
     const result = await t.run(async (ctx) => ({
       stats: await ctx.db.query("reportViewStats").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).unique(),
-      reopenEvents: await ctx.db.query("usageEvents").withIndex("by_workspaceId_and_event", (q) => q.eq("workspaceId", workspaceId).eq("event", "report_reopened")).take(10),
+      events: await ctx.db.query("usageEvents").withIndex("by_workspaceId_and_auditId", (q) => q.eq("workspaceId", workspaceId).eq("auditId", auditId)).take(10),
+      notifications: await ctx.db.query("notifications").withIndex("by_workspaceId_and_createdAt", (q) => q.eq("workspaceId", workspaceId)).take(10),
     }))
     assert.ok(result.stats?.firstViewedAt)
-    assert.equal(result.stats?.reopenCount, 1)
-    assert.equal(result.reopenEvents.length, 1)
+    assert.equal(result.stats?.totalViews, 3)
+    assert.equal(result.stats?.reopenCount, 2)
+    assert.deepEqual(result.events.map((event) => event.event), [
+      "report_opened",
+      "report_reopened",
+      "report_reopened",
+    ])
+    assert.deepEqual(result.notifications.map((notification) => notification.type).sort(), [
+      "first_open",
+      "first_reopen",
+    ])
+    assert.equal(result.notifications.every((notification) => notification.recipientUserId === userId), true)
+  })
+
+  test("treats the first real view after action-first stats as report_opened", async () => {
+    const t = createTest()
+    const { auditId, workspaceId } = await seedCompletedReport(t, {
+      slug: "action-first-classification",
+      isPublic: true,
+    })
+
+    await t.mutation(api.reports.recordPublicReportCtaClick, { slug: "action-first-classification" })
+    await t.mutation(api.reports.recordPublicReportView, { slug: "action-first-classification" })
+
+    const result = await t.run(async (ctx) => ({
+      events: await ctx.db.query("usageEvents").withIndex("by_workspaceId_and_auditId", (q) => q.eq("workspaceId", workspaceId).eq("auditId", auditId)).take(10),
+      notifications: await ctx.db.query("notifications").withIndex("by_workspaceId_and_createdAt", (q) => q.eq("workspaceId", workspaceId)).take(10),
+    }))
+    assert.deepEqual(result.events.map((event) => event.event), [
+      "report_cta_clicked",
+      "report_opened",
+    ])
+    assert.deepEqual(result.notifications.map((notification) => notification.type), ["first_open"])
   })
 
   test("records a view and usage event for an enabled report", async () => {

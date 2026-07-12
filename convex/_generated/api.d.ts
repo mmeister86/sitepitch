@@ -54,6 +54,7 @@ import type * as lib_turnstile from "../lib/turnstile.js";
 import type * as lib_webhook_request from "../lib/webhook_request.js";
 import type * as lib_workspace from "../lib/workspace.js";
 import type * as migrations from "../migrations.js";
+import type * as notifications from "../notifications.js";
 import type * as provider_billing from "../provider_billing.js";
 import type * as provider_billing_state from "../provider_billing_state.js";
 import type * as reports from "../reports.js";
@@ -114,6 +115,7 @@ declare const fullApi: ApiFromModules<{
   "lib/webhook_request": typeof lib_webhook_request;
   "lib/workspace": typeof lib_workspace;
   migrations: typeof migrations;
+  notifications: typeof notifications;
   provider_billing: typeof provider_billing;
   provider_billing_state: typeof provider_billing_state;
   reports: typeof reports;

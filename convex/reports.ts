@@ -749,20 +749,31 @@ export const recordPublicReportView = mutation({
       viewedAt: now,
     })
 
+    const isFirstView = totalViews === 1
+    const event = isFirstView ? "report_opened" : "report_reopened"
     await ctx.db.insert("usageEvents", {
       workspaceId: audit.workspaceId,
       auditId: audit._id,
-      event: "report_opened",
+      event,
       metadata: { source: "public_report" },
       createdAt: now,
     })
 
-    if (totalViews > 1) {
-      await ctx.db.insert("usageEvents", {
-        workspaceId: audit.workspaceId,
+    const notificationType = isFirstView ? "first_open" : "first_reopen"
+    const idempotencyKey = `${notificationType}:${audit._id}`
+    const existingNotification = await ctx.db
+      .query("notifications")
+      .withIndex("by_workspaceId_and_idempotencyKey", (q) =>
+        q.eq("workspaceId", workspace._id).eq("idempotencyKey", idempotencyKey),
+      )
+      .unique()
+    if (!existingNotification) {
+      await ctx.db.insert("notifications", {
+        workspaceId: workspace._id,
         auditId: audit._id,
-        event: "report_reopened",
-        metadata: { source: "public_report" },
+        recipientUserId: workspace.ownerUserId,
+        type: notificationType,
+        idempotencyKey,
         createdAt: now,
       })
     }
@@ -1124,6 +1135,7 @@ const DAY_MS = 86_400_000
 const ENGAGEMENT_WINDOW_DAYS = 14
 const ACTIVITY_EVENT_TYPES = new Set([
   "report_opened",
+  "report_reopened",
   "report_cta_clicked",
   "outreach_copied",
   "public_link_copied",
@@ -1259,6 +1271,7 @@ function activityDetail(
   metadata: Record<string, string | number | boolean | null> | undefined,
 ): string | null {
   if (event === "report_opened") return "Report aufgerufen"
+  if (event === "report_reopened") return "Report erneut aufgerufen"
   if (event === "report_cta_clicked") return "CTA geklickt"
   if (event === "audit_completed") return "Audit abgeschlossen"
   if (event === "pdf_exported") return "Report als PDF exportiert"
