@@ -1,7 +1,7 @@
 "use client"
 
 import { Bell, Search } from "lucide-react"
-import type { ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { useMutation, useQuery } from "convex/react"
 
 import {
@@ -18,8 +18,8 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { useRouter } from "@/lib/router"
 import { api } from "../../convex/_generated/api"
 
-function relativeTime(timestamp: number): string {
-  const seconds = Math.round((timestamp - Date.now()) / 1_000)
+function relativeTime(timestamp: number, now: number): string {
+  const seconds = Math.round((timestamp - now) / 1_000)
   const formatter = new Intl.RelativeTimeFormat("de", { numeric: "auto" })
   if (Math.abs(seconds) < 60) return formatter.format(seconds, "second")
   const minutes = Math.round(seconds / 60)
@@ -30,6 +30,8 @@ function relativeTime(timestamp: number): string {
 }
 
 function NotificationPopover() {
+  const [open, setOpen] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
   const notifications = useQuery(api.notifications.list)
   const unreadCount = useQuery(api.notifications.unreadCount)
   const markRead = useMutation(api.notifications.markRead)
@@ -37,8 +39,15 @@ function NotificationPopover() {
   const { navigate } = useRouter()
   const isLoading = notifications === undefined || unreadCount === undefined
 
+  useEffect(() => {
+    if (!open) return
+    setNow(Date.now())
+    const interval = window.setInterval(() => setNow(Date.now()), 60_000)
+    return () => window.clearInterval(interval)
+  }, [open])
+
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="icon" className="relative">
           <Bell className="size-4" />
@@ -110,7 +119,7 @@ function NotificationPopover() {
                       {label}
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {notification.domain ?? "Audit-Report"} · {relativeTime(notification.createdAt)}
+                      {notification.domain ?? "Audit-Report"} · {relativeTime(notification.createdAt, now)}
                     </span>
                   </span>
                 </button>

@@ -387,6 +387,10 @@ assert.deepEqual(
   ["recipientUserId", "readAt"],
 )
 assert.deepEqual(
+  notificationIndexes.find((index) => index.indexDescriptor === "by_workspaceId_and_recipientUserId_and_createdAt")?.fields,
+  ["workspaceId", "recipientUserId", "createdAt"],
+)
+assert.deepEqual(
   notificationIndexes.find((index) => index.indexDescriptor === "by_workspaceId_and_recipientUserId_and_readAt")?.fields,
   ["workspaceId", "recipientUserId", "readAt"],
 )

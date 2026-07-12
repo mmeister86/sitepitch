@@ -31,24 +31,24 @@ export const list = query({
     const { user, workspace } = await requireOwner(ctx)
     const notifications = await ctx.db
       .query("notifications")
-      .withIndex("by_recipientUserId_and_createdAt", (q) => q.eq("recipientUserId", user._id))
+      .withIndex("by_workspaceId_and_recipientUserId_and_createdAt", (q) =>
+        q.eq("workspaceId", workspace._id).eq("recipientUserId", user._id),
+      )
       .order("desc")
       .take(LIST_LIMIT)
 
     return await Promise.all(
-      notifications
-        .filter((notification) => notification.workspaceId === workspace._id)
-        .map(async (notification) => {
-          const audit = await ctx.db.get(notification.auditId)
-          return {
-            _id: notification._id,
-            auditId: notification.auditId,
-            type: notification.type,
-            readAt: notification.readAt ?? null,
-            createdAt: notification.createdAt,
-            domain: audit?.workspaceId === workspace._id ? audit.domain : null,
-          }
-        }),
+      notifications.map(async (notification) => {
+        const audit = await ctx.db.get(notification.auditId)
+        return {
+          _id: notification._id,
+          auditId: notification.auditId,
+          type: notification.type,
+          readAt: notification.readAt ?? null,
+          createdAt: notification.createdAt,
+          domain: audit?.workspaceId === workspace._id ? audit.domain : null,
+        }
+      }),
     )
   },
 })
@@ -59,11 +59,11 @@ export const unreadCount = query({
     const { user, workspace } = await requireOwner(ctx)
     const notifications = await ctx.db
       .query("notifications")
-      .withIndex("by_recipientUserId_and_readAt", (q) =>
-        q.eq("recipientUserId", user._id).eq("readAt", undefined),
+      .withIndex("by_workspaceId_and_recipientUserId_and_readAt", (q) =>
+        q.eq("workspaceId", workspace._id).eq("recipientUserId", user._id).eq("readAt", undefined),
       )
       .take(UNREAD_COUNT_LIMIT)
-    return notifications.filter((notification) => notification.workspaceId === workspace._id).length
+    return notifications.length
   },
 })
 
@@ -106,16 +106,16 @@ async function markUnreadBatch(
   workspaceId: Id<"workspaces">,
   recipientUserId: Id<"users">,
 ) {
-    const notifications = await ctx.db
-      .query("notifications")
-      .withIndex("by_workspaceId_and_recipientUserId_and_readAt", (q) =>
-        q.eq("workspaceId", workspaceId).eq("recipientUserId", recipientUserId).eq("readAt", undefined),
-      )
-      .order("desc")
-      .take(MARK_ALL_BATCH_SIZE)
-    const now = Date.now()
-    await Promise.all(notifications.map((notification) => ctx.db.patch(notification._id, { readAt: now })))
-    return notifications.length
+  const notifications = await ctx.db
+    .query("notifications")
+    .withIndex("by_workspaceId_and_recipientUserId_and_readAt", (q) =>
+      q.eq("workspaceId", workspaceId).eq("recipientUserId", recipientUserId).eq("readAt", undefined),
+    )
+    .order("desc")
+    .take(MARK_ALL_BATCH_SIZE)
+  const now = Date.now()
+  await Promise.all(notifications.map((notification) => ctx.db.patch(notification._id, { readAt: now })))
+  return notifications.length
 }
 
 export const markAllReadBatch = internalMutation({

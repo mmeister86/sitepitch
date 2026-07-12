@@ -491,6 +491,7 @@ export default defineSchema({
     .index("by_workspaceId_and_idempotencyKey", ["workspaceId", "idempotencyKey"])
     .index("by_recipientUserId_and_createdAt", ["recipientUserId", "createdAt"])
     .index("by_recipientUserId_and_readAt", ["recipientUserId", "readAt"])
+    .index("by_workspaceId_and_recipientUserId_and_createdAt", ["workspaceId", "recipientUserId", "createdAt"])
     .index("by_workspaceId_and_recipientUserId_and_readAt", ["workspaceId", "recipientUserId", "readAt"])
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"]),
 

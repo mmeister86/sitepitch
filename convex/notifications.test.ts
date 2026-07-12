@@ -107,7 +107,16 @@ async function seedNotifications(t: ReturnType<typeof createTest>) {
       createdAt: now + 100,
     })
 
-    return { firstOpenId, firstReopenId, otherNotificationId }
+    return {
+      ownerUserId,
+      workspaceId,
+      auditId,
+      firstOpenId,
+      firstReopenId,
+      otherWorkspaceId,
+      otherAuditId,
+      otherNotificationId,
+    }
   })
 }
 
@@ -126,6 +135,46 @@ describe("notifications", () => {
     assert.equal(items[0]?.type, "first_reopen")
     assert.equal(items[0]?.domain, "owner.example.com")
     assert.equal(unreadCount, 2)
+  })
+
+  test("binds workspace and recipient before limiting list and unread count", async () => {
+    const t = createTest()
+    const { ownerUserId, workspaceId, auditId, otherWorkspaceId, otherAuditId } =
+      await seedNotifications(t)
+    const base = Date.now()
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 20; index += 1) {
+        await ctx.db.insert("notifications", {
+          workspaceId,
+          auditId,
+          recipientUserId: ownerUserId,
+          type: "first_reopen",
+          idempotencyKey: `owner-extra:${index}`,
+          createdAt: base + index,
+        })
+      }
+      for (let index = 0; index < 25; index += 1) {
+        await ctx.db.insert("notifications", {
+          workspaceId: otherWorkspaceId,
+          auditId: otherAuditId,
+          recipientUserId: ownerUserId,
+          type: "first_reopen",
+          idempotencyKey: `foreign-newer:${index}`,
+          createdAt: base + 1_000 + index,
+        })
+      }
+    })
+    const authed = t.withIdentity({ tokenIdentifier: "notifications-owner-token" })
+
+    const [items, unreadCount] = await Promise.all([
+      authed.query(api.notifications.list, {}),
+      authed.query(api.notifications.unreadCount, {}),
+    ])
+
+    assert.equal(items.length, 20)
+    assert.equal(items.every((item) => item.domain === "owner.example.com"), true)
+    assert.equal(items[0]!.createdAt > items[19]!.createdAt, true)
+    assert.equal(unreadCount, 22)
   })
 
   test("does not expose notifications without authentication", async () => {
