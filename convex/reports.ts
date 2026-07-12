@@ -8,7 +8,12 @@ import { toSafeDisplayUrl } from "./lib/audit_url"
 import { DEFAULT_WORKSPACE_ACCENT, findAppUser, getWorkspaceByOwner } from "./lib/workspace"
 import { outreachDraftTypeValidator } from "../src/lib/convex-schema-values.ts"
 import { recordReportView } from "./retention"
-import { hasAccurateViewAggregate, LEGACY_VIEW_COUNT_CAP } from "./lib/report_view_stats"
+import {
+  LEGACY_VIEW_COUNT_CAP,
+  loadReportViewCount,
+  loadWorkspaceReportViewCount,
+  resolveReportViewCount,
+} from "./lib/report_view_stats"
 import { resolveReportCtaSnapshotValues } from "./lib/report_cta"
 
 // ---------------------------------------------------------------------------
@@ -230,6 +235,10 @@ async function incrementReportActionAggregate(
     await ctx.db.patch(stats._id, { [field]: (stats[field] ?? 0) + 1 })
     return
   }
+  const legacyView = await ctx.db
+    .query("reportViews")
+    .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+    .first()
   await ctx.db.insert("reportViewStats", {
     workspaceId: audit.workspaceId,
     auditId: audit._id,
@@ -237,7 +246,7 @@ async function incrementReportActionAggregate(
     reopenCount: 0,
     ctaClicks: field === "ctaClicks" ? 1 : 0,
     pdfDownloads: field === "pdfDownloads" ? 1 : 0,
-    viewAggregationState: "pending",
+    viewAggregationState: legacyView ? "pending" : "accurate",
   })
 }
 
@@ -503,7 +512,7 @@ export const getInternalReportById = query({
         ctx.db
           .query("reportViews")
           .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
-          .take(100),
+          .take(LEGACY_VIEW_COUNT_CAP + 1),
         ctx.db
           .query("reportViewStats")
           .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
@@ -540,6 +549,8 @@ export const getInternalReportById = query({
       outreachCount: outreach.length,
     })
 
+    const viewCount = resolveReportViewCount(reportViewStats, reportViews.length)
+
     return {
       auditId: audit._id,
       workspaceId: audit.workspaceId,
@@ -565,7 +576,9 @@ export const getInternalReportById = query({
       outreachDrafts: buildOutreach(outreach),
       performance: buildPerformance(performanceRows),
       screenshots,
-      viewCount: hasAccurateViewAggregate(reportViewStats) ? reportViewStats!.totalViews : reportViews.length,
+      viewCount: viewCount.count,
+      viewCountCapped: viewCount.capped,
+      viewCountPending: viewCount.pending,
       branding: buildBranding(workspace, audit),
       personaReviews: buildPersonaReviews(personaReviews),
       copyReview: buildCopyReview(copyReviewDoc ?? null),
@@ -1025,6 +1038,8 @@ export interface DashboardSummaryAudit {
   createdAt: number
   businessName: string | null
   viewCount: number
+  viewCountCapped: boolean
+  viewCountPending: boolean
   isPublic: boolean
   hasOutreach: boolean
 }
@@ -1033,6 +1048,8 @@ export interface DashboardSummaryResult {
   auditsThisMonth: number
   completedAudits: number
   reportViews: number
+  reportViewsCapped: boolean
+  reportViewsPending: boolean
   hasPublicReport: boolean
   hasOutreachCopy: boolean
   recentAudits: DashboardSummaryAudit[]
@@ -1102,25 +1119,9 @@ export const getDashboardSummary = query({
       }
     }
 
-    const viewCounts = new Map<Id<"audits">, number>()
+    const viewCounts = new Map<Id<"audits">, Awaited<ReturnType<typeof loadReportViewCount>>>()
     for (const auditId of recentAuditIds) {
-      const stats = await ctx.db
-        .query("reportViewStats")
-        .withIndex("by_workspaceId_and_auditId", (q) =>
-          q.eq("workspaceId", workspace._id).eq("auditId", auditId),
-        )
-        .unique()
-      if (hasAccurateViewAggregate(stats)) {
-        viewCounts.set(auditId, stats!.totalViews)
-      } else {
-        const views = await ctx.db
-          .query("reportViews")
-          .withIndex("by_workspaceId_and_auditId", (q) =>
-            q.eq("workspaceId", workspace._id).eq("auditId", auditId),
-          )
-          .take(LEGACY_VIEW_COUNT_CAP + 1)
-        viewCounts.set(auditId, Math.min(views.length, LEGACY_VIEW_COUNT_CAP))
-      }
+      viewCounts.set(auditId, await loadReportViewCount(ctx, auditId))
     }
 
     const outreachCounts = new Map<Id<"audits">, number>()
@@ -1144,33 +1145,22 @@ export const getDashboardSummary = query({
         overallScore: scoreDoc,
         createdAt: audit.createdAt,
         businessName: audit.leadId ? (leadNames.get(audit.leadId) ?? null) : null,
-        viewCount: viewCounts.get(audit._id) ?? 0,
+        viewCount: viewCounts.get(audit._id)?.count ?? 0,
+        viewCountCapped: viewCounts.get(audit._id)?.capped ?? false,
+        viewCountPending: viewCounts.get(audit._id)?.pending ?? false,
         isPublic: audit.isPublic,
         hasOutreach: (outreachCounts.get(audit._id) ?? 0) > 0,
       }
     })
 
-    let totalReportViews = 0
-    for (const audit of allAudits) {
-      const stats = await ctx.db
-        .query("reportViewStats")
-        .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
-        .unique()
-      if (hasAccurateViewAggregate(stats)) {
-        totalReportViews += stats!.totalViews
-        continue
-      }
-      const legacy = await ctx.db
-        .query("reportViews")
-        .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
-        .take(LEGACY_VIEW_COUNT_CAP + 1)
-      totalReportViews += Math.min(legacy.length, LEGACY_VIEW_COUNT_CAP)
-    }
+    const totalReportViews = await loadWorkspaceReportViewCount(ctx, workspace._id)
 
     return {
       auditsThisMonth,
       completedAudits,
-      reportViews: totalReportViews,
+      reportViews: totalReportViews.count,
+      reportViewsCapped: totalReportViews.capped,
+      reportViewsPending: totalReportViews.pending,
       hasPublicReport,
       hasOutreachCopy,
       recentAudits,

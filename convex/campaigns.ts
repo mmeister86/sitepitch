@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values"
 
-import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server"
+import { action, internalMutation, internalQuery, mutation, query, type QueryCtx } from "./_generated/server"
 import type { Id, Doc } from "./_generated/dataModel"
 import { api, internal } from "./_generated/api"
 import {
@@ -31,7 +31,7 @@ import {
   campaignStatusValidator,
   reportLanguageValidator,
 } from "../src/lib/convex-schema-values"
-import { hasAccurateViewAggregate, LEGACY_VIEW_COUNT_CAP } from "./lib/report_view_stats"
+import { loadReportViewCount } from "./lib/report_view_stats"
 
 const CampaignLeadStatusValidator = campaignLeadStatusValidator
 const CampaignOfferTypeValidator = campaignOfferTypeValidator
@@ -62,6 +62,8 @@ export type CampaignMetrics = {
   audits: number
   outreachCopied: number
   reportViews: number
+  reportViewsCapped: boolean
+  reportViewsPending: boolean
   won: number
   lost: number
   followUpsDue: number
@@ -109,6 +111,8 @@ export type CampaignLeadListItem = {
     status: string
     overallScore?: number
     viewCount: number
+    viewCountCapped: boolean
+    viewCountPending: boolean
     outreachCopied: number
   } | null
   auditReady: boolean
@@ -125,17 +129,13 @@ export type CampaignActivityItem = {
 }
 
 async function computeCampaignMetrics(
-  ctx: {
-    db: {
-      query: any
-    }
-  },
+  ctx: QueryCtx,
   campaignId: Id<"campaigns">,
   workspaceId: Id<"workspaces">,
 ): Promise<CampaignMetrics> {
   const campaignLeads = await ctx.db
     .query("campaignLeads")
-    .withIndex("by_campaignId", (q: any) => q.eq("campaignId", campaignId))
+    .withIndex("by_campaignId", (q) => q.eq("campaignId", campaignId))
     .take(500)
 
   const leadIds = new Set<Id<"leads">>()
@@ -154,38 +154,25 @@ async function computeCampaignMetrics(
     }
   }
 
-  const leads = await ctx.db
-    .query("leads")
-    .withIndex("by_workspaceId", (q: any) => q.eq("workspaceId", workspaceId))
-    .collect()
-
-  for (const lead of leads) {
-    if (leadIds.has(lead._id) && lead.auditId) {
-      auditIds.add(lead.auditId)
-    }
+  for (const leadId of leadIds) {
+    const lead = await ctx.db.get(leadId)
+    if (lead?.workspaceId === workspaceId && lead.auditId) auditIds.add(lead.auditId)
   }
 
   let reportViews = 0
+  let reportViewsCapped = false
+  let reportViewsPending = false
   let outreachCopied = 0
 
   for (const auditId of auditIds) {
-    const stats = await ctx.db
-      .query("reportViewStats")
-      .withIndex("by_auditId", (q: any) => q.eq("auditId", auditId))
-      .unique()
-    if (hasAccurateViewAggregate(stats)) {
-      reportViews += stats.totalViews
-    } else {
-      const views = await ctx.db
-        .query("reportViews")
-        .withIndex("by_auditId", (q: any) => q.eq("auditId", auditId))
-        .take(LEGACY_VIEW_COUNT_CAP + 1)
-      reportViews += Math.min(views.length, LEGACY_VIEW_COUNT_CAP)
-    }
+    const viewCount = await loadReportViewCount(ctx, auditId)
+    reportViews += viewCount.count
+    reportViewsCapped ||= viewCount.capped
+    reportViewsPending ||= viewCount.pending
 
     const events = await ctx.db
       .query("usageEvents")
-      .withIndex("by_workspaceId_and_auditId", (q: any) =>
+      .withIndex("by_workspaceId_and_auditId", (q) =>
         q.eq("workspaceId", workspaceId).eq("auditId", auditId),
       )
       .take(1000)
@@ -197,6 +184,8 @@ async function computeCampaignMetrics(
     audits: auditIds.size,
     outreachCopied,
     reportViews,
+    reportViewsCapped,
+    reportViewsPending,
     won,
     lost,
     followUpsDue,
@@ -277,7 +266,14 @@ export const getMyCampaign = query({
 
     const auditMeta = new Map<
       Id<"audits">,
-      { status: string; overallScore?: number; viewCount: number; outreachCopied: number }
+      {
+        status: string
+        overallScore?: number
+        viewCount: number
+        viewCountCapped: boolean
+        viewCountPending: boolean
+        outreachCopied: number
+      }
     >()
     for (const auditId of auditIds) {
       const audit = await ctx.db.get(auditId)
@@ -286,10 +282,7 @@ export const getMyCampaign = query({
         .query("auditScores")
         .withIndex("by_auditId", (q) => q.eq("auditId", auditId))
         .unique()
-      const views = await ctx.db
-        .query("reportViews")
-        .withIndex("by_auditId", (q) => q.eq("auditId", auditId))
-        .take(1000)
+      const viewCount = await loadReportViewCount(ctx, auditId)
       const events = await ctx.db
         .query("usageEvents")
         .withIndex("by_workspaceId_and_auditId", (q) =>
@@ -299,7 +292,9 @@ export const getMyCampaign = query({
       auditMeta.set(auditId, {
         status: audit.status,
         overallScore: audit.overallScore ?? scoreDoc?.overallScore ?? undefined,
-        viewCount: views.length,
+        viewCount: viewCount.count,
+        viewCountCapped: viewCount.capped,
+        viewCountPending: viewCount.pending,
         outreachCopied: events.filter((e) => e.event === "outreach_copied").length,
       })
     }
@@ -336,6 +331,8 @@ export const getMyCampaign = query({
               status: auditInfo.status,
               overallScore: auditInfo.overallScore,
               viewCount: auditInfo.viewCount,
+              viewCountCapped: auditInfo.viewCountCapped,
+              viewCountPending: auditInfo.viewCountPending,
               outreachCopied: auditInfo.outreachCopied,
             }
           : null,

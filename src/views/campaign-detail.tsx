@@ -41,6 +41,7 @@ import { api } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
 import type { CampaignOfferType, CampaignStatus } from "../../convex/lib/campaigns"
 import { campaignStatusLabel, offerTypeLabel } from "../../convex/lib/campaigns"
+import { formatReportViewCount } from "@/lib/report-view-count"
 
 function CampaignStatusBadge({ status }: { status: CampaignStatus }) {
   const classes: Record<CampaignStatus, string> = {
@@ -325,7 +326,14 @@ export function CampaignDetailView({ id }: { id: string }) {
           { label: "Leads", value: metrics.leads },
           { label: "Audits", value: metrics.audits },
           { label: "Outreach", value: metrics.outreachCopied },
-          { label: "Views", value: metrics.reportViews },
+          {
+            label: "Views",
+            value: formatReportViewCount(
+              metrics.reportViews,
+              metrics.reportViewsCapped,
+              metrics.reportViewsPending,
+            ),
+          },
           { label: "Won", value: metrics.won },
           { label: "Lost", value: metrics.lost },
           { label: "Fällig", value: metrics.followUpsDue },

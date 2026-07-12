@@ -123,6 +123,41 @@ describe("privacy retention backend", () => {
     expect(await t.run((ctx) => ctx.db.query("reportViews").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).first())).not.toBeNull()
   })
 
+  test("keeps an accurate action-first aggregate after its first raw view is retained then purged", async () => {
+    const t = convexTest(schema, modules)
+    const owner = await seedWorkspace(t)
+    const auditId = await seedAudit(t, owner.userId, owner.workspaceId)
+    const old = Date.now() - 40 * 86_400_000
+    await t.run((ctx) => ctx.db.insert("reportViewStats", {
+      workspaceId: owner.workspaceId,
+      auditId,
+      totalViews: 0,
+      reopenCount: 0,
+      ctaClicks: 1,
+      pdfDownloads: 1,
+      viewAggregationState: "accurate",
+    }))
+    await t.mutation(internal.retention.recordReportViewInternal, {
+      workspaceId: owner.workspaceId,
+      auditId,
+      viewedAt: old,
+    })
+
+    await t.mutation(internal.crons.purgeExpiredReportViews, {})
+    const result = await t.run(async (ctx) => ({
+      raw: await ctx.db.query("reportViews").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).first(),
+      stats: await ctx.db.query("reportViewStats").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).unique(),
+    }))
+    expect(result.raw).toBeNull()
+    expect(result.stats).toMatchObject({
+      totalViews: 1,
+      reopenCount: 0,
+      ctaClicks: 1,
+      pdfDownloads: 1,
+      viewAggregationState: "accurate",
+    })
+  })
+
   test("blocks account deletion with an active subscription and prepares a durable job otherwise", async () => {
     const t = convexTest(schema, modules)
     const { workspaceId } = await seedWorkspace(t)

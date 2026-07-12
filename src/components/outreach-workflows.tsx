@@ -45,6 +45,7 @@ import {
 import { toast } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 import { trackRybbitEvent } from "@/lib/analytics"
+import { copyTextThen } from "@/lib/clipboard"
 import { filterCompatibleTemplates } from "@/lib/outreach-template-compatibility"
 import { api } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
@@ -137,13 +138,15 @@ export function OutreachWorkflows({
                   type="button"
                   onClick={async () => {
                     try {
-                      await navigator.clipboard.writeText(shareUrl)
+                      await copyTextThen(shareUrl, async () => {
+                        toast.success("Report-Link kopiert")
+                        trackRybbitEvent("public_link_copied", { source: "internal_report" })
+                        await recordPublicLinkCopy()
+                      })
                     } catch {
-                      /* clipboard may be unavailable */
+                      toast.error("Report-Link konnte nicht kopiert werden")
+                      return
                     }
-                    toast.success("Report-Link kopiert")
-                    trackRybbitEvent("public_link_copied", { source: "internal_report" })
-                    await recordPublicLinkCopy()
                   }}
                 >
                   <Copy className="size-4" />
@@ -306,24 +309,26 @@ function OutreachDraftCard({
   const handleCopy = async () => {
     const full = hasSubject && subject ? `Betreff: ${subject}\n\n${body}` : body
     try {
-      await navigator.clipboard.writeText(full)
-    } catch {
-      /* clipboard may be unavailable */
-    }
-    setCopied(true)
-    toast.success(`${label}-Text kopiert`)
-    trackRybbitEvent("outreach_copied", { draft_type: draftType })
-    setTimeout(() => setCopied(false), 1600)
-    try {
-      await recordCopy({
-        auditId,
-        kind: "outreach",
-        draftType,
-        edited: dirty,
-        includedReportLink: linkInserted,
+      await copyTextThen(full, async () => {
+        setCopied(true)
+        toast.success(`${label}-Text kopiert`)
+        trackRybbitEvent("outreach_copied", { draft_type: draftType })
+        setTimeout(() => setCopied(false), 1600)
+        try {
+          await recordCopy({
+            auditId,
+            kind: "outreach",
+            draftType,
+            edited: dirty,
+            includedReportLink: linkInserted,
+          })
+        } catch {
+          /* analytics only */
+        }
       })
     } catch {
-      /* analytics only */
+      toast.error(`${label}-Text konnte nicht kopiert werden`)
+      return
     }
   }
 

@@ -70,6 +70,7 @@ import {
   formatRelative,
 } from "@/lib/scores"
 import { cn } from "@/lib/utils"
+import { formatReportViewCount } from "@/lib/report-view-count"
 import { authClient } from "@/lib/auth-client"
 import { getUserDisplayName, personalizeOutreachText } from "@/lib/user-display"
 import type { Audit, AuditHistoryEntry, CheckResult, LeadStatus, FindingSeverity } from "@/lib/types"
@@ -664,7 +665,11 @@ function LiveCompletedReport({
       {/* Engagement strip */}
       <Card className="py-0 no-print">
         <CardContent className="grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-border p-0 sm:grid-cols-3">
-          <EngagementStat icon={<Eye className="size-4" />} label="Report Views" value={report.viewCount} />
+          <EngagementStat
+            icon={<Eye className="size-4" />}
+            label="Report Views"
+            value={formatReportViewCount(report.viewCount, report.viewCountCapped, report.viewCountPending)}
+          />
           <EngagementStat icon={<CircleCheck className="size-4" />} label="Öffentlich" value={report.isPublic ? "Ja" : "Nein"} />
           <EngagementStat icon={<ShieldCheck className="size-4" />} label="Findings" value={report.findings.length} />
         </CardContent>

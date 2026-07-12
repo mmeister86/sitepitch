@@ -7,7 +7,7 @@ import migrationsComponent from "@convex-dev/migrations/test"
 import { components, internal } from "./_generated/api"
 import schema from "./schema"
 
-const modules = import.meta.glob(["./migrations.ts", "./_generated/*.js"])
+const modules = import.meta.glob(["./migrations.ts", "./retention.ts", "./_generated/*.js"])
 
 async function seedAudit(t: ReturnType<typeof convexTest>, slug: string) {
   return await t.run(async (ctx) => {
@@ -46,6 +46,65 @@ async function seedAudit(t: ReturnType<typeof convexTest>, slug: string) {
 }
 
 describe("legacy report view stats migrations", () => {
+  test("keeps a pre-fix zero-only row pending when a new view arrives before backfill and remains exact after reset", async () => {
+    const t = convexTest(schema, modules)
+    migrationsComponent.register(t)
+    const { workspaceId, auditId } = await seedAudit(t, "zero-only-race")
+    await t.run(async (ctx) => {
+      await ctx.db.insert("reportViews", { workspaceId, auditId, viewedAt: 100 })
+      await ctx.db.insert("reportViews", { workspaceId, auditId, viewedAt: 200 })
+      await ctx.db.insert("reportViewStats", {
+        workspaceId,
+        auditId,
+        totalViews: 0,
+        reopenCount: 0,
+        ctaClicks: 2,
+        pdfDownloads: 1,
+      })
+    })
+
+    const recorded = await t.mutation(internal.retention.recordReportViewInternal, {
+      workspaceId,
+      auditId,
+      viewedAt: 300,
+    })
+    expect(recorded.isFirstView).toBe(false)
+    const before = await t.run(async (ctx) => ({
+      stats: await ctx.db.query("reportViewStats").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).unique(),
+      newest: await ctx.db.query("reportViews").withIndex("by_auditId_and_viewedAt", (q) => q.eq("auditId", auditId)).order("desc").first(),
+    }))
+    expect(before.stats).toMatchObject({ totalViews: 0, viewAggregationState: "pending" })
+    expect(before.newest?.includedInStats).toBeUndefined()
+
+    await t.run(async (ctx) => {
+      await runToCompletion(ctx, components.migrations, internal.migrations.backfillLegacyReportViewStats, {
+        name: "test:zero-only-race:first",
+        batchSize: 1,
+      })
+      await runToCompletion(ctx, components.migrations, internal.migrations.finalizeLegacyReportViewStats, {
+        name: "test:zero-only-race:finalize",
+        batchSize: 1,
+      })
+      await runToCompletion(ctx, components.migrations, internal.migrations.backfillLegacyReportViewStats, {
+        name: "test:zero-only-race:reset",
+        cursor: null,
+        batchSize: 1,
+      })
+    })
+    const stats = await t.run((ctx) =>
+      ctx.db.query("reportViewStats").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).unique(),
+    )
+    expect(stats).toMatchObject({
+      totalViews: 3,
+      firstViewedAt: 100,
+      lastViewedAt: 300,
+      reopenCount: 2,
+      ctaClicks: 2,
+      pdfDownloads: 1,
+      viewAggregationState: "accurate",
+    })
+  })
+
   test("builds exact view aggregates, preserves actions, finalizes, and remains idempotent after restart", async () => {
     const t = convexTest(schema, modules)
     migrationsComponent.register(t)

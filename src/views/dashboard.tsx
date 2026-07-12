@@ -48,6 +48,7 @@ import { getFirstName, getUserDisplayName } from "@/lib/user-display"
 import { api } from "../../convex/_generated/api"
 import { Spinner } from "@/components/ui/spinner"
 import { AuditExampleLinks } from "@/components/audit-example-links"
+import { formatReportViewCount } from "@/lib/report-view-count"
 
 type SummaryData = NonNullable<
   ReturnType<typeof useQuery<typeof api.reports.getDashboardSummary>>
@@ -99,6 +100,8 @@ export function DashboardView() {
     auditsThisMonth: 0,
     completedAudits: 0,
     reportViews: 0,
+    reportViewsCapped: false,
+    reportViewsPending: false,
     hasPublicReport: false,
     hasOutreachCopy: false,
     recentAudits: [],
@@ -149,7 +152,7 @@ export function DashboardView() {
           <p className="mt-1 text-sm text-muted-foreground">
             {total === 0
               ? "In unter fünf Minuten: Beispiel ansehen, Website eingeben und den ersten Audit starten."
-              : `${total} Audits diesen Monat · ${summaryData.completedAudits} abgeschlossen · ${summaryData.reportViews} Report Views`}
+              : `${total} Audits diesen Monat · ${summaryData.completedAudits} abgeschlossen · ${formatReportViewCount(summaryData.reportViews, summaryData.reportViewsCapped, summaryData.reportViewsPending)} Report Views`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -195,7 +198,7 @@ export function DashboardView() {
         />
         <StatCard
           label="Report Views"
-          value={String(summaryData.reportViews)}
+          value={formatReportViewCount(summaryData.reportViews, summaryData.reportViewsCapped, summaryData.reportViewsPending)}
           icon={Eye}
           hint="Über alle freigegebenen Reports"
         />
@@ -327,7 +330,7 @@ export function DashboardView() {
                     </div>
                     <div className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
                       <Eye className="size-3.5" />
-                      {a.viewCount}
+                      {formatReportViewCount(a.viewCount, a.viewCountCapped, a.viewCountPending)}
                     </div>
                     <span className="shrink-0 text-xs text-muted-foreground/70">
                       {formatRelativeTs(a.createdAt)}

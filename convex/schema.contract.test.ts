@@ -357,6 +357,10 @@ assert.deepEqual(
   ["auditId", "viewedAt"],
 )
 assert.ok(reportViewIndexes.some((index) => index.indexDescriptor === "by_includedInStats"))
+assert.deepEqual(
+  reportViewIndexes.find((index) => index.indexDescriptor === "by_auditId_and_includedInStats")?.fields,
+  ["auditId", "includedInStats"],
+)
 assert.ok(Object.keys((schema.tables.reportViews as any).validator.fields).includes("includedInStats"))
 
 const leadStatusValues = getValidatorValues(

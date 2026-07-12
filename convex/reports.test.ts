@@ -1035,6 +1035,7 @@ describe("recordPublicReportCtaClick", () => {
     assert.equal(stats?.reopenCount, 0)
     assert.equal(stats?.ctaClicks, 1)
     assert.equal(stats?.pdfDownloads, 1)
+    assert.equal(stats?.viewAggregationState, "accurate")
 
     await t.mutation(api.reports.recordPublicReportView, { slug: "actions-before-view" })
     const afterFirstView = await t.run((ctx) =>
@@ -1042,8 +1043,13 @@ describe("recordPublicReportCtaClick", () => {
     )
     assert.equal(afterFirstView?.totalViews, 1)
     assert.equal(afterFirstView?.reopenCount, 0)
+    assert.equal(afterFirstView?.viewAggregationState, "accurate")
     assert.ok(afterFirstView?.firstViewedAt)
     assert.ok(afterFirstView?.lastViewedAt)
+    const rawView = await t.run((ctx) =>
+      ctx.db.query("reportViews").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).unique(),
+    )
+    assert.equal(rawView?.includedInStats, true)
   })
 
   test("keeps legacy views authoritative after action aggregates and classifies the next view as reopened", async () => {
@@ -1063,6 +1069,8 @@ describe("recordPublicReportCtaClick", () => {
       .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
       .query(api.reports.getInternalReportById, { auditId })
     assert.equal(before?.viewCount, 2)
+    assert.equal(before?.viewCountCapped, false)
+    assert.equal(before?.viewCountPending, true)
 
     await t.mutation(api.reports.recordPublicReportView, { slug: "legacy-actions-before-view" })
     const result = await t.run(async (ctx) => ({
@@ -1079,6 +1087,7 @@ describe("recordPublicReportCtaClick", () => {
       .withIdentity({ tokenIdentifier: "report-test-token", email: "studio@example.com" })
       .query(api.reports.getInternalReportById, { auditId })
     assert.equal(after?.viewCount, 3)
+    assert.equal(after?.viewCountPending, true)
   })
 
   test("records a cta click event for an enabled report", async () => {
@@ -1346,6 +1355,8 @@ describe("getDashboardSummary", () => {
     assert.equal(result!.auditsThisMonth, 1)
     assert.equal(result!.completedAudits, 1)
     assert.equal(result!.reportViews, 0)
+    assert.equal(result!.reportViewsCapped, false)
+    assert.equal(result!.reportViewsPending, false)
     assert.equal(result!.hasPublicReport, true)
     assert.equal(result!.hasOutreachCopy, false)
     assert.equal(result!.recentAudits.length, 1)
@@ -1407,6 +1418,9 @@ describe("getDashboardSummary", () => {
 
     assert.ok(result)
     assert.equal(result!.reportViews, 3)
+    assert.equal(result!.reportViewsCapped, false)
+    assert.equal(result!.reportViewsPending, true)
+    assert.equal(result!.recentAudits[0]?.viewCountPending, true)
   })
 
   test("detects copied outreach via usageEvents", async () => {

@@ -17,7 +17,7 @@ import type { CreditSnapshot } from "./lib/credits"
 import { findAppUser, getWorkspaceByOwner } from "./lib/workspace"
 import { enqueueAuditDeletion } from "./deletion"
 import { auditWorkpool } from "./workpools"
-import { hasAccurateViewAggregate, LEGACY_VIEW_COUNT_CAP } from "./lib/report_view_stats"
+import { LEGACY_VIEW_COUNT_CAP, resolveReportViewCount } from "./lib/report_view_stats"
 
 type CanonicalLeadStatus = "new" | "audited" | "contacted" | "follow_up" | "interested" | "won" | "lost"
 
@@ -115,12 +115,10 @@ export const listMyAudits = query({
           : outreach.length > 0
             ? "ready" as const
             : "not_started" as const
-        const hasAccurateStats = hasAccurateViewAggregate(viewStats)
-        const viewCountCapped = !hasAccurateStats && legacyViews.length > LEGACY_VIEW_COUNT_CAP
-        const views = hasAccurateStats ? viewStats!.totalViews : Math.min(legacyViews.length, LEGACY_VIEW_COUNT_CAP)
-        const lastViewedAt = hasAccurateStats
-          ? viewStats!.lastViewedAt ?? null
-          : legacyViews[0]?.viewedAt ?? null
+        const viewCount = resolveReportViewCount(viewStats, legacyViews.length)
+        const lastViewedAt = viewCount.pending
+          ? legacyViews[0]?.viewedAt ?? null
+          : viewStats?.lastViewedAt ?? null
 
         return {
           _id: audit._id,
@@ -140,8 +138,9 @@ export const listMyAudits = query({
           city: lead?.city ?? null,
           category: lead?.category ?? null,
           outreachStatus,
-          views,
-          viewCountCapped,
+          views: viewCount.count,
+          viewCountCapped: viewCount.capped,
+          viewCountPending: viewCount.pending,
           reopenCount: viewStats?.reopenCount ?? 0,
           ctaClicks: viewStats?.ctaClicks ?? 0,
           pdfDownloads: viewStats?.pdfDownloads ?? 0,

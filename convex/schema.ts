@@ -511,6 +511,7 @@ export default defineSchema({
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
     .index("by_auditId", ["auditId"])
     .index("by_auditId_and_viewedAt", ["auditId", "viewedAt"])
+    .index("by_auditId_and_includedInStats", ["auditId", "includedInStats"])
     .index("by_workspaceId_and_viewedAt", ["workspaceId", "viewedAt"])
     .index("by_includedInStats", ["includedInStats"])
     .index("by_viewedAt", ["viewedAt"]),

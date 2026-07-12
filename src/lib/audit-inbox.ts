@@ -1,4 +1,5 @@
 import type { LeadStatus } from "./types"
+import { formatReportViewCount } from "./report-view-count"
 
 export type AuditFilter = "all" | "running" | "completed" | "failed"
 export type OutreachStatus = "not_started" | "ready" | "copied"
@@ -19,8 +20,8 @@ export const outreachStatusMeta: Record<OutreachStatus, { label: string; classNa
   copied: { label: "Kopiert", className: "bg-score-strong/15 text-score-strong" },
 }
 
-export function formatAuditViewCount(views: number, capped: boolean): string {
-  return `${views}${capped ? "+" : ""}`
+export function formatAuditViewCount(views: number, capped: boolean, pending = false): string {
+  return formatReportViewCount(views, capped, pending)
 }
 
 export function matchesAuditFilter(status: string, filter: AuditFilter): boolean {

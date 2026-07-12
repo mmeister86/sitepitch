@@ -4,6 +4,7 @@ import { Copy, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
+import { copyTextThen } from "@/lib/clipboard"
 
 interface CopyButtonProps {
   text: string
@@ -28,19 +29,21 @@ export function CopyButton({
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(text)
+      await copyTextThen(text, async () => {
+        setCopied(true)
+        toast.success(toastMessage)
+        setTimeout(() => setCopied(false), 1600)
+        if (onCopied) {
+          try {
+            await onCopied()
+          } catch {
+            /* analytics failures must never block the copy feedback */
+          }
+        }
+      })
     } catch {
-      /* clipboard may be unavailable in sandbox — still show feedback */
-    }
-    setCopied(true)
-    toast.success(toastMessage)
-    setTimeout(() => setCopied(false), 1600)
-    if (onCopied) {
-      try {
-        await onCopied()
-      } catch {
-        /* analytics failures must never block the copy feedback */
-      }
+      toast.error("Kopieren fehlgeschlagen")
+      return
     }
   }
 

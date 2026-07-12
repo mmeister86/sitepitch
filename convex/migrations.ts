@@ -122,8 +122,9 @@ export const finalizeLegacyReportViewStats = migrations.define({
     if (stats.viewAggregationState === "accurate") return
     const remaining = await ctx.db
       .query("reportViews")
-      .withIndex("by_auditId", (q) => q.eq("auditId", stats.auditId))
-      .filter((q) => q.neq(q.field("includedInStats"), true))
+      .withIndex("by_auditId_and_includedInStats", (q) =>
+        q.eq("auditId", stats.auditId).eq("includedInStats", undefined),
+      )
       .first()
     if (remaining) return
     return {
