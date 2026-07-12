@@ -95,7 +95,7 @@ export const listMyAudits = query({
             .unique(),
           ctx.db
             .query("reportViews")
-            .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+            .withIndex("by_auditId_and_viewedAt", (q) => q.eq("auditId", audit._id))
             .order("desc")
             .take(LEGACY_VIEW_COUNT_CAP + 1),
           ctx.db

@@ -341,6 +341,15 @@ const reportViewStatsIndexes = (schema.tables.reportViewStats as any).indexes.ma
 assert.ok(reportViewStatsIndexes.includes("by_auditId"))
 assert.ok(reportViewStatsIndexes.includes("by_workspaceId_and_auditId"))
 
+const reportViewIndexes = (schema.tables.reportViews as any).indexes as Array<{
+  indexDescriptor: string
+  fields: string[]
+}>
+assert.deepEqual(
+  reportViewIndexes.find((index) => index.indexDescriptor === "by_auditId_and_viewedAt")?.fields,
+  ["auditId", "viewedAt"],
+)
+
 const leadStatusValues = getValidatorValues(
   (schema.tables.leads as any).validator.fields.status,
 )

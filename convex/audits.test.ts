@@ -861,12 +861,19 @@ describe("listMyAudits inbox DTO", () => {
           viewedAt: base + index,
         })
       }
-      for (let index = 0; index < 101; index += 1) {
+      await ctx.db.insert("reportViews", {
+        workspaceId: workspaceState.workspaceId as any,
+        auditId: cappedAuditId,
+        viewedAt: base + 1_100,
+      })
+      for (let index = 0; index < 100; index += 1) {
         await ctx.db.insert("reportViews", {
           workspaceId: workspaceState.workspaceId as any,
           auditId: cappedAuditId,
           viewedAt: base + 1_000 + index,
         })
+      }
+      for (let index = 0; index < 101; index += 1) {
         await ctx.db.insert("reportViews", {
           workspaceId: workspaceState.workspaceId as any,
           auditId: statsAuditId,
