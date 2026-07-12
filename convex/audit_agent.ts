@@ -629,6 +629,13 @@ export const completeAuditFromAgent = internalMutation({
       updatedAt: current,
     })
 
+    if (audit.leadId) {
+      const lead = await ctx.db.get(audit.leadId)
+      if (lead?.workspaceId === audit.workspaceId && lead.status === "new") {
+        await ctx.db.patch(lead._id, { status: "audited", updatedAt: current })
+      }
+    }
+
     await consumeWorkspaceCreditReservation(
       ctx,
       audit.workspaceId,
@@ -638,10 +645,9 @@ export const completeAuditFromAgent = internalMutation({
 
     const existingCompletedEvent = await ctx.db
       .query("usageEvents")
-      .withIndex("by_workspaceId_and_auditId", (q) =>
-        q.eq("workspaceId", audit.workspaceId).eq("auditId", args.auditId),
+      .withIndex("by_auditId_and_event", (q) =>
+        q.eq("auditId", args.auditId).eq("event", "audit_completed"),
       )
-      .filter((q) => q.eq(q.field("event"), "audit_completed"))
       .first()
 
     if (!existingCompletedEvent) {

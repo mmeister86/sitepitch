@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Search, Eye, ArrowRight, Plus, Globe, Lock, Copy, Trash2 } from "lucide-react"
+import { Search, Eye, ArrowRight, Plus, Copy, Trash2, RotateCcw, MousePointerClick, FileDown } from "lucide-react"
 import { useMutation, useQuery } from "convex/react"
 
 import {
@@ -41,8 +41,22 @@ import { cn } from "@/lib/utils"
 import { api } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
 import { Spinner } from "@/components/ui/spinner"
-
-type AuditFilter = "all" | "running" | "completed" | "failed"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import {
+  leadStatusOptions,
+  matchesAuditFilter,
+  matchesAuditSearch,
+  outreachStatusMeta,
+  type AuditFilter,
+} from "@/lib/audit-inbox"
+import type { LeadStatus } from "@/lib/types"
 
 const statusFilters: { value: AuditFilter; label: string }[] = [
   { value: "all", label: "Alle" },
@@ -51,37 +65,22 @@ const statusFilters: { value: AuditFilter; label: string }[] = [
   { value: "failed", label: "Fehlgeschlagen" },
 ]
 
-function matchesFilter(status: string, filter: AuditFilter): boolean {
-  if (filter === "all") return true
-  if (filter === "completed") return status === "completed"
-  if (filter === "failed") return status === "failed" || status === "cancelled"
-  if (filter === "running")
-    return !["completed", "failed", "cancelled", "draft"].includes(status)
-  return true
-}
-
 export function AuditsView() {
   const { navigate } = useRouter()
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState<AuditFilter>("all")
   const [deleteTarget, setDeleteTarget] = useState<{ id: Id<"audits">; domain: string } | null>(null)
+  const [updatingLeadId, setUpdatingLeadId] = useState<Id<"leads"> | null>(null)
 
   const data = useQuery(api.audits.listMyAudits, {})
   const deleteAudit = useMutation(api.audits.deleteAudit)
+  const updateLeadStatus = useMutation(api.leads.updateLeadStatus)
 
   const items = data?.items ?? []
 
   const filtered = useMemo(() => {
     return items.filter((a) => {
-      if (!matchesFilter(a.status, status)) return false
-      if (
-        query &&
-        !`${a.businessName ?? ""} ${a.domain} ${a.city ?? ""} ${a.category ?? ""}`
-          .toLowerCase()
-          .includes(query.toLowerCase())
-      )
-        return false
-      return true
+      return matchesAuditFilter(a.status, status) && matchesAuditSearch(a, query)
     })
   }, [items, query, status])
 
@@ -104,6 +103,19 @@ export function AuditsView() {
       toast.error("Audit konnte nicht gelöscht werden")
     } finally {
       setDeleteTarget(null)
+    }
+  }
+
+  const changeLeadStatus = async (leadId: Id<"leads">, nextStatus: LeadStatus) => {
+    setUpdatingLeadId(leadId)
+    try {
+      await updateLeadStatus({ leadId, status: nextStatus })
+      const label = leadStatusOptions.find((option) => option.value === nextStatus)?.label ?? nextStatus
+      toast.success("Lead-Status aktualisiert", { description: `Neu: ${label}` })
+    } catch {
+      toast.error("Lead-Status konnte nicht aktualisiert werden")
+    } finally {
+      setUpdatingLeadId(null)
     }
   }
 
@@ -159,17 +171,15 @@ export function AuditsView() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
+          <Table className="min-w-[980px]">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className="w-[70px] pl-6">Score</TableHead>
-                <TableHead>Website</TableHead>
-                <TableHead className="hidden lg:table-cell">Audit</TableHead>
-                <TableHead className="text-center">Views</TableHead>
-                <TableHead className="hidden sm:table-cell">Freigabe</TableHead>
-                <TableHead className="hidden sm:table-cell text-right pr-6">
-                  Erstellt
-                </TableHead>
+                <TableHead>Lead / Website</TableHead>
+                <TableHead>Audit-Status</TableHead>
+                <TableHead>Engagement</TableHead>
+                <TableHead>Outreach</TableHead>
+                <TableHead>Lead-Status</TableHead>
                 <TableHead className="w-[48px] pr-6" />
               </TableRow>
             </TableHeader>
@@ -191,49 +201,53 @@ export function AuditsView() {
                   </TableCell>
                   <TableCell>
                     <div className="font-medium">
-                      {a.businessName ?? a.domain}
+                      {a.businessName ?? "—"}
                     </div>
                     <div className="text-xs text-muted-foreground">{a.domain}</div>
                   </TableCell>
-                  <TableCell className="hidden lg:table-cell">
-                    {a.status === "completed" ? (
-                      a.hasOutreach ? (
-                        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <Copy className="size-3.5" />
-                          Outreach verfügbar
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Bereit</span>
-                      )
+                  <TableCell>
+                    <AuditStatusBadge status={a.status as Parameters<typeof AuditStatusBadge>[0]["status"]} />
+                  </TableCell>
+                  <TableCell>
+                    <div className="grid w-fit grid-cols-4 gap-x-2 text-xs tabular-nums text-muted-foreground">
+                      <span className="inline-flex items-center gap-1" title="Views"><Eye className="size-3.5" />{a.views}</span>
+                      <span className="inline-flex items-center gap-1" title="Reopens"><RotateCcw className="size-3.5" />{a.reopenCount}</span>
+                      <span className="inline-flex items-center gap-1" title="CTA-Klicks"><MousePointerClick className="size-3.5" />{a.ctaClicks}</span>
+                      <span className="inline-flex items-center gap-1" title="PDF-Downloads"><FileDown className="size-3.5" />{a.pdfDownloads}</span>
+                    </div>
+                    <div className="mt-1 text-[11px] text-muted-foreground">
+                      {a.lastViewedAt ? `Zuletzt ${formatRelativeTs(a.lastViewedAt)}` : "Noch nicht angesehen"}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={cn("gap-1.5 border-0", outreachStatusMeta[a.outreachStatus].className)}>
+                      {a.outreachStatus === "copied" && <Copy className="size-3" />}
+                      {outreachStatusMeta[a.outreachStatus].label}
+                    </Badge>
+                  </TableCell>
+                  <TableCell
+                    onClick={(event) => event.stopPropagation()}
+                    onPointerDown={(event) => event.stopPropagation()}
+                  >
+                    {a.leadId && a.leadStatus ? (
+                      <Select
+                        value={a.leadStatus}
+                        disabled={updatingLeadId === a.leadId}
+                        onValueChange={(value) => void changeLeadStatus(a.leadId!, value as LeadStatus)}
+                      >
+                        <SelectTrigger className="h-8 w-[138px] text-xs" aria-label={`Lead-Status für ${a.businessName ?? a.domain}`}>
+                          {updatingLeadId === a.leadId && <Spinner className="size-3" />}
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {leadStatusOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     ) : (
-                      <AuditStatusBadge status={a.status as Parameters<typeof AuditStatusBadge>[0]["status"]} />
+                      <span className="text-sm text-muted-foreground">—</span>
                     )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <span className="inline-flex items-center gap-1 text-sm tabular-nums text-muted-foreground">
-                      <Eye className="size-3.5" />
-                      {a.viewCount}
-                    </span>
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    {a.status === "completed" ? (
-                      a.isPublic ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-score-strong">
-                          <Globe className="size-3.5" />
-                          Öffentlich
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                          <Lock className="size-3.5" />
-                          Privat
-                        </span>
-                      )
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell pr-6 text-right text-xs text-muted-foreground">
-                    {formatRelativeTs(a.createdAt)}
                   </TableCell>
                   <TableCell className="pr-6 text-right">
                     <Button
@@ -264,7 +278,7 @@ export function AuditsView() {
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {totalCount === 0
-                    ? "Starte deinen ersten Audit, um LOSZULEGEN."
+                    ? "Starte deinen ersten Audit, um loszulegen."
                     : "Passe die Filter an oder starte einen neuen Audit."}
                 </p>
               </div>

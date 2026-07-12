@@ -628,7 +628,7 @@ describe("startAuditFromLead", () => {
       ctx.db.get(leadId as any),
     ) as any
     assert.ok(lead)
-    assert.equal(lead.status, "audited")
+    assert.equal(lead.status, "new")
     assert.equal(lead.auditId, result.auditId)
 
     const audit = await t.query(internal.audits.getById, { auditId: result.auditId })
@@ -723,6 +723,70 @@ describe("deleteLead", () => {
     const audit = await t.query(internal.audits.getById, { auditId: result.auditId })
     assert.ok(audit)
     assert.equal(audit.leadId, undefined)
+  })
+})
+
+describe("updateLeadStatus", () => {
+  test("updates canonical statuses and updatedAt for the current workspace", async () => {
+    const t = createTest().withIdentity({ email: "status@example.com", name: "Status" })
+    await t.mutation(api.workspaces.ensureCurrentWorkspace, {})
+    const leadId = await t.mutation(api.leads.saveLeadFromSearch, {
+      businessName: "Status Lead",
+      sourceProvider: "manual",
+      sourceLabel: "Manuell",
+    })
+    const before = await t.query((ctx) => ctx.db.get(leadId))
+
+    await t.mutation(api.leads.updateLeadStatus, { leadId, status: "follow_up" })
+
+    const after = await t.query((ctx) => ctx.db.get(leadId))
+    assert.equal(after?.status, "follow_up")
+    assert.ok((after?.updatedAt ?? 0) >= (before?.updatedAt ?? 0))
+  })
+
+  test("rejects unauthenticated, foreign-workspace, and non-canonical status updates", async () => {
+    const authenticated = createTest().withIdentity({ email: "owner@example.com", name: "Owner" })
+    await authenticated.mutation(api.workspaces.ensureCurrentWorkspace, {})
+    const foreignLeadId = await authenticated.mutation(async (ctx) => {
+      const now = Date.now()
+      const foreignUserId = await ctx.db.insert("users", {
+        tokenIdentifier: "foreign-token",
+        betterAuthUserId: "foreign-auth",
+        email: "foreign@example.com",
+        createdAt: now,
+      })
+      const workspaceId = await ctx.db.insert("workspaces", {
+        name: "Foreign",
+        ownerUserId: foreignUserId,
+        reportLanguage: "de",
+        createdAt: now,
+        updatedAt: now,
+      })
+      return await ctx.db.insert("leads", {
+        workspaceId,
+        businessName: "Foreign Lead",
+        sourceProvider: "manual",
+        status: "new",
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+
+    await expect(
+      authenticated.mutation(api.leads.updateLeadStatus, { leadId: foreignLeadId, status: "won" }),
+    ).rejects.toMatchObject({ data: { code: "NOT_FOUND" } })
+
+    const unauthenticated = createTest()
+    await expect(
+      unauthenticated.mutation(api.leads.updateLeadStatus, { leadId: foreignLeadId, status: "won" }),
+    ).rejects.toBeTruthy()
+
+    await expect(
+      authenticated.mutation(api.leads.updateLeadStatus, {
+        leadId: foreignLeadId,
+        status: "not_interested" as any,
+      }),
+    ).rejects.toBeTruthy()
   })
 })
 

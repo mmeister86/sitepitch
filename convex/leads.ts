@@ -6,6 +6,7 @@ import { api, internal } from "./_generated/api"
 import { findAppUser, getWorkspaceByOwner, requireExistingAppUser } from "./lib/workspace"
 import { normalizeLeadWebsiteUrl, normalizeBusinessEmail } from "./lib/lead_search"
 import { attachLeadToCampaign, type CampaignLeadStatus } from "./lib/campaigns"
+import { canonicalLeadStatusValidator } from "../src/lib/convex-schema-values"
 
 export type LeadListItem = {
   _id: Id<"leads">
@@ -357,6 +358,30 @@ export const updateLeadProfile = mutation({
     }
 
     await ctx.db.patch(args.leadId, patch)
+  },
+})
+
+export const updateLeadStatus = mutation({
+  args: {
+    leadId: v.id("leads"),
+    status: canonicalLeadStatusValidator,
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const user = await requireExistingAppUser(ctx)
+    const workspace = await getWorkspaceByOwner(ctx, user.userId)
+    if (!workspace) {
+      throw new ConvexError({ code: "WORKSPACE_NOT_READY", message: "Workspace not ready" })
+    }
+
+    const lead = await ctx.db.get(args.leadId)
+    if (!lead || lead.workspaceId !== workspace._id) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Lead nicht gefunden." })
+    }
+
+    await ctx.db.patch(args.leadId, {
+      status: args.status,
+      updatedAt: Date.now(),
+    })
   },
 })
 

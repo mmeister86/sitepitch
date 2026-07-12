@@ -580,7 +580,7 @@ describe("audit start flow", () => {
     assert.ok(lead)
     if (lead) {
       assert.equal(lead.auditId, result.auditId)
-      assert.equal(lead.status, "audited")
+      assert.equal(lead.status, "new")
     }
   })
 
@@ -635,5 +635,154 @@ describe("audit start flow", () => {
     const creditBalances = await t.query((ctx) => ctx.db.query("creditBalances").collect())
     assert.equal(audits.length, 0)
     assert.equal(creditBalances[0]?.reservedCredits ?? 0, 0)
+  })
+})
+
+describe("listMyAudits inbox DTO", () => {
+  test("derives canonical lead, engagement, and outreach fields with legacy fallbacks", async () => {
+    const t = createTest().withIdentity({
+      tokenIdentifier: "test-token-identifier",
+      email: "inbox@example.com",
+      name: "Inbox",
+    })
+    await t.mutation(api.workspaces.ensureCurrentWorkspace, {})
+
+    const ids = await t.mutation(async (ctx) => {
+      const now = Date.now()
+      const leadId = await ctx.db.insert("leads", {
+        workspaceId: workspaceState.workspaceId as any,
+        businessName: "Legacy GmbH",
+        sourceProvider: "manual",
+        status: "not_interested",
+        createdAt: now,
+        updatedAt: now,
+      })
+      const auditId = await ctx.db.insert("audits", {
+        workspaceId: workspaceState.workspaceId as any,
+        leadId,
+        createdByUserId: workspaceState.userId as any,
+        url: "https://legacy.example/",
+        normalizedUrl: "https://legacy.example/",
+        domain: "legacy.example",
+        auditType: "standard",
+        reportLanguage: "de",
+        idempotencyKey: "inbox-dto",
+        status: "completed",
+        publicSlug: "inbox-dto",
+        isPublic: true,
+        reportVersion: "v1",
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.insert("reportViewStats", {
+        workspaceId: workspaceState.workspaceId as any,
+        auditId,
+        totalViews: 7,
+        reopenCount: 2,
+        ctaClicks: 3,
+        pdfDownloads: 1,
+        lastViewedAt: now - 1_000,
+      })
+      await ctx.db.insert("outreachDrafts", {
+        workspaceId: workspaceState.workspaceId as any,
+        auditId,
+        type: "email",
+        body: "Hallo",
+        createdAt: now,
+      })
+      await ctx.db.insert("usageEvents", {
+        workspaceId: workspaceState.workspaceId as any,
+        auditId,
+        event: "outreach_copied",
+        createdAt: now,
+      })
+
+      const legacyAuditId = await ctx.db.insert("audits", {
+        workspaceId: workspaceState.workspaceId as any,
+        createdByUserId: workspaceState.userId as any,
+        url: "https://fallback.example/",
+        normalizedUrl: "https://fallback.example/",
+        domain: "fallback.example",
+        auditType: "standard",
+        reportLanguage: "de",
+        idempotencyKey: "inbox-fallback",
+        status: "completed",
+        publicSlug: "inbox-fallback",
+        isPublic: false,
+        reportVersion: "v1",
+        createdAt: now - 1,
+        updatedAt: now,
+      })
+      await ctx.db.insert("reportViews", {
+        workspaceId: workspaceState.workspaceId as any,
+        auditId: legacyAuditId,
+        viewedAt: now,
+      })
+      return { auditId, leadId, lastViewedAt: now - 1_000 }
+    })
+
+    const result = await t.query(api.audits.listMyAudits, {})
+    assert.ok(result)
+    const item = result.items.find((row) => row._id === ids.auditId)
+    assert.ok(item)
+    assert.equal(item.leadId, ids.leadId)
+    assert.equal(item.businessName, "Legacy GmbH")
+    assert.equal(item.leadStatus, "lost")
+    assert.equal(item.outreachStatus, "copied")
+    assert.equal(item.views, 7)
+    assert.equal(item.reopenCount, 2)
+    assert.equal(item.ctaClicks, 3)
+    assert.equal(item.pdfDownloads, 1)
+    assert.equal(item.lastViewedAt, ids.lastViewedAt)
+
+    const fallback = result.items.find((row) => row.domain === "fallback.example")
+    assert.ok(fallback)
+    assert.equal(fallback.leadId, null)
+    assert.equal(fallback.leadStatus, null)
+    assert.equal(fallback.outreachStatus, "not_started")
+    assert.equal(fallback.views, 1)
+    assert.equal(fallback.reopenCount, 0)
+    assert.equal(fallback.ctaClicks, 0)
+    assert.equal(fallback.pdfDownloads, 0)
+    assert.equal(fallback.lastViewedAt, null)
+  })
+
+  test("returns ready when a draft exists without a copy event", async () => {
+    const t = createTest().withIdentity({
+      tokenIdentifier: "test-token-identifier",
+      email: "ready@example.com",
+      name: "Ready",
+    })
+    await t.mutation(api.workspaces.ensureCurrentWorkspace, {})
+    const auditId = await t.mutation(async (ctx) => {
+      const now = Date.now()
+      const id = await ctx.db.insert("audits", {
+        workspaceId: workspaceState.workspaceId as any,
+        createdByUserId: workspaceState.userId as any,
+        url: "https://ready.example/",
+        normalizedUrl: "https://ready.example/",
+        domain: "ready.example",
+        auditType: "standard",
+        reportLanguage: "de",
+        idempotencyKey: "inbox-ready",
+        status: "completed",
+        publicSlug: "inbox-ready",
+        isPublic: false,
+        reportVersion: "v1",
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.insert("outreachDrafts", {
+        workspaceId: workspaceState.workspaceId as any,
+        auditId: id,
+        type: "email",
+        body: "Hallo",
+        createdAt: now,
+      })
+      return id
+    })
+
+    const result = await t.query(api.audits.listMyAudits, {})
+    assert.equal(result?.items.find((item) => item._id === auditId)?.outreachStatus, "ready")
   })
 })

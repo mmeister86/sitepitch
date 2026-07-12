@@ -18,6 +18,12 @@ import { findAppUser, getWorkspaceByOwner } from "./lib/workspace"
 import { enqueueAuditDeletion } from "./deletion"
 import { auditWorkpool } from "./workpools"
 
+type CanonicalLeadStatus = "new" | "audited" | "contacted" | "follow_up" | "interested" | "won" | "lost"
+
+function toCanonicalLeadStatus(status: Doc<"leads">["status"]): CanonicalLeadStatus {
+  return status === "not_interested" ? "lost" : status
+}
+
 type WorkspaceContext = {
   userId: Id<"users">
   workspaceId: Id<"workspaces">
@@ -76,14 +82,12 @@ export const listMyAudits = query({
 
     const items = await Promise.all(
       audits.filter((audit) => audit.deletionRequestedAt === undefined).map(async (audit) => {
-        const scoreDoc = await ctx.db
-          .query("auditScores")
-          .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
-          .unique()
-
-        const lead = audit.leadId ? await ctx.db.get(audit.leadId) : null
-
-        const [viewStats, views] = await Promise.all([
+        const [scoreDoc, linkedLead, viewStats, legacyViews, outreach, copiedEvent] = await Promise.all([
+          ctx.db
+            .query("auditScores")
+            .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+            .unique(),
+          audit.leadId ? ctx.db.get(audit.leadId) : Promise.resolve(null),
           ctx.db
             .query("reportViewStats")
             .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
@@ -92,12 +96,23 @@ export const listMyAudits = query({
             .query("reportViews")
             .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
             .take(100),
+          ctx.db
+            .query("outreachDrafts")
+            .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+            .take(1),
+          ctx.db
+            .query("usageEvents")
+            .withIndex("by_auditId_and_event", (q) =>
+              q.eq("auditId", audit._id).eq("event", "outreach_copied"),
+            )
+            .first(),
         ])
-
-        const outreach = await ctx.db
-          .query("outreachDrafts")
-          .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
-          .take(1)
+        const lead = linkedLead?.workspaceId === workspace._id ? linkedLead : null
+        const outreachStatus = outreach.length === 0
+          ? "not_started" as const
+          : copiedEvent
+            ? "copied" as const
+            : "ready" as const
 
         return {
           _id: audit._id,
@@ -111,11 +126,17 @@ export const listMyAudits = query({
           reportLanguage: audit.reportLanguage,
           createdAt: audit.createdAt,
           completedAt: audit.completedAt ?? null,
+          leadId: lead?._id ?? null,
           businessName: lead?.businessName ?? null,
+          leadStatus: lead ? toCanonicalLeadStatus(lead.status) : null,
           city: lead?.city ?? null,
           category: lead?.category ?? null,
-          viewCount: viewStats?.totalViews ?? views.length,
-          hasOutreach: outreach.length > 0,
+          outreachStatus,
+          views: viewStats?.totalViews ?? legacyViews.length,
+          reopenCount: viewStats?.reopenCount ?? 0,
+          ctaClicks: viewStats?.ctaClicks ?? 0,
+          pdfDownloads: viewStats?.pdfDownloads ?? 0,
+          lastViewedAt: viewStats?.lastViewedAt ?? null,
         }
       }),
     )
@@ -176,7 +197,7 @@ export const createQueuedAudit = internalMutation({
     if (existing) {
       if (args.leadId && existing.leadId !== args.leadId) {
         await ctx.db.patch(existing._id, { leadId: args.leadId, updatedAt: now })
-        await ctx.db.patch(args.leadId, { auditId: existing._id, status: "audited", updatedAt: now })
+        await ctx.db.patch(args.leadId, { auditId: existing._id, updatedAt: now })
       }
       return toAuditStartResult(existing)
     }
@@ -212,7 +233,7 @@ export const createQueuedAudit = internalMutation({
     })
 
     if (args.leadId) {
-      await ctx.db.patch(args.leadId, { auditId, status: "audited", updatedAt: now })
+      await ctx.db.patch(args.leadId, { auditId, updatedAt: now })
     }
 
     await reserveWorkspaceCredit(ctx, args.workspaceId, args.userId, auditId, args.idempotencyKey)

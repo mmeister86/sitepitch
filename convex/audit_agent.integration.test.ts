@@ -248,7 +248,7 @@ describe("setAuditAgentStage", () => {
 describe("completeAuditFromAgent", () => {
   test("sets completed and writes usage event idempotently", async () => {
     const t = createTest()
-    const { workspaceId, auditId } = await seedAuditWithScores(t, "generating_outreach")
+    const { auditId } = await seedAuditWithScores(t, "generating_outreach")
 
     await t.mutation(internal.audit_agent.completeAuditFromAgent, { auditId })
     await t.mutation(internal.audit_agent.completeAuditFromAgent, { auditId })
@@ -260,11 +260,38 @@ describe("completeAuditFromAgent", () => {
     const events = await t.query((ctx) =>
       ctx.db
         .query("usageEvents")
-        .withIndex("by_workspaceId_and_auditId", (q) => q.eq("workspaceId", workspaceId).eq("auditId", auditId))
-        .filter((q) => q.eq(q.field("event"), "audit_completed"))
-        .collect(),
+        .withIndex("by_auditId_and_event", (q) => q.eq("auditId", auditId).eq("event", "audit_completed"))
+        .take(2),
     )
     assert.equal(events.length, 1)
+  })
+
+  test("promotes only new linked leads and preserves canonical and legacy statuses", async () => {
+    const statuses = ["new", "contacted", "not_interested"] as const
+
+    for (const status of statuses) {
+      const t = createTest()
+      const { workspaceId, auditId } = await seedAuditWithScores(t, "generating_outreach")
+      const leadId = await t.mutation(async (ctx) => {
+        const current = Date.now()
+        const id = await ctx.db.insert("leads", {
+          workspaceId,
+          businessName: `${status} lead`,
+          sourceProvider: "manual",
+          status,
+          auditId,
+          createdAt: current,
+          updatedAt: current,
+        })
+        await ctx.db.patch(auditId, { leadId: id, updatedAt: current })
+        return id
+      })
+
+      await t.mutation(internal.audit_agent.completeAuditFromAgent, { auditId })
+
+      const lead = await t.query((ctx) => ctx.db.get(leadId))
+      assert.equal(lead?.status, status === "new" ? "audited" : status)
+    }
   })
 })
 
