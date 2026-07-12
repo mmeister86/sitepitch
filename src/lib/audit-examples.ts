@@ -1,6 +1,30 @@
-import type { AuditReportData } from "@/components/audit-report"
-
 export type AuditExampleSlug = "zahnarzt" | "restaurant" | "handwerk"
+
+export interface AuditExampleReport {
+  domain: string
+  reportLanguage: "de"
+  overallScore: number
+  categoryScores: Array<{ key: string; label: string; score: number; weight: number }>
+  summary: {
+    shortSummary: string
+    strengths: string[]
+    weaknesses: string[]
+    topOpportunities: string[]
+    nextSteps: string[]
+  }
+  findings: Array<{
+    category: string
+    severity: "high" | "medium" | "low"
+    title: string
+    evidence: string
+    explanation: string
+    recommendation: string
+    sortOrder: number
+  }>
+  nextSteps: string[]
+  screenshots: { desktop: null; mobile: null }
+  branding: { name: string; accentColor: string; ctaSnapshotted: false }
+}
 
 export interface AuditExample {
   slug: AuditExampleSlug
@@ -8,7 +32,7 @@ export interface AuditExample {
   industry: string
   readOnly: true
   tracking: "disabled"
-  report: AuditReportData
+  report: AuditExampleReport
 }
 
 const scores = (values: [number, number, number, number, number, number]) => [
@@ -27,8 +51,8 @@ function example(
   domain: string,
   overallScore: number,
   categoryScores: ReturnType<typeof scores>,
-  summary: AuditReportData["summary"],
-  findings: AuditReportData["findings"],
+  summary: AuditExampleReport["summary"],
+  findings: AuditExampleReport["findings"],
 ): AuditExample {
   return {
     slug,
@@ -43,7 +67,7 @@ function example(
       categoryScores,
       summary,
       findings,
-      nextSteps: summary?.nextSteps ?? [],
+      nextSteps: summary.nextSteps,
       screenshots: { desktop: null, mobile: null },
       branding: {
         name: "SitePitch Beispielreport",

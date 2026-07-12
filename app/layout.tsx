@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import type { ReactNode } from "react"
+import Script from "next/script"
 
-import { AnalyticsScript } from "@/components/analytics-script"
 import { AppProviders } from "@/components/app-providers"
 import { getToken } from "@/lib/auth-server"
 
@@ -22,7 +22,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html lang="de" suppressHydrationWarning>
       <body>
         <AppProviders initialToken={token}>{children}</AppProviders>
-        <AnalyticsScript siteId={rybbitSiteId} />
+        {rybbitSiteId ? (
+          <Script
+            src="/analytics/script.js"
+            data-site-id={rybbitSiteId}
+            strategy="afterInteractive"
+          />
+        ) : null}
       </body>
     </html>
   )

@@ -97,7 +97,7 @@ Ein deaktivierter und später erneut veröffentlichter Report erzeugt keinen zwe
 
 ### Report geöffnet und erneut geöffnet
 
-`recordPublicReportView` ist die serverseitige Quelle für Views. Der erste akzeptierte View eines Audits erhöht `reportViewStats.totalViews` auf 1 und schreibt `report_opened`; jeder weitere akzeptierte View schreibt `report_reopened` und erhöht den Reopen-Zähler. Rate Limits und die browserseitige Session-Deduplizierung reduzieren Reload-Rauschen. `?preview=1` löst weder die View-Mutation noch Rybbit-Events, CTA-Events oder PDF-Events aus. Die statischen `/examples/*` laden kein Rybbit-Script und verwenden keine Convex-Query oder -Mutation.
+`recordPublicReportView` ist die serverseitige Quelle für Views. Der erste akzeptierte View eines Audits erhöht `reportViewStats.totalViews` auf 1 und schreibt `report_opened`; jeder weitere akzeptierte View schreibt `report_reopened` und erhöht den Reopen-Zähler. Rate Limits und die browserseitige Session-Deduplizierung reduzieren Reload-Rauschen. `?preview=1` löst weder die View-Mutation noch Rybbit-Events, CTA-Events oder PDF-Events aus. `/examples/*` wird als vollständiges statisches HTML-Dokument von einem providerfreien Route Handler ausgeliefert und läuft damit außerhalb von React Root Layout, Auth-/Convex-Providern und dem Rybbit-Script-Pfad. Beispielnavigation aus der App verwendet bewusst normale `<a href>`-Links für einen vollständigen Dokumentwechsel; der Route Handler selbst führt keine Convex-Query oder -Mutation aus.
 
 ### Funnel und Raten
 
