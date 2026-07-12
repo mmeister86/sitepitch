@@ -4,6 +4,7 @@ import { describe, test } from "vitest"
 
 import {
   leadStatusOptions,
+  formatAuditViewCount,
   matchesAuditFilter,
   matchesAuditSearch,
   outreachStatusMeta,
@@ -26,6 +27,12 @@ describe("audit inbox helpers", () => {
     assert.equal(outreachStatusMeta.not_started.label, "Nicht begonnen")
     assert.equal(outreachStatusMeta.ready.label, "Bereit")
     assert.equal(outreachStatusMeta.copied.label, "Kopiert")
+  })
+
+  test("marks bounded legacy view counts without overstating precision", () => {
+    assert.equal(formatAuditViewCount(99, false), "99")
+    assert.equal(formatAuditViewCount(100, false), "100")
+    assert.equal(formatAuditViewCount(100, true), "100+")
   })
 
   test("preserves audit status filters and searches lead plus website fields", () => {

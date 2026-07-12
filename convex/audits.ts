@@ -19,6 +19,7 @@ import { enqueueAuditDeletion } from "./deletion"
 import { auditWorkpool } from "./workpools"
 
 type CanonicalLeadStatus = "new" | "audited" | "contacted" | "follow_up" | "interested" | "won" | "lost"
+const LEGACY_VIEW_COUNT_CAP = 100
 
 function toCanonicalLeadStatus(status: Doc<"leads">["status"]): CanonicalLeadStatus {
   return status === "not_interested" ? "lost" : status
@@ -95,7 +96,8 @@ export const listMyAudits = query({
           ctx.db
             .query("reportViews")
             .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
-            .take(100),
+            .order("desc")
+            .take(LEGACY_VIEW_COUNT_CAP + 1),
           ctx.db
             .query("outreachDrafts")
             .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
@@ -108,11 +110,16 @@ export const listMyAudits = query({
             .first(),
         ])
         const lead = linkedLead?.workspaceId === workspace._id ? linkedLead : null
-        const outreachStatus = outreach.length === 0
-          ? "not_started" as const
-          : copiedEvent
-            ? "copied" as const
-            : "ready" as const
+        const outreachStatus = copiedEvent
+          ? "copied" as const
+          : outreach.length > 0
+            ? "ready" as const
+            : "not_started" as const
+        const viewCountCapped = viewStats === null && legacyViews.length > LEGACY_VIEW_COUNT_CAP
+        const views = viewStats?.totalViews ?? Math.min(legacyViews.length, LEGACY_VIEW_COUNT_CAP)
+        const lastViewedAt = viewStats
+          ? viewStats.lastViewedAt ?? null
+          : legacyViews[0]?.viewedAt ?? null
 
         return {
           _id: audit._id,
@@ -132,11 +139,12 @@ export const listMyAudits = query({
           city: lead?.city ?? null,
           category: lead?.category ?? null,
           outreachStatus,
-          views: viewStats?.totalViews ?? legacyViews.length,
+          views,
+          viewCountCapped,
           reopenCount: viewStats?.reopenCount ?? 0,
           ctaClicks: viewStats?.ctaClicks ?? 0,
           pdfDownloads: viewStats?.pdfDownloads ?? 0,
-          lastViewedAt: viewStats?.lastViewedAt ?? null,
+          lastViewedAt,
         }
       }),
     )

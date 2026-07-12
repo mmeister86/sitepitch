@@ -51,6 +51,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import {
   leadStatusOptions,
+  formatAuditViewCount,
   matchesAuditFilter,
   matchesAuditSearch,
   outreachStatusMeta,
@@ -210,7 +211,7 @@ export function AuditsView() {
                   </TableCell>
                   <TableCell>
                     <div className="grid w-fit grid-cols-4 gap-x-2 text-xs tabular-nums text-muted-foreground">
-                      <span className="inline-flex items-center gap-1" title="Views"><Eye className="size-3.5" />{a.views}</span>
+                      <span className="inline-flex items-center gap-1" title="Views"><Eye className="size-3.5" />{formatAuditViewCount(a.views, a.viewCountCapped)}</span>
                       <span className="inline-flex items-center gap-1" title="Reopens"><RotateCcw className="size-3.5" />{a.reopenCount}</span>
                       <span className="inline-flex items-center gap-1" title="CTA-Klicks"><MousePointerClick className="size-3.5" />{a.ctaClicks}</span>
                       <span className="inline-flex items-center gap-1" title="PDF-Downloads"><FileDown className="size-3.5" />{a.pdfDownloads}</span>

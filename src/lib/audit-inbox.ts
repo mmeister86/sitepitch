@@ -19,6 +19,10 @@ export const outreachStatusMeta: Record<OutreachStatus, { label: string; classNa
   copied: { label: "Kopiert", className: "bg-score-strong/15 text-score-strong" },
 }
 
+export function formatAuditViewCount(views: number, capped: boolean): string {
+  return `${views}${capped ? "+" : ""}`
+}
+
 export function matchesAuditFilter(status: string, filter: AuditFilter): boolean {
   if (filter === "all") return true
   if (filter === "completed") return status === "completed"

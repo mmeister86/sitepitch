@@ -718,7 +718,7 @@ describe("listMyAudits inbox DTO", () => {
         auditId: legacyAuditId,
         viewedAt: now,
       })
-      return { auditId, leadId, lastViewedAt: now - 1_000 }
+      return { auditId, leadId, lastViewedAt: now - 1_000, legacyLastViewedAt: now }
     })
 
     const result = await t.query(api.audits.listMyAudits, {})
@@ -741,10 +741,11 @@ describe("listMyAudits inbox DTO", () => {
     assert.equal(fallback.leadStatus, null)
     assert.equal(fallback.outreachStatus, "not_started")
     assert.equal(fallback.views, 1)
+    assert.equal(fallback.viewCountCapped, false)
     assert.equal(fallback.reopenCount, 0)
     assert.equal(fallback.ctaClicks, 0)
     assert.equal(fallback.pdfDownloads, 0)
-    assert.equal(fallback.lastViewedAt, null)
+    assert.equal(fallback.lastViewedAt, ids.legacyLastViewedAt)
   })
 
   test("returns ready when a draft exists without a copy event", async () => {
@@ -784,5 +785,129 @@ describe("listMyAudits inbox DTO", () => {
 
     const result = await t.query(api.audits.listMyAudits, {})
     assert.equal(result?.items.find((item) => item._id === auditId)?.outreachStatus, "ready")
+  })
+
+  test("treats copy evidence as copied even when no current draft exists", async () => {
+    const t = createTest().withIdentity({
+      tokenIdentifier: "test-token-identifier",
+      email: "copied@example.com",
+      name: "Copied",
+    })
+    await t.mutation(api.workspaces.ensureCurrentWorkspace, {})
+    const auditId = await t.mutation(async (ctx) => {
+      const now = Date.now()
+      const id = await ctx.db.insert("audits", {
+        workspaceId: workspaceState.workspaceId as any,
+        createdByUserId: workspaceState.userId as any,
+        url: "https://copied.example/",
+        normalizedUrl: "https://copied.example/",
+        domain: "copied.example",
+        auditType: "standard",
+        reportLanguage: "de",
+        idempotencyKey: "inbox-copied-no-draft",
+        status: "completed",
+        publicSlug: "inbox-copied-no-draft",
+        isPublic: false,
+        reportVersion: "v1",
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.insert("usageEvents", {
+        workspaceId: workspaceState.workspaceId as any,
+        auditId: id,
+        event: "outreach_copied",
+        createdAt: now,
+      })
+      return id
+    })
+
+    const result = await t.query(api.audits.listMyAudits, {})
+    assert.equal(result?.items.find((item) => item._id === auditId)?.outreachStatus, "copied")
+  })
+
+  test("caps only legacy counts above 100, returns newest legacy view, and prefers exact stats", async () => {
+    const t = createTest().withIdentity({
+      tokenIdentifier: "test-token-identifier",
+      email: "cap@example.com",
+      name: "Cap",
+    })
+    await t.mutation(api.workspaces.ensureCurrentWorkspace, {})
+    const ids = await t.mutation(async (ctx) => {
+      const base = Date.now() - 10_000
+      const createAudit = async (domain: string, offset: number) => await ctx.db.insert("audits", {
+        workspaceId: workspaceState.workspaceId as any,
+        createdByUserId: workspaceState.userId as any,
+        url: `https://${domain}/`,
+        normalizedUrl: `https://${domain}/`,
+        domain,
+        auditType: "standard",
+        reportLanguage: "de",
+        idempotencyKey: `inbox-${domain}`,
+        status: "completed",
+        publicSlug: `inbox-${domain}`,
+        isPublic: false,
+        reportVersion: "v1",
+        createdAt: base + offset,
+        updatedAt: base + offset,
+      })
+      const exactAuditId = await createAudit("exact-100.example", 1)
+      const cappedAuditId = await createAudit("capped.example", 2)
+      const statsAuditId = await createAudit("stats.example", 3)
+
+      for (let index = 0; index < 100; index += 1) {
+        await ctx.db.insert("reportViews", {
+          workspaceId: workspaceState.workspaceId as any,
+          auditId: exactAuditId,
+          viewedAt: base + index,
+        })
+      }
+      for (let index = 0; index < 101; index += 1) {
+        await ctx.db.insert("reportViews", {
+          workspaceId: workspaceState.workspaceId as any,
+          auditId: cappedAuditId,
+          viewedAt: base + 1_000 + index,
+        })
+        await ctx.db.insert("reportViews", {
+          workspaceId: workspaceState.workspaceId as any,
+          auditId: statsAuditId,
+          viewedAt: base + 2_000 + index,
+        })
+      }
+      const statsLastViewedAt = base + 9_000
+      await ctx.db.insert("reportViewStats", {
+        workspaceId: workspaceState.workspaceId as any,
+        auditId: statsAuditId,
+        totalViews: 245,
+        lastViewedAt: statsLastViewedAt,
+        reopenCount: 4,
+        ctaClicks: 5,
+        pdfDownloads: 6,
+      })
+      return {
+        exactAuditId,
+        cappedAuditId,
+        statsAuditId,
+        exactLastViewedAt: base + 99,
+        cappedLastViewedAt: base + 1_100,
+        statsLastViewedAt,
+      }
+    })
+
+    const result = await t.query(api.audits.listMyAudits, {})
+    assert.ok(result)
+    const exact = result.items.find((item) => item._id === ids.exactAuditId)
+    const capped = result.items.find((item) => item._id === ids.cappedAuditId)
+    const stats = result.items.find((item) => item._id === ids.statsAuditId)
+    assert.ok(exact && capped && stats)
+
+    assert.equal(exact.views, 100)
+    assert.equal(exact.viewCountCapped, false)
+    assert.equal(exact.lastViewedAt, ids.exactLastViewedAt)
+    assert.equal(capped.views, 100)
+    assert.equal(capped.viewCountCapped, true)
+    assert.equal(capped.lastViewedAt, ids.cappedLastViewedAt)
+    assert.equal(stats.views, 245)
+    assert.equal(stats.viewCountCapped, false)
+    assert.equal(stats.lastViewedAt, ids.statsLastViewedAt)
   })
 })
