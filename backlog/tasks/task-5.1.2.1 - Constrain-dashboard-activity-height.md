@@ -4,7 +4,7 @@ title: Add progressive activity exploration
 status: In Progress
 assignee: []
 created_date: '2026-07-12 14:09'
-updated_date: '2026-07-12 15:49'
+updated_date: '2026-07-13 08:18'
 labels: []
 dependencies: []
 modified_files:
@@ -66,4 +66,6 @@ Motion refinement requested after manual review: move the toggle into the CardAc
 
 Motion refinement implemented: CardAction keeps the responsive controls in the upper-right; engagement/activity grid items now use coordinated Motion layout FLIP (360ms tween); ActivityFeed uses popLayout with 200ms enter and 130ms exit; overflow clipping and reduced-motion handling prevent transient Y overflow.
 Live Arc QA confirmed the collapsed and expanded endpoints, upper-right control placement, correct accessible labels, stable following dashboard row, and the 3-column expanded feed. Verification: 35 test files / 382 tests pass, typecheck passes, production build passes, and git diff --check passes. next-env.d.ts build output was restored to its prior state. Task remains In Progress pending explicit user confirmation.
+
+Nutzerbestätigung 2026-07-13: Task bleibt In Progress; dezidierte manuelle Responsive- und Accessibility-Abnahme steht noch aus.
 <!-- SECTION:NOTES:END -->

@@ -1,10 +1,10 @@
 ---
 id: TASK-5.1.3
 title: Add lead workflow controls to the audit inbox
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-12 13:17'
-updated_date: '2026-07-12 14:28'
+updated_date: '2026-07-13 08:18'
 labels:
   - post-mvp
   - activation
@@ -44,3 +44,9 @@ Expose canonical lead and outreach status plus complete engagement data in the a
 <!-- SECTION:NOTES:BEGIN -->
 Implemented in commits 05efb38, 336b4af, and 8f5991f. Review approved after preserving bounded 100+ legacy view semantics, prioritizing copy evidence, and indexing legacy last-view ordering by auditId+viewedAt. Evidence: 319/319 tests, schema contract, typecheck, and production build pass. Status remains In Progress pending manual confirmation.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Audit-Inbox, kanonische Lead-Status, autorisierte Statuspflege, automatische audited-Promotion und Outreach-Status wurden implementiert und automatisiert verifiziert. Der Nutzer hat TASK-5.1.3 am 2026-07-13 ausdrücklich abgenommen.
+<!-- SECTION:FINAL_SUMMARY:END -->

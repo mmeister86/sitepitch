@@ -4,7 +4,7 @@ title: Track report engagement and notifications
 status: In Progress
 assignee: []
 created_date: '2026-07-12 13:17'
-updated_date: '2026-07-12 14:05'
+updated_date: '2026-07-13 08:18'
 labels:
   - post-mvp
   - engagement
@@ -49,4 +49,6 @@ Review fix RED: npx vitest run convex/notifications.test.ts => 1 failed, 4 passe
 Review fix GREEN: focused notifications 5/5, schema contract 1/1, typecheck exit 0, full suite 308/308. Workspace+recipient are now bound inside compound index ranges before bounded reads; Bell relative times tick only while open with cleanup.
 
 Implemented in commits b40640b and 036a985. Review approved after moving notification list/unread scoping into compound workspace-recipient indexes and adding a multi-workspace regression test. Evidence: 308/308 tests, schema contract, typecheck, and production build pass. Status remains In Progress pending manual confirmation.
+
+Statusabgleich 2026-07-13: Parent bleibt In Progress, weil TASK-5.1.2.1 ausdrücklich noch In Progress ist.
 <!-- SECTION:NOTES:END -->

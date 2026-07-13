@@ -1,10 +1,10 @@
 ---
 id: TASK-5.1.1
 title: Extend activation and engagement data
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-12 13:17'
-updated_date: '2026-07-12 13:39'
+updated_date: '2026-07-13 08:18'
 labels:
   - post-mvp
   - activation
@@ -43,3 +43,9 @@ Extend the Convex model and migration path for activation milestones, engagement
 <!-- SECTION:NOTES:BEGIN -->
 Implemented in commits 4fba3b1 and c5e3c7e. Review approved after hardening CTA snapshot separation, action-first aggregates, first-share retention, and workspace-scoped notification idempotency. Automated evidence: 301/301 tests, schema contract and typecheck pass. Product migration was defined but not run; status remains In Progress pending manual confirmation and later narrow deploy.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Schema, Aktivierungs- und Engagement-Daten, Migrationen sowie Lifecycle-Abdeckung wurden implementiert und automatisiert verifiziert. Der Nutzer hat TASK-5.1.1 am 2026-07-13 ausdrücklich zur Schließung bestätigt; produktive Migrationen bleiben ein separater operativer Rollout-Schritt.
+<!-- SECTION:FINAL_SUMMARY:END -->

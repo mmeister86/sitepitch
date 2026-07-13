@@ -4,7 +4,7 @@ title: Complete onboarding examples funnel reporting and QA
 status: In Progress
 assignee: []
 created_date: '2026-07-12 13:18'
-updated_date: '2026-07-12 16:05'
+updated_date: '2026-07-13 08:18'
 labels:
   - post-mvp
   - activation
@@ -51,4 +51,6 @@ Focused tests, schema contract, typecheck, full suite, and production build pass
 Review fix: replaced React example page with provider-free raw HTML Route Handler, restored root analytics script to pre-task layout, and changed example navigation to hard anchors. Focused 5/5, typecheck, full 385/385, and production build pass. Manual browser network smoke remains unverified; report updated.
 
 Implemented in commits 2333cae and 94f7225. Review approved after moving examples to provider-free static HTML route handlers with hard navigation, eliminating Convex/Auth/Rybbit execution. Evidence: 385/385 tests, schema contract, typecheck, and production build pass. Documentation and manual smoke steps are present; browser network smoke was not executed, so AC #4 and Done status remain open pending manual confirmation.
+
+Nutzerbestätigung 2026-07-13: Task bleibt In Progress und wird später dezidiert manuell getestet.
 <!-- SECTION:NOTES:END -->

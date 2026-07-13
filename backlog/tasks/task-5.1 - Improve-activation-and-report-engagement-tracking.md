@@ -4,7 +4,7 @@ title: Improve activation and report engagement tracking
 status: In Progress
 assignee: []
 created_date: '2026-07-03 20:04'
-updated_date: '2026-07-12 17:03'
+updated_date: '2026-07-13 08:18'
 labels:
   - post-mvp
   - activation
@@ -54,4 +54,6 @@ Scope includes audit inbox, improved empty states, onboarding checklist, example
 Implementation started on branch codex/task-5-1-activation-engagement. TASK-4 launch validation remains the release gate. Parent and subtasks stay In Progress until explicit manual confirmation.
 
 Implementation complete on codex/task-5-1-activation-engagement through commit 1216cb9. All five subtasks passed task-specific reviews and the final branch review is Ready with no P0-P3 findings. Commit-index verification: 393/393 tests; full working tree: 397/397; schema contract, typecheck, Convex codegen, and production build pass. AC #1 remains open pending the manual five-minute onboarding test. Production migrations remain unrun and must follow the documented dry-run/status/verification gates. Manual browser/network QA is also pending. Parent status remains In Progress until explicit user confirmation.
+
+Statusabgleich 2026-07-13: Nutzer bestätigt TASK-5.1.1, TASK-5.1.3 und TASK-5.1.4 als Done. Parent bleibt In Progress, solange TASK-5.1.2.1 und TASK-5.1.5 offen sind.
 <!-- SECTION:NOTES:END -->

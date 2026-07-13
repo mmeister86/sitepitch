@@ -1,10 +1,10 @@
 ---
 id: TASK-5.1.4
 title: Add safe outreach templates and report CTA snapshots
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-12 13:18'
-updated_date: '2026-07-12 15:29'
+updated_date: '2026-07-13 08:18'
 labels:
   - post-mvp
   - outreach
@@ -44,3 +44,9 @@ Add reusable workspace outreach templates with constrained placeholders and clai
 <!-- SECTION:NOTES:BEGIN -->
 Implemented in commits 483585b, 1b6bc09, and 8397db8. Principal/security review approved after canonical SITE_URL rendering, public-only refresh, strict snapshot fallbacks, legacy backfill migration, reachable update UI, language filtering, and shared strict mailto/tel grammar. Evidence: 375/375 tests, schema contract, typecheck, codegen, and production build pass. Migration is defined/tested but not run; perform dry-run then explicit target deployment execution. Status remains In Progress pending manual confirmation.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Autorisierte Outreach-Templates, Platzhalter- und Claim-Safety-Prüfung sowie stabile CTA-Snapshots wurden implementiert und automatisiert verifiziert. Der Nutzer hat TASK-5.1.4 am 2026-07-13 ausdrücklich abgenommen.
+<!-- SECTION:FINAL_SUMMARY:END -->
