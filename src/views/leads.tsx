@@ -42,6 +42,7 @@ import { toast } from "@/components/ui/sonner"
 import { LeadSearchPanel } from "@/components/lead-search"
 import { LeadDetailPanel, LeadSummary } from "@/components/lead-common"
 import { LeadEditDialog, LeadEditButton } from "@/components/lead-edit-dialog"
+import { LeadCampaignAssignmentDialog } from "@/components/lead-campaign-assignment-dialog"
 import { AuditExampleLinks } from "@/components/audit-example-links"
 import { useRouter } from "@/lib/router"
 import { cn } from "@/lib/utils"
@@ -114,6 +115,10 @@ export function LeadsView() {
   const [websiteError, setWebsiteError] = useState<string | null>(null)
   const [isSavingWebsite, setIsSavingWebsite] = useState(false)
   const [auditStartingId, setAuditStartingId] = useState<Id<"leads"> | null>(null)
+  const [campaignDialogLead, setCampaignDialogLead] = useState<{
+    id: Id<"leads">
+    name: string
+  } | null>(null)
 
   const [deleteTarget, setDeleteTarget] = useState<{
     id: Id<"leads">
@@ -375,6 +380,20 @@ export function LeadsView() {
                       action={
                         <>
                           {renderLeadPrimaryAction(lead)}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() =>
+                              setCampaignDialogLead({
+                                id: lead._id,
+                                name: lead.businessName,
+                              })
+                            }
+                          >
+                            <Megaphone className="size-3.5" />
+                            Zu Kampagne hinzufügen
+                          </Button>
                           {lead.campaigns[0] && (
                             <Button
                               variant="outline"
@@ -475,6 +494,20 @@ export function LeadsView() {
       </Dialog>
 
       <LeadEditDialog lead={editLead} open={isEditOpen} onOpenChange={setIsEditOpen} />
+
+      {campaignDialogLead && (
+        <LeadCampaignAssignmentDialog
+          lead={campaignDialogLead}
+          open
+          onOpenChange={(open) => {
+            if (!open) setCampaignDialogLead(null)
+          }}
+          onCampaignNavigate={(campaignId) =>
+            navigate({ name: "campaign", id: campaignId })
+          }
+          onCampaignsNavigate={() => navigate({ name: "campaigns" })}
+        />
+      )}
 
       <AlertDialog
         open={deleteTarget !== null}

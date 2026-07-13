@@ -20,6 +20,7 @@ import {
   validateCampaignName,
   validateCampaignSegment,
   validateNote,
+  validateOutcomeReason,
   validateStatusTransition,
   type CampaignLeadStatus,
   type CampaignOfferType,
@@ -83,6 +84,14 @@ export type CampaignListItem = {
   metrics: CampaignMetrics
 }
 
+export type CampaignAssignmentOption = {
+  _id: Id<"campaigns">
+  name: string
+  targetIndustry: string
+  targetCity: string
+  status: "draft" | "active"
+}
+
 export type CampaignLeadListItem = {
   campaignLeadId: Id<"campaignLeads">
   leadId: Id<"leads">
@@ -104,6 +113,7 @@ export type CampaignLeadListItem = {
   status: CampaignLeadStatus
   note?: string
   noteUpdatedAt?: number
+  outcomeReason?: string
   followUpAt?: number
   lastContactedAt?: number
   audit: {
@@ -138,15 +148,12 @@ async function computeCampaignMetrics(
     .withIndex("by_campaignId", (q) => q.eq("campaignId", campaignId))
     .take(500)
 
-  const leadIds = new Set<Id<"leads">>()
-  const auditIds = new Set<Id<"audits">>()
   let won = 0
   let lost = 0
   let followUpsDue = 0
   const now = Date.now()
 
   for (const cl of campaignLeads) {
-    leadIds.add(cl.leadId)
     if (cl.status === "won") won++
     if (cl.status === "lost") lost++
     if (cl.status === "follow_up" && cl.followUpAt !== undefined && cl.followUpAt <= now) {
@@ -154,34 +161,38 @@ async function computeCampaignMetrics(
     }
   }
 
-  for (const leadId of leadIds) {
-    const lead = await ctx.db.get(leadId)
-    if (lead?.workspaceId === workspaceId && lead.auditId) auditIds.add(lead.auditId)
-  }
+  const attributedAudits = await ctx.db
+    .query("audits")
+    .withIndex("by_campaignId_and_createdAt", (q) => q.eq("campaignId", campaignId))
+    .order("desc")
+    .take(500)
 
   let reportViews = 0
   let reportViewsCapped = false
   let reportViewsPending = false
   let outreachCopied = 0
 
-  for (const auditId of auditIds) {
-    const viewCount = await loadReportViewCount(ctx, auditId)
+  let auditCount = 0
+  for (const audit of attributedAudits) {
+    if (audit.workspaceId !== workspaceId || !audit.campaignLeadId) continue
+    auditCount++
+    const viewCount = await loadReportViewCount(ctx, audit._id)
     reportViews += viewCount.count
     reportViewsCapped ||= viewCount.capped
     reportViewsPending ||= viewCount.pending
 
-    const events = await ctx.db
+    const copiedEvent = await ctx.db
       .query("usageEvents")
-      .withIndex("by_workspaceId_and_auditId", (q) =>
-        q.eq("workspaceId", workspaceId).eq("auditId", auditId),
+      .withIndex("by_auditId_and_event", (q) =>
+        q.eq("auditId", audit._id).eq("event", "outreach_copied"),
       )
-      .take(1000)
-    outreachCopied += events.filter((e: any) => e.event === "outreach_copied").length
+      .first()
+    if (copiedEvent?.workspaceId === workspaceId) outreachCopied++
   }
 
   return {
     leads: campaignLeads.length,
-    audits: auditIds.size,
+    audits: auditCount,
     outreachCopied,
     reportViews,
     reportViewsCapped,
@@ -217,6 +228,64 @@ export const listMyCampaigns = query({
     }
 
     return { items, total: campaigns.length }
+  },
+})
+
+export const listAssignableCampaigns = query({
+  args: { leadId: v.id("leads") },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ items: CampaignAssignmentOption[] } | null> => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+
+    const user = await findAppUser(ctx, identity.tokenIdentifier)
+    if (!user) return null
+
+    const workspace = await getWorkspaceByOwner(ctx, user._id)
+    if (!workspace) return null
+
+    const lead = await ctx.db.get(args.leadId)
+    if (!lead || lead.workspaceId !== workspace._id) return null
+
+    const existing = await ctx.db
+      .query("campaignLeads")
+      .withIndex("by_workspaceId_and_leadId", (q) =>
+        q.eq("workspaceId", workspace._id).eq("leadId", args.leadId),
+      )
+      .take(100)
+    const linkedCampaignIds = new Set(existing.map((item) => item.campaignId))
+
+    const [drafts, active] = await Promise.all([
+      ctx.db
+        .query("campaigns")
+        .withIndex("by_workspaceId_and_status", (q) =>
+          q.eq("workspaceId", workspace._id).eq("status", "draft"),
+        )
+        .order("desc")
+        .take(50),
+      ctx.db
+        .query("campaigns")
+        .withIndex("by_workspaceId_and_status", (q) =>
+          q.eq("workspaceId", workspace._id).eq("status", "active"),
+        )
+        .order("desc")
+        .take(50),
+    ])
+
+    const items = [...drafts, ...active]
+      .filter((campaign) => !linkedCampaignIds.has(campaign._id))
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .map((campaign) => ({
+        _id: campaign._id,
+        name: campaign.name,
+        targetIndustry: campaign.targetIndustry,
+        targetCity: campaign.targetCity,
+        status: campaign.status as "draft" | "active",
+      }))
+
+    return { items }
   },
 })
 
@@ -259,9 +328,18 @@ export const getMyCampaign = query({
       if (lead) leadMap.set(leadId, lead)
     }
 
-    const auditIds = new Set<Id<"audits">>()
-    for (const lead of leadMap.values()) {
-      if (lead.auditId) auditIds.add(lead.auditId)
+    const latestAuditByCampaignLead = new Map<Id<"campaignLeads">, Doc<"audits">>()
+    for (const campaignLead of campaignLeads) {
+      const audit = await ctx.db
+        .query("audits")
+        .withIndex("by_campaignLeadId_and_createdAt", (q) =>
+          q.eq("campaignLeadId", campaignLead._id),
+        )
+        .order("desc")
+        .first()
+      if (audit?.workspaceId === workspace._id && audit.campaignId === campaign._id) {
+        latestAuditByCampaignLead.set(campaignLead._id, audit)
+      }
     }
 
     const auditMeta = new Map<
@@ -275,33 +353,33 @@ export const getMyCampaign = query({
         outreachCopied: number
       }
     >()
-    for (const auditId of auditIds) {
-      const audit = await ctx.db.get(auditId)
-      if (!audit) continue
+    for (const audit of latestAuditByCampaignLead.values()) {
+      const auditId = audit._id
       const scoreDoc = await ctx.db
         .query("auditScores")
         .withIndex("by_auditId", (q) => q.eq("auditId", auditId))
         .unique()
       const viewCount = await loadReportViewCount(ctx, auditId)
-      const events = await ctx.db
+      const copiedEvent = await ctx.db
         .query("usageEvents")
-        .withIndex("by_workspaceId_and_auditId", (q) =>
-          q.eq("workspaceId", workspace._id).eq("auditId", auditId),
+        .withIndex("by_auditId_and_event", (q) =>
+          q.eq("auditId", auditId).eq("event", "outreach_copied"),
         )
-        .take(1000)
+        .first()
       auditMeta.set(auditId, {
         status: audit.status,
         overallScore: audit.overallScore ?? scoreDoc?.overallScore ?? undefined,
         viewCount: viewCount.count,
         viewCountCapped: viewCount.capped,
         viewCountPending: viewCount.pending,
-        outreachCopied: events.filter((e) => e.event === "outreach_copied").length,
+        outreachCopied: copiedEvent?.workspaceId === workspace._id ? 1 : 0,
       })
     }
 
     const leads: CampaignLeadListItem[] = campaignLeads.map((cl) => {
       const lead = leadMap.get(cl.leadId)
-      const auditInfo = lead?.auditId ? auditMeta.get(lead.auditId) : undefined
+      const latestAudit = latestAuditByCampaignLead.get(cl._id)
+      const auditInfo = latestAudit ? auditMeta.get(latestAudit._id) : undefined
       return {
         campaignLeadId: cl._id,
         leadId: cl.leadId,
@@ -323,11 +401,12 @@ export const getMyCampaign = query({
         status: cl.status,
         note: cl.note ?? undefined,
         noteUpdatedAt: cl.noteUpdatedAt ?? undefined,
+        outcomeReason: cl.outcomeReason ?? undefined,
         followUpAt: cl.followUpAt ?? undefined,
         lastContactedAt: cl.lastContactedAt ?? undefined,
         audit: auditInfo
           ? {
-              _id: lead!.auditId!,
+              _id: latestAudit!._id,
               status: auditInfo.status,
               overallScore: auditInfo.overallScore,
               viewCount: auditInfo.viewCount,
@@ -541,6 +620,13 @@ export const updateLeadStatus = mutation({
     }
 
     const campaignLead = await loadCampaignLeadForMutation(ctx, args.campaignLeadId, workspace._id)
+    const campaign = await loadCampaignForMutation(ctx, campaignLead.campaignId, workspace._id)
+    if (campaign.status === "paused" || campaign.status === "archived") {
+      throw new ConvexError({
+        code: "VALIDATION_ERROR",
+        message: "Pausierte oder archivierte Kampagnen können nicht bearbeitet werden.",
+      })
+    }
     if (isTerminalStatus(campaignLead.status) && args.status !== campaignLead.status) {
       throw new ConvexError({
         code: "VALIDATION_ERROR",
@@ -563,7 +649,7 @@ export const updateLeadStatus = mutation({
     }
 
     if (args.status === "won" || args.status === "lost") {
-      patch.outcomeReason = args.outcomeReason?.trim() || undefined
+      patch.outcomeReason = validateOutcomeReason(args.outcomeReason)
     } else {
       patch.outcomeReason = undefined
     }
@@ -598,8 +684,8 @@ export const saveLeadNote = mutation({
 
     const campaignLead = await loadCampaignLeadForMutation(ctx, args.campaignLeadId, workspace._id)
     const campaign = await loadCampaignForMutation(ctx, campaignLead.campaignId, workspace._id)
-    if (campaign.status === "archived") {
-      throw new ConvexError({ code: "VALIDATION_ERROR", message: "Archivierte Kampagnen können nicht bearbeitet werden." })
+    if (campaign.status === "paused" || campaign.status === "archived") {
+      throw new ConvexError({ code: "VALIDATION_ERROR", message: "Pausierte oder archivierte Kampagnen können nicht bearbeitet werden." })
     }
 
     const validated = validateNote(args.note)
@@ -639,8 +725,8 @@ export const setFollowUp = mutation({
 
     const campaignLead = await loadCampaignLeadForMutation(ctx, args.campaignLeadId, workspace._id)
     const campaign = await loadCampaignForMutation(ctx, campaignLead.campaignId, workspace._id)
-    if (campaign.status === "archived") {
-      throw new ConvexError({ code: "VALIDATION_ERROR", message: "Archivierte Kampagnen können nicht bearbeitet werden." })
+    if (campaign.status === "paused" || campaign.status === "archived") {
+      throw new ConvexError({ code: "VALIDATION_ERROR", message: "Pausierte oder archivierte Kampagnen können nicht bearbeitet werden." })
     }
 
     if (isTerminalStatus(campaignLead.status)) {
@@ -668,6 +754,10 @@ export const setFollowUp = mutation({
         userId: user.userId,
       })
       return
+    }
+
+    if (!Number.isFinite(args.followUpAt) || args.followUpAt <= 0) {
+      throw new ConvexError({ code: "VALIDATION_ERROR", message: "Ungültiges Follow-up-Datum." })
     }
 
     await ctx.db.patch(args.campaignLeadId, {
@@ -703,8 +793,8 @@ export const removeLead = mutation({
 
     const campaignLead = await loadCampaignLeadForMutation(ctx, args.campaignLeadId, workspace._id)
     const campaign = await loadCampaignForMutation(ctx, campaignLead.campaignId, workspace._id)
-    if (campaign.status === "archived") {
-      throw new ConvexError({ code: "VALIDATION_ERROR", message: "Archivierte Kampagnen können nicht bearbeitet werden." })
+    if (campaign.status === "paused" || campaign.status === "archived") {
+      throw new ConvexError({ code: "VALIDATION_ERROR", message: "Pausierte oder archivierte Kampagnen können nicht bearbeitet werden." })
     }
 
     const activities = await ctx.db
@@ -823,17 +913,9 @@ export const startAuditFromCampaign = action({
       auditType: args.auditType,
       reportLanguage: campaign.language as "de" | "en",
       idempotencyKey: args.idempotencyKey,
+      campaignId: campaign._id,
+      campaignLeadId: campaignLead._id,
     })
-
-    if (campaignLead.status !== "contacted" &&
-        campaignLead.status !== "follow_up" &&
-        campaignLead.status !== "interested" &&
-        campaignLead.status !== "won" &&
-        campaignLead.status !== "lost") {
-      await ctx.runMutation(internal.campaigns.setCampaignLeadAudited, {
-        campaignLeadId: args.campaignLeadId,
-      })
-    }
 
     return result
   },

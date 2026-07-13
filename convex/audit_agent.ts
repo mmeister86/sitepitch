@@ -636,6 +636,33 @@ export const completeAuditFromAgent = internalMutation({
       }
     }
 
+    if (audit.campaignId && audit.campaignLeadId && audit.leadId) {
+      const [campaign, campaignLead] = await Promise.all([
+        ctx.db.get(audit.campaignId),
+        ctx.db.get(audit.campaignLeadId),
+      ])
+      if (
+        campaign?.workspaceId === audit.workspaceId &&
+        campaignLead?.workspaceId === audit.workspaceId &&
+        campaignLead.campaignId === campaign._id &&
+        campaignLead.leadId === audit.leadId &&
+        campaignLead.status === "new"
+      ) {
+        await ctx.db.patch(campaignLead._id, { status: "audited", updatedAt: current })
+        await ctx.db.patch(campaign._id, { updatedAt: current })
+        await ctx.db.insert("leadActivities", {
+          workspaceId: audit.workspaceId,
+          campaignId: campaign._id,
+          campaignLeadId: campaignLead._id,
+          leadId: audit.leadId,
+          type: "status_changed",
+          message: "Status geändert: Auditiert",
+          createdByUserId: audit.createdByUserId,
+          createdAt: current,
+        })
+      }
+    }
+
     await consumeWorkspaceCreditReservation(
       ctx,
       audit.workspaceId,

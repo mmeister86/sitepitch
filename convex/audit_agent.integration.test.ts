@@ -294,6 +294,63 @@ describe("completeAuditFromAgent", () => {
       assert.equal(lead?.status, status === "new" ? "audited" : status)
     }
   })
+
+  test("promotes an attributed campaign lead only when the audit completes", async () => {
+    const t = createTest()
+    const { workspaceId, auditId } = await seedAuditWithScores(t, "generating_outreach")
+    const ids = await t.mutation(async (ctx) => {
+      const audit = await ctx.db.get(auditId)
+      const current = Date.now()
+      const campaignId = await ctx.db.insert("campaigns", {
+        workspaceId,
+        name: "Completion campaign",
+        targetIndustry: "Agency",
+        targetCity: "Berlin",
+        targetCountry: "Germany",
+        offerType: "relaunch",
+        language: "de",
+        status: "active",
+        createdByUserId: audit!.createdByUserId,
+        createdAt: current,
+        updatedAt: current,
+      })
+      const leadId = await ctx.db.insert("leads", {
+        workspaceId,
+        businessName: "Completion lead",
+        sourceProvider: "manual",
+        status: "new",
+        auditId,
+        createdAt: current,
+        updatedAt: current,
+      })
+      const campaignLeadId = await ctx.db.insert("campaignLeads", {
+        workspaceId,
+        campaignId,
+        leadId,
+        status: "new",
+        createdAt: current,
+        updatedAt: current,
+      })
+      await ctx.db.patch(auditId, { leadId, campaignId, campaignLeadId, updatedAt: current })
+      return { campaignId, campaignLeadId }
+    })
+
+    const before = await t.query((ctx) => ctx.db.get(ids.campaignLeadId))
+    assert.equal(before?.status, "new")
+
+    await t.mutation(internal.audit_agent.completeAuditFromAgent, { auditId })
+
+    const after = await t.query((ctx) => ctx.db.get(ids.campaignLeadId))
+    assert.equal(after?.status, "audited")
+    const activities = await t.query((ctx) =>
+      ctx.db
+        .query("leadActivities")
+        .withIndex("by_campaignLeadId_and_createdAt", (q) => q.eq("campaignLeadId", ids.campaignLeadId))
+        .take(2),
+    )
+    assert.equal(activities.length, 1)
+    assert.equal(activities[0]?.message, "Status geändert: Auditiert")
+  })
 })
 
 describe("getAuditAgentContext copy signals", () => {

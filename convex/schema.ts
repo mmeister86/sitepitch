@@ -238,6 +238,8 @@ export default defineSchema({
     businessName: v.string(),
     websiteUrl: v.optional(v.string()),
     normalizedWebsiteUrl: v.optional(v.string()),
+    // Deploy-1 field: optional until backfillNormalizedLeadDomains has run.
+    normalizedDomain: v.optional(v.string()),
     category: v.optional(v.string()),
     city: v.optional(v.string()),
     country: v.optional(v.string()),
@@ -260,12 +262,15 @@ export default defineSchema({
     .index("by_workspaceId_and_city", ["workspaceId", "city"])
     .index("by_workspaceId_and_category", ["workspaceId", "category"])
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
+    .index("by_workspaceId_and_normalizedDomain", ["workspaceId", "normalizedDomain"])
     .index("by_workspaceId_and_sourceProvider_and_sourceId", ["workspaceId", "sourceProvider", "sourceId"])
     .index("by_sourceProvider_and_sourceId", ["sourceProvider", "sourceId"]),
 
   audits: defineTable({
     workspaceId: v.id("workspaces"),
     leadId: v.optional(v.id("leads")),
+    campaignId: v.optional(v.id("campaigns")),
+    campaignLeadId: v.optional(v.id("campaignLeads")),
     createdByUserId: v.id("users"),
     url: v.string(),
     normalizedUrl: v.string(),
@@ -300,6 +305,8 @@ export default defineSchema({
     .index("by_workspaceId_and_idempotencyKey", ["workspaceId", "idempotencyKey"])
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
     .index("by_leadId", ["leadId"])
+    .index("by_campaignId_and_createdAt", ["campaignId", "createdAt"])
+    .index("by_campaignLeadId_and_createdAt", ["campaignLeadId", "createdAt"])
     .index("by_publicSlug", ["publicSlug"])
     .index("by_rerunOfAuditId", ["rerunOfAuditId"])
     .index("by_workspaceId_and_publicSlug", ["workspaceId", "publicSlug"])

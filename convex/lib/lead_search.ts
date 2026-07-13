@@ -48,7 +48,7 @@ export function normalizeLeadWebsiteUrl(value?: string): string | undefined {
   const raw = value.trim()
   if (!raw) return undefined
 
-  const hasProtocol = raw.startsWith("http://") || raw.startsWith("https://")
+  const hasProtocol = /^https?:\/\//i.test(raw)
   const candidate = hasProtocol ? raw : raw.startsWith("//") ? `https:${raw}` : `https://${raw}`
 
   let url: URL
@@ -68,6 +68,21 @@ export function normalizeLeadWebsiteUrl(value?: string): string | undefined {
   }
 
   return url.toString()
+}
+
+/**
+ * Returns the stable workspace-level identity used to deduplicate leads.
+ * URL paths and ports are irrelevant; casing, a trailing DNS dot, and one
+ * conventional `www.` prefix are canonicalized.
+ */
+export function normalizeLeadDomain(value?: string): string | undefined {
+  const normalizedUrl = normalizeLeadWebsiteUrl(value)
+  if (!normalizedUrl) return undefined
+
+  let hostname = new URL(normalizedUrl).hostname.toLowerCase()
+  if (hostname.endsWith(".")) hostname = hostname.slice(0, -1)
+  if (hostname.startsWith("www.")) hostname = hostname.slice(4)
+  return hostname || undefined
 }
 
 type RapidApiBusinessCandidate = {

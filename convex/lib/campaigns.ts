@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values"
 
 const MAX_NOTE_LENGTH = 2000
+const MAX_OUTCOME_REASON_LENGTH = 500
 
 export type CampaignOfferType =
   | "relaunch"
@@ -56,6 +57,18 @@ export function validateNote(note: string): string | undefined {
   if (trimmed.length === 0) return undefined
   if (trimmed.length > MAX_NOTE_LENGTH) {
     throw new ConvexError({ code: "VALIDATION_ERROR", message: `Notizen dürfen maximal ${MAX_NOTE_LENGTH} Zeichen lang sein.` })
+  }
+  return trimmed
+}
+
+export function validateOutcomeReason(reason?: string): string | undefined {
+  const trimmed = reason?.trim()
+  if (!trimmed) return undefined
+  if (trimmed.length > MAX_OUTCOME_REASON_LENGTH) {
+    throw new ConvexError({
+      code: "VALIDATION_ERROR",
+      message: `Ergebnisgründe dürfen maximal ${MAX_OUTCOME_REASON_LENGTH} Zeichen lang sein.`,
+    })
   }
   return trimmed
 }

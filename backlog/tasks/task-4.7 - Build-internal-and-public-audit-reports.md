@@ -4,7 +4,7 @@ title: Build internal and public audit reports
 status: Done
 assignee: []
 created_date: '2026-07-03 20:03'
-updated_date: '2026-07-06 22:55'
+updated_date: '2026-07-13 08:35'
 labels:
   - mvp
   - report
@@ -17,7 +17,7 @@ documentation:
   - .docs/PRD-SitePitch.md
 parent_task_id: TASK-4
 priority: high
-ordinal: 11000
+ordinal: 14000
 ---
 
 ## Description

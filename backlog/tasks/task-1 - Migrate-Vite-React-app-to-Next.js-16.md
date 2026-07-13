@@ -4,11 +4,11 @@ title: Migrate Vite React app to Next.js 16
 status: Done
 assignee: []
 created_date: '2026-07-02 12:05'
-updated_date: '2026-07-03 20:06'
+updated_date: '2026-07-13 08:35'
 labels: []
 dependencies: []
 priority: high
-ordinal: 1000
+ordinal: 6000
 ---
 
 ## Description

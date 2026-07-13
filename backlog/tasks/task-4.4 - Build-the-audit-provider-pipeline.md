@@ -4,7 +4,7 @@ title: Build the audit provider pipeline
 status: Done
 assignee: []
 created_date: '2026-07-03 20:03'
-updated_date: '2026-07-06 11:31'
+updated_date: '2026-07-13 08:35'
 labels:
   - mvp
   - audit
@@ -17,7 +17,7 @@ documentation:
   - .docs/PRD-SitePitch.md
 parent_task_id: TASK-4
 priority: high
-ordinal: 1000
+ordinal: 5000
 ---
 
 ## Description

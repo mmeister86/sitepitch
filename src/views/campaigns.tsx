@@ -9,6 +9,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { CampaignSetupForm } from "@/components/campaign-setup-form"
 import { api } from "../../convex/_generated/api"
 import { campaignStatusLabel, type CampaignStatus } from "../../convex/lib/campaigns"
+import { formatReportViewCount } from "@/lib/report-view-count"
 
 function CampaignStatusBadge({ status }: { status: CampaignStatus }) {
   const classes: Record<CampaignStatus, string> = {
@@ -76,23 +77,31 @@ export function CampaignsView() {
           ) : (
             <div className="divide-y">
               {items.map((campaign) => (
-                <div
+                <button
+                  type="button"
                   key={campaign._id}
-                  className="flex cursor-pointer items-center justify-between px-6 py-4 transition-colors hover:bg-muted/30"
+                  className="flex w-full items-center justify-between gap-4 px-6 py-4 text-left transition-colors outline-none hover:bg-muted/30 focus-visible:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                   onClick={() => navigate({ name: "campaign", id: campaign._id })}
                 >
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{campaign.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {campaign.targetIndustry}, {campaign.targetCity}, {campaign.targetCountry} · {" "}
                       {campaign.offerType}
                     </p>
+                    <dl className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1"><dd className="font-medium tabular-nums text-foreground">{campaign.metrics.leads}</dd><dt>Leads</dt></div>
+                      <div className="flex items-center gap-1"><dd className="font-medium tabular-nums text-foreground">{campaign.metrics.audits}</dd><dt>Audits</dt></div>
+                      <div className="flex items-center gap-1"><dd className="font-medium tabular-nums text-foreground">{campaign.metrics.followUpsDue}</dd><dt>fällig</dt></div>
+                      <div className="flex items-center gap-1"><dd className="font-medium tabular-nums text-foreground">{formatReportViewCount(campaign.metrics.reportViews, campaign.metrics.reportViewsCapped, campaign.metrics.reportViewsPending)}</dd><dt>Views</dt></div>
+                      <div className="flex items-center gap-1"><dd className="font-medium tabular-nums text-foreground">{campaign.metrics.won}/{campaign.metrics.lost}</dd><dt>Won/Lost</dt></div>
+                    </dl>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <CampaignStatusBadge status={campaign.status} />
                     <span className="text-sm font-medium text-muted-foreground">Öffnen</span>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}

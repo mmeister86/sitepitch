@@ -179,6 +179,8 @@ export const createQueuedAudit = internalMutation({
     reportLanguage: v.union(v.literal("de"), v.literal("en")),
     idempotencyKey: v.string(),
     leadId: v.optional(v.id("leads")),
+    campaignId: v.optional(v.id("campaigns")),
+    campaignLeadId: v.optional(v.id("campaignLeads")),
   },
   handler: async (ctx, args) => {
     const workspace = await ctx.db.get(args.workspaceId)
@@ -193,6 +195,27 @@ export const createQueuedAudit = internalMutation({
       }
     }
 
+    if ((args.campaignId === undefined) !== (args.campaignLeadId === undefined)) {
+      throw new ConvexError({ code: "INVALID_CAMPAIGN_CONTEXT", message: "Campaign context is incomplete" })
+    }
+    if (args.campaignId && args.campaignLeadId) {
+      const [campaign, campaignLead] = await Promise.all([
+        ctx.db.get(args.campaignId),
+        ctx.db.get(args.campaignLeadId),
+      ])
+      if (
+        !campaign ||
+        !campaignLead ||
+        campaign.workspaceId !== args.workspaceId ||
+        campaignLead.workspaceId !== args.workspaceId ||
+        campaignLead.campaignId !== campaign._id ||
+        !args.leadId ||
+        campaignLead.leadId !== args.leadId
+      ) {
+        throw new ConvexError({ code: "FORBIDDEN", message: "Workspace access denied" })
+      }
+    }
+
     const existing: Doc<"audits"> | null = await ctx.db
       .query("audits")
       .withIndex("by_workspaceId_and_idempotencyKey", (q) =>
@@ -203,6 +226,12 @@ export const createQueuedAudit = internalMutation({
     const now = Date.now()
 
     if (existing) {
+      if (
+        args.campaignId !== undefined &&
+        (existing.campaignId !== args.campaignId || existing.campaignLeadId !== args.campaignLeadId)
+      ) {
+        throw new ConvexError({ code: "AUDIT_CONTEXT_MISMATCH", message: "Idempotency key belongs to another campaign context" })
+      }
       if (args.leadId && existing.leadId !== args.leadId) {
         await ctx.db.patch(existing._id, { leadId: args.leadId, updatedAt: now })
         await ctx.db.patch(args.leadId, { auditId: existing._id, updatedAt: now })
@@ -214,6 +243,8 @@ export const createQueuedAudit = internalMutation({
     const auditId = await ctx.db.insert("audits", {
       workspaceId: args.workspaceId,
       leadId: args.leadId,
+      campaignId: args.campaignId,
+      campaignLeadId: args.campaignLeadId,
       createdByUserId: args.userId,
       url: args.url,
       normalizedUrl: args.normalizedUrl,
@@ -285,6 +316,8 @@ export const startAudit = action({
     reportLanguage: v.union(v.literal("de"), v.literal("en")),
     idempotencyKey: v.string(),
     leadId: v.optional(v.id("leads")),
+    campaignId: v.optional(v.id("campaigns")),
+    campaignLeadId: v.optional(v.id("campaignLeads")),
   },
   handler: async (ctx, args): Promise<AuditStartResult> => {
     const workspaceBootstrap = await ctx.runMutation(api.workspaces.ensureCurrentWorkspace)
@@ -318,6 +351,12 @@ export const startAudit = action({
       },
     )
     if (existing) {
+      if (
+        args.campaignId !== undefined &&
+        (existing.campaignId !== args.campaignId || existing.campaignLeadId !== args.campaignLeadId)
+      ) {
+        throw new ConvexError({ code: "AUDIT_CONTEXT_MISMATCH", message: "Idempotency key belongs to another campaign context" })
+      }
       return toAuditStartResult(existing)
     }
 
@@ -351,6 +390,8 @@ export const startAudit = action({
       reportLanguage: args.reportLanguage,
       idempotencyKey: args.idempotencyKey,
       leadId: args.leadId,
+      campaignId: args.campaignId,
+      campaignLeadId: args.campaignLeadId,
     })
   },
 })

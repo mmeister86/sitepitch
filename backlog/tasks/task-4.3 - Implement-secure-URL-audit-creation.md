@@ -4,7 +4,7 @@ title: Implement secure URL audit creation
 status: Done
 assignee: []
 created_date: '2026-07-03 20:03'
-updated_date: '2026-07-06 08:00'
+updated_date: '2026-07-13 08:35'
 labels:
   - mvp
   - audit
@@ -17,7 +17,7 @@ documentation:
   - .docs/PRD-SitePitch.md
 parent_task_id: TASK-4
 priority: high
-ordinal: 7000
+ordinal: 11000
 ---
 
 ## Description

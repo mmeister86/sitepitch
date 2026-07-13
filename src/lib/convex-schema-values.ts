@@ -42,6 +42,7 @@ export const creditLedgerTypeValidator = v.union(
 
 export const leadSourceProviderValidator = v.union(
   v.literal("manual"),
+  v.literal("csv"),
   v.literal("rapidapi"),
   v.literal("google_places"),
   v.literal("serpapi"),

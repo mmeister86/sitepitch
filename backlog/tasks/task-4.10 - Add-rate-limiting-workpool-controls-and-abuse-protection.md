@@ -4,7 +4,7 @@ title: 'Add rate limiting, workpool controls, and abuse protection'
 status: Done
 assignee: []
 created_date: '2026-07-03 20:03'
-updated_date: '2026-07-08 22:30'
+updated_date: '2026-07-13 08:35'
 labels:
   - mvp
   - security
@@ -17,7 +17,7 @@ documentation:
   - .docs/PRD-SitePitch.md
 parent_task_id: TASK-4
 priority: high
-ordinal: 1000
+ordinal: 3000
 ---
 
 ## Description

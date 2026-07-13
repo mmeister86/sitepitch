@@ -18,6 +18,7 @@ import type * as audit_state from "../audit_state.js";
 import type * as audits from "../audits.js";
 import type * as auth from "../auth.js";
 import type * as billing from "../billing.js";
+import type * as campaign_imports from "../campaign_imports.js";
 import type * as campaigns from "../campaigns.js";
 import type * as crons from "../crons.js";
 import type * as deletion from "../deletion.js";
@@ -84,6 +85,7 @@ declare const fullApi: ApiFromModules<{
   audits: typeof audits;
   auth: typeof auth;
   billing: typeof billing;
+  campaign_imports: typeof campaign_imports;
   campaigns: typeof campaigns;
   crons: typeof crons;
   deletion: typeof deletion;

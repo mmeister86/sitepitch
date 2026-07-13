@@ -4,7 +4,7 @@ title: 'Build auth, workspace, and branding foundation'
 status: Done
 assignee: []
 created_date: '2026-07-03 20:02'
-updated_date: '2026-07-05 19:42'
+updated_date: '2026-07-13 08:35'
 labels:
   - mvp
   - foundation
@@ -16,7 +16,7 @@ documentation:
   - .docs/PRD-SitePitch.md
 parent_task_id: TASK-4
 priority: high
-ordinal: 5000
+ordinal: 9000
 ---
 
 ## Description

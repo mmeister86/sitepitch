@@ -4,7 +4,7 @@ title: Implement outreach copy workflows
 status: Done
 assignee: []
 created_date: '2026-07-03 20:03'
-updated_date: '2026-07-06 23:20'
+updated_date: '2026-07-13 08:35'
 labels:
   - mvp
   - outreach
@@ -17,7 +17,7 @@ documentation:
   - .docs/PRD-SitePitch.md
 parent_task_id: TASK-4
 priority: high
-ordinal: 1000
+ordinal: 4000
 ---
 
 ## Description

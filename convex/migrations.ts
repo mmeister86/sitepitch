@@ -6,6 +6,7 @@ import { internalMutation, internalQuery } from "./_generated/server.js"
 import schema from "./schema.js"
 import { resolveReportCtaSnapshotValues } from "./lib/report_cta.js"
 import { hasAccurateViewAggregate } from "./lib/report_view_stats.js"
+import { normalizeLeadDomain } from "./lib/lead_search.js"
 
 const migrations = new Migrations<DataModel, typeof schema>(components.migrations, {
   internalMutation,
@@ -38,6 +39,57 @@ export const canonicalizeLeadStatuses = migrations.define({
   migrateOne: (_ctx, lead) => {
     if (lead.status !== "not_interested") return
     return { status: "lost" as const, updatedAt: Date.now() }
+  },
+})
+
+/** Deploy-1 backfill for the workspace-scoped lead domain identity. */
+export const backfillNormalizedLeadDomains = migrations.define({
+  table: "leads",
+  migrateOne: (_ctx, lead) => {
+    if (lead.normalizedDomain !== undefined) return
+    const normalizedDomain = normalizeLeadDomain(lead.normalizedWebsiteUrl ?? lead.websiteUrl)
+    if (!normalizedDomain) return
+    return { normalizedDomain }
+  },
+})
+
+/**
+ * Attributes legacy audits only when their lead belongs to exactly one
+ * campaign. Ambiguous historical ownership is intentionally left unset.
+ */
+export const backfillUnambiguousCampaignAuditAttribution = migrations.define({
+  table: "audits",
+  migrateOne: async (ctx, audit) => {
+    if (audit.campaignId !== undefined || audit.campaignLeadId !== undefined || !audit.leadId) return
+    const campaignLeads = await ctx.db
+      .query("campaignLeads")
+      .withIndex("by_workspaceId_and_leadId", (q) =>
+        q.eq("workspaceId", audit.workspaceId).eq("leadId", audit.leadId!),
+      )
+      .take(2)
+    if (campaignLeads.length !== 1) return
+    const campaignLead = campaignLeads[0]
+    const campaign = await ctx.db.get(campaignLead.campaignId)
+    if (!campaign || campaign.workspaceId !== audit.workspaceId) return
+    return {
+      campaignId: campaignLead.campaignId,
+      campaignLeadId: campaignLead._id,
+    }
+  },
+})
+
+export const verifyNormalizedLeadDomains = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    // The compound index cannot efficiently select every workspace's missing
+    // value, so this is a bounded smoke check. Component status remains the
+    // authoritative full-table completion source.
+    const sample = await ctx.db.query("leads").take(100)
+      .then((leads) => leads.find((lead) =>
+        lead.normalizedDomain === undefined &&
+        normalizeLeadDomain(lead.normalizedWebsiteUrl ?? lead.websiteUrl) !== undefined,
+      ))
+    return { complete: sample === undefined, sampleRemainingLeadId: sample?._id ?? null }
   },
 })
 

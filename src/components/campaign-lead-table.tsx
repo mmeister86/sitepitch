@@ -7,11 +7,15 @@ import {
   Building2,
   Calendar,
   Check,
-  ChevronDown,
+  Clock3,
+  Copy,
+  Download,
+  Eye,
   FileText,
   Globe,
   Loader2,
   MoreHorizontal,
+  RotateCcw,
   Trash2,
   X,
 } from "lucide-react"
@@ -41,6 +45,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Expandable,
   ExpandableContent,
@@ -50,6 +55,22 @@ import {
 import { toast } from "@/components/ui/sonner"
 import { LeadDetailPanel } from "@/components/lead-common"
 import { LeadEditDialog, LeadEditButton } from "@/components/lead-edit-dialog"
+import { ScoreBadge } from "@/components/status-badges"
+import {
+  campaignLeadFilterOptions,
+  defaultCampaignLeadFilters,
+  filterCampaignLeads,
+  hasActiveCampaignLeadFilters,
+  isFollowUpDue,
+  sortCampaignLeads,
+  type CampaignLastContactFilter,
+  type CampaignLeadFilterState,
+  type CampaignLeadSort,
+  type CampaignReportFilter,
+  type CampaignScoreFilter,
+} from "@/lib/campaign-lead-filters"
+import { formatReportViewCount } from "@/lib/report-view-count"
+import { exportCampaignLeadsCsv } from "@/lib/campaign-csv"
 import { api } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
 import type { CampaignLeadListItem } from "../../convex/campaigns"
@@ -95,7 +116,11 @@ function CampaignLeadStatusBadge({ status }: { status: CampaignLeadStatus }) {
   )
 }
 
-function LeadAuditBadge({ lead }: { lead: CampaignLeadListItem }) {
+type CampaignLeadRow = CampaignLeadListItem & {
+  outcomeReason?: string
+}
+
+function LeadAuditBadge({ lead }: { lead: CampaignLeadRow }) {
   if (!lead.auditReady) {
     return (
       <span className="inline-flex rounded-md border px-2 py-0.5 text-xs text-muted-foreground">
@@ -113,22 +138,65 @@ function LeadAuditBadge({ lead }: { lead: CampaignLeadListItem }) {
   )
 }
 
-function CampaignLeadSummary({ lead }: { lead: CampaignLeadListItem }) {
+function CampaignLeadSummary({ lead, now }: { lead: CampaignLeadRow; now: number }) {
+  const viewCount = lead.audit?.viewCount ?? 0
+  const outreachCopied = lead.audit?.outreachCopied ?? 0
+  const due = isFollowUpDue(lead, now)
+
   return (
-    <div className="flex flex-1 flex-wrap items-center gap-x-4 gap-y-1">
-      <div className="min-w-0">
-        <span className="font-medium">{lead.businessName}</span>
-        {lead.category && (
-          <span className="ml-2 text-xs text-muted-foreground">{lead.category}</span>
-        )}
+    <div className="flex min-w-0 flex-1 flex-col gap-2 py-0.5 lg:flex-row lg:items-center lg:justify-between">
+      <div className="min-w-0 space-y-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="truncate font-medium">{lead.businessName}</span>
+          {lead.category && <span className="text-xs text-muted-foreground">{lead.category}</span>}
+          {lead.city && <span className="text-xs text-muted-foreground">· {lead.city}</span>}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <LeadAuditBadge lead={lead} />
+          <CampaignLeadStatusBadge status={lead.status} />
+          {due && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+              <Clock3 className="size-3" aria-hidden="true" />
+              Follow-up fällig
+            </span>
+          )}
+          {lead.outcomeReason && (
+            <span className="max-w-[28rem] truncate text-xs text-muted-foreground" title={lead.outcomeReason}>
+              Ergebnis: {lead.outcomeReason}
+            </span>
+          )}
+        </div>
       </div>
-      <div className="flex items-center gap-2">
-        <LeadAuditBadge lead={lead} />
-        <CampaignLeadStatusBadge status={lead.status} />
-        {lead.city && (
-          <span className="hidden text-xs text-muted-foreground sm:inline">{lead.city}</span>
-        )}
-      </div>
+      <dl className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1.5" title="Audit-Score">
+          <dt className="sr-only">Audit-Score</dt>
+          <dd>
+            {lead.audit?.overallScore !== undefined ? (
+              <ScoreBadge score={lead.audit.overallScore} className="size-7 rounded-md text-xs" />
+            ) : (
+              <span className="inline-flex size-7 items-center justify-center rounded-md bg-muted">–</span>
+            )}
+          </dd>
+        </div>
+        <div className="flex items-center gap-1" title="Report-Views">
+          <dt><Eye className="size-3.5" aria-hidden="true" /><span className="sr-only">Report-Views</span></dt>
+          <dd className="font-medium tabular-nums text-foreground">
+            {formatReportViewCount(
+              viewCount,
+              lead.audit?.viewCountCapped ?? false,
+              lead.audit?.viewCountPending ?? false,
+            )}
+          </dd>
+        </div>
+        <div className="flex items-center gap-1" title="Outreach kopiert">
+          <dt><Copy className="size-3.5" aria-hidden="true" /><span className="sr-only">Outreach kopiert</span></dt>
+          <dd className="font-medium tabular-nums text-foreground">{outreachCopied}</dd>
+        </div>
+        <div className="flex items-center gap-1" title="Letzter Kontakt">
+          <dt><Clock3 className="size-3.5" aria-hidden="true" /><span className="sr-only">Letzter Kontakt</span></dt>
+          <dd className="whitespace-nowrap">{lead.lastContactedAt ? formatDateTime(lead.lastContactedAt) : "Nie"}</dd>
+        </div>
+      </dl>
     </div>
   )
 }
@@ -158,10 +226,20 @@ function formatDateTime(ts?: number): string {
   })
 }
 
+function downloadCsv(contents: string, filename: string) {
+  const blob = new Blob([contents], { type: "text/csv;charset=utf-8" })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement("a")
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
 export type CampaignLeadTableProps = {
   campaignId: Id<"campaigns">
   campaignStatus: CampaignStatus
-  leads: CampaignLeadListItem[]
+  leads: CampaignLeadRow[]
 }
 
 export function CampaignLeadTable({
@@ -176,9 +254,9 @@ export function CampaignLeadTable({
   const removeLead = useMutation(api.campaigns.removeLead)
   const startAudit = useAction(api.campaigns.startAuditFromCampaign)
 
-  const [filter, setFilter] = useState("")
-  const [statusFilter, setStatusFilter] = useState<CampaignLeadStatus | "all">("all")
-  const [sortBy, setSortBy] = useState<"updated" | "name" | "score">("updated")
+  const [filters, setFilters] = useState<CampaignLeadFilterState>(defaultCampaignLeadFilters)
+  const [sortBy, setSortBy] = useState<CampaignLeadSort>("priority")
+  const [filterReferenceTime] = useState(() => Date.now())
   const [removingId, setRemovingId] = useState<Id<"campaignLeads"> | null>(null)
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({})
   const [savingNoteId, setSavingNoteId] = useState<Id<"campaignLeads"> | null>(null)
@@ -199,35 +277,23 @@ export function CampaignLeadTable({
     reportCtaUrl?: string
   } | null>(null)
   const [isEditOpen, setIsEditOpen] = useState(false)
+  const [pendingOutcome, setPendingOutcome] = useState<{
+    campaignLeadId: Id<"campaignLeads">
+    status: "won" | "lost"
+  } | null>(null)
+  const [outcomeReason, setOutcomeReason] = useState("")
 
   const isReadOnly = campaignStatus === "archived" || campaignStatus === "paused"
 
   const filtered = useMemo(() => {
-    let rows = [...leads]
-    if (statusFilter !== "all") {
-      rows = rows.filter((l) => l.status === statusFilter)
-    }
-    if (filter.trim()) {
-      const q = filter.toLowerCase()
-      rows = rows.filter(
-        (l) =>
-          l.businessName.toLowerCase().includes(q) ||
-          l.category?.toLowerCase().includes(q) ||
-          l.city?.toLowerCase().includes(q) ||
-          l.websiteUrl?.toLowerCase().includes(q),
-      )
-    }
-    rows.sort((a, b) => {
-      if (sortBy === "name") return a.businessName.localeCompare(b.businessName)
-      if (sortBy === "score") {
-        const aScore = a.audit?.overallScore ?? -1
-        const bScore = b.audit?.overallScore ?? -1
-        return bScore - aScore
-      }
-      return b.updatedAt - a.updatedAt
-    })
-    return rows
-  }, [leads, statusFilter, filter, sortBy])
+    return sortCampaignLeads(
+      filterCampaignLeads(leads, filters, filterReferenceTime),
+      sortBy,
+      filterReferenceTime,
+    )
+  }, [leads, filters, sortBy, filterReferenceTime])
+
+  const filterOptions = useMemo(() => campaignLeadFilterOptions(leads), [leads])
 
   const statusCounts = useMemo(() => {
     const counts = new Map<CampaignLeadStatus | "all", number>()
@@ -241,14 +307,38 @@ export function CampaignLeadTable({
   async function handleStatusChange(
     campaignLeadId: Id<"campaignLeads">,
     status: CampaignLeadStatus,
-  ) {
-    if (isReadOnly) return
+    reason?: string,
+  ): Promise<boolean> {
+    if (isReadOnly) return false
     try {
-      await updateLeadStatus({ campaignLeadId, status })
+      await updateLeadStatus({ campaignLeadId, status, outcomeReason: reason })
       toast.success("Status aktualisiert")
+      return true
     } catch (error) {
       toast.error((error as Error)?.message ?? "Status konnte nicht geändert werden")
+      return false
     }
+  }
+
+  function requestStatusChange(campaignLeadId: Id<"campaignLeads">, status: CampaignLeadStatus) {
+    if (status === "won" || status === "lost") {
+      setOutcomeReason("")
+      setPendingOutcome({ campaignLeadId, status })
+      return
+    }
+    void handleStatusChange(campaignLeadId, status)
+  }
+
+  async function confirmOutcome() {
+    if (!pendingOutcome) return
+    const saved = await handleStatusChange(
+      pendingOutcome.campaignLeadId,
+      pendingOutcome.status,
+      outcomeReason.trim() || undefined,
+    )
+    if (!saved) return
+    setPendingOutcome(null)
+    setOutcomeReason("")
   }
 
   async function handleSaveNote(campaignLeadId: Id<"campaignLeads">) {
@@ -349,6 +439,30 @@ export function CampaignLeadTable({
     setIsEditOpen(true)
   }
 
+  function handleExport() {
+    const csv = exportCampaignLeadsCsv(
+      filtered.map((lead) => ({
+        businessName: lead.businessName,
+        websiteUrl: lead.websiteUrl,
+        category: lead.category,
+        city: lead.city,
+        country: lead.country,
+        address: lead.address,
+        phone: lead.phone,
+        businessEmail: lead.businessEmail,
+        status: campaignLeadStatusLabel(lead.status),
+        score: lead.audit?.overallScore,
+        reportOpened: (lead.audit?.viewCount ?? 0) > 0,
+        lastContactedAt: lead.lastContactedAt,
+        followUpAt: lead.followUpAt,
+        note: lead.note,
+        outcomeReason: lead.outcomeReason,
+      })),
+    )
+    downloadCsv(csv, `kampagnen-leads-${new Date().toISOString().slice(0, 10)}.csv`)
+    toast.success(`${filtered.length} ${filtered.length === 1 ? "Lead" : "Leads"} exportiert`)
+  }
+
   if (leads.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
@@ -367,13 +481,75 @@ export function CampaignLeadTable({
 
   return (
     <div className="space-y-4 p-0">
-      <div className="flex flex-col gap-3 px-6 pt-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="space-y-3 px-4 pt-4 sm:px-6">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0 flex-1">
+            <Label htmlFor="campaign-lead-search" className="sr-only">Leads durchsuchen</Label>
+            <Input
+              id="campaign-lead-search"
+              placeholder="Name, Branche, Stadt oder Website"
+              value={filters.search}
+              onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
+              className="w-full md:max-w-sm"
+            />
+          </div>
+          <Select value={sortBy} onValueChange={(value) => setSortBy(value as CampaignLeadSort)}>
+            <SelectTrigger className="w-full md:w-[210px]" aria-label="Leads sortieren">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="priority">Fällig & niedriger Score</SelectItem>
+              <SelectItem value="updated">Zuletzt aktualisiert</SelectItem>
+              <SelectItem value="name">Name A–Z</SelectItem>
+              <SelectItem value="score">Niedrigster Score</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div
+          className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+          role="group"
+          aria-label="Lead-Filter"
+        >
           <Select
-            value={statusFilter}
-            onValueChange={(v) => setStatusFilter(v as CampaignLeadStatus | "all")}
+            value={filters.category}
+            onValueChange={(value) => setFilters((current) => ({ ...current, category: value }))}
           >
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger aria-label="Nach Branche filtern"><SelectValue placeholder="Branche" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Branchen</SelectItem>
+              {filterOptions.categories.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select
+            value={filters.city}
+            onValueChange={(value) => setFilters((current) => ({ ...current, city: value }))}
+          >
+            <SelectTrigger aria-label="Nach Stadt filtern"><SelectValue placeholder="Stadt" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Städte</SelectItem>
+              {filterOptions.cities.map((city) => <SelectItem key={city} value={city}>{city}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select
+            value={filters.score}
+            onValueChange={(value) => setFilters((current) => ({ ...current, score: value as CampaignScoreFilter }))}
+          >
+            <SelectTrigger aria-label="Nach Audit-Score filtern"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Scores</SelectItem>
+              <SelectItem value="under-40">Unter 40</SelectItem>
+              <SelectItem value="40-59">40–59</SelectItem>
+              <SelectItem value="60-74">60–74</SelectItem>
+              <SelectItem value="75-plus">Ab 75</SelectItem>
+              <SelectItem value="without-audit">Ohne Audit</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={filters.status}
+            onValueChange={(value) => setFilters((current) => ({ ...current, status: value }))}
+          >
+            <SelectTrigger aria-label="Nach CRM-Status filtern">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -387,35 +563,92 @@ export function CampaignLeadTable({
               ))}
             </SelectContent>
           </Select>
-          <Input
-            placeholder="Leads durchsuchen"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="w-full sm:w-[240px]"
-          />
+          <Select
+            value={filters.report}
+            onValueChange={(value) => setFilters((current) => ({ ...current, report: value as CampaignReportFilter }))}
+          >
+            <SelectTrigger aria-label="Nach Report-Öffnung filtern"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Reports</SelectItem>
+              <SelectItem value="opened">Report geöffnet</SelectItem>
+              <SelectItem value="not-opened">Nicht geöffnet</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={filters.lastContact}
+            onValueChange={(value) => setFilters((current) => ({ ...current, lastContact: value as CampaignLastContactFilter }))}
+          >
+            <SelectTrigger aria-label="Nach letztem Kontakt filtern"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Jeder Kontakt</SelectItem>
+              <SelectItem value="never">Nie kontaktiert</SelectItem>
+              <SelectItem value="last-7-days">Bis 7 Tage</SelectItem>
+              <SelectItem value="days-8-30">8–30 Tage</SelectItem>
+              <SelectItem value="older-30-days">Älter als 30 Tage</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="updated">Zuletzt aktualisiert</SelectItem>
-            <SelectItem value="name">Name A-Z</SelectItem>
-            <SelectItem value="score">Audit-Score</SelectItem>
-          </SelectContent>
-        </Select>
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="campaign-audit-ready"
+              checked={filters.auditReadyOnly}
+              onCheckedChange={(checked) => setFilters((current) => ({ ...current, auditReadyOnly: checked === true }))}
+            />
+            <Label htmlFor="campaign-audit-ready" className="cursor-pointer text-xs font-normal">Nur auditierbar</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="campaign-follow-up-due"
+              checked={filters.followUpDueOnly}
+              onCheckedChange={(checked) => setFilters((current) => ({ ...current, followUpDueOnly: checked === true }))}
+            />
+            <Label htmlFor="campaign-follow-up-due" className="cursor-pointer text-xs font-normal">Follow-up fällig</Label>
+          </div>
+          {hasActiveCampaignLeadFilters(filters) && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2 text-xs"
+              onClick={() => setFilters(defaultCampaignLeadFilters)}
+            >
+              <RotateCcw className="size-3" aria-hidden="true" />
+              Filter zurücksetzen
+            </Button>
+          )}
+        </div>
       </div>
 
-      <div className="px-6 text-xs text-muted-foreground">
-        {filtered.length} {filtered.length === 1 ? "Lead" : "Leads"}
+      <div className="flex items-center justify-between gap-3 px-4 sm:px-6">
+        <span className="text-xs text-muted-foreground" aria-live="polite">
+          {filtered.length} {filtered.length === 1 ? "Lead" : "Leads"}
+        </span>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          disabled={filtered.length === 0}
+          onClick={handleExport}
+        >
+          <Download className="size-3.5" aria-hidden="true" />
+          CSV exportieren
+        </Button>
       </div>
 
-      <Expandable type="single" collapsible className="divide-y">
+      {filtered.length === 0 ? (
+        <div className="px-6 py-12 text-center">
+          <p className="text-sm font-medium">Keine passenden Leads</p>
+          <p className="mt-1 text-xs text-muted-foreground">Passe die Filter an oder setze sie zurück.</p>
+        </div>
+      ) : <Expandable type="single" collapsible className="divide-y">
         {filtered.map((lead) => (
           <ExpandableItem
             key={lead.campaignLeadId}
             value={lead.campaignLeadId}
-            className="px-6"
+            className="px-4 sm:px-6"
           >
             <ExpandableTrigger
               className="items-center"
@@ -442,7 +675,7 @@ export function CampaignLeadTable({
                 </div>
               }
             >
-              <CampaignLeadSummary lead={lead} />
+              <CampaignLeadSummary lead={lead} now={filterReferenceTime} />
             </ExpandableTrigger>
 
             <ExpandableContent>
@@ -484,7 +717,7 @@ export function CampaignLeadTable({
                           .map((s) => (
                             <DropdownMenuItem
                               key={s}
-                              onClick={() => void handleStatusChange(lead.campaignLeadId, s)}
+                              onClick={() => requestStatusChange(lead.campaignLeadId, s)}
                             >
                               {campaignLeadStatusLabel(s)}
                             </DropdownMenuItem>
@@ -516,14 +749,23 @@ export function CampaignLeadTable({
                       className="text-destructive hover:text-destructive"
                       disabled={isReadOnly}
                       onClick={() => setRemovingId(lead.campaignLeadId)}
+                      aria-label={`${lead.businessName} aus der Kampagne entfernen`}
                     >
-                      <Trash2 className="size-3.5" />
+                      <Trash2 className="size-3.5" aria-hidden="true" />
                     </Button>
                   </div>
                 }
               />
 
               <div className="grid gap-4 pt-4 md:grid-cols-2">
+                {isTerminalStatus(lead.status) && (
+                  <div className="rounded-md border bg-muted/30 p-3 md:col-span-2">
+                    <p className="text-xs font-medium">Ergebnis</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {lead.outcomeReason || "Kein Ergebnisgrund hinterlegt."}
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">Notiz</Label>
                   <Textarea
@@ -602,8 +844,9 @@ export function CampaignLeadTable({
                         variant="outline"
                         disabled={isReadOnly || savingFollowUpId === lead.campaignLeadId}
                         onClick={() => void handleClearFollowUp(lead.campaignLeadId)}
+                        aria-label={`Follow-up für ${lead.businessName} entfernen`}
                       >
-                        <X className="size-3.5" />
+                        <X className="size-3.5" aria-hidden="true" />
                       </Button>
                     )}
                   </div>
@@ -615,7 +858,7 @@ export function CampaignLeadTable({
             </ExpandableContent>
           </ExpandableItem>
         ))}
-      </Expandable>
+      </Expandable>}
 
       <LeadEditDialog lead={editLead} open={isEditOpen} onOpenChange={setIsEditOpen} />
 
@@ -637,6 +880,42 @@ export function CampaignLeadTable({
             >
               Entfernen
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!pendingOutcome}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingOutcome(null)
+            setOutcomeReason("")
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Lead als {pendingOutcome?.status === "won" ? "gewonnen" : "verloren"} markieren
+            </DialogTitle>
+            <DialogDescription>
+              Ein kurzer Grund ist optional und hilft bei der späteren Kampagnenauswertung.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="campaign-outcome-reason">Ergebnisgrund (optional)</Label>
+            <Input
+              id="campaign-outcome-reason"
+              value={outcomeReason}
+              onChange={(event) => setOutcomeReason(event.target.value)}
+              placeholder={pendingOutcome?.status === "won" ? "z. B. Angebot angenommen" : "z. B. Kein Budget"}
+              maxLength={500}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingOutcome(null)}>Abbrechen</Button>
+            <Button onClick={() => void confirmOutcome()}>Status speichern</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

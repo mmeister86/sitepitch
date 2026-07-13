@@ -4,7 +4,7 @@ title: 'Generate Eve findings, summaries, and outreach drafts'
 status: Done
 assignee: []
 created_date: '2026-07-03 20:03'
-updated_date: '2026-07-06 21:55'
+updated_date: '2026-07-13 08:35'
 labels:
   - mvp
   - eve
@@ -18,7 +18,7 @@ documentation:
   - .docs/PRD-SitePitch.md
 parent_task_id: TASK-4
 priority: high
-ordinal: 10000
+ordinal: 13000
 ---
 
 ## Description

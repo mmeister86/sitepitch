@@ -4,11 +4,11 @@ title: Make sidebar follow light theme
 status: Done
 assignee: []
 created_date: '2026-07-02 12:30'
-updated_date: '2026-07-03 20:06'
+updated_date: '2026-07-13 08:35'
 labels: []
 dependencies: []
 priority: medium
-ordinal: 2000
+ordinal: 7000
 ---
 
 ## Description

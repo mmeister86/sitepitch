@@ -636,6 +636,70 @@ describe("audit start flow", () => {
     assert.equal(audits.length, 0)
     assert.equal(creditBalances[0]?.reservedCredits ?? 0, 0)
   })
+
+  test("rejects campaign attribution that does not own the requested lead", async () => {
+    const t = createTest().withIdentity({ email: "context@example.com", name: "Context" })
+    await t.mutation(api.workspaces.ensureCurrentWorkspace, {})
+    const ids = await t.mutation(async (ctx) => {
+      const now = Date.now()
+      const leadId = await ctx.db.insert("leads", {
+        workspaceId: workspaceState.workspaceId as any,
+        businessName: "Requested lead",
+        sourceProvider: "manual",
+        status: "new",
+        createdAt: now,
+        updatedAt: now,
+      })
+      const otherLeadId = await ctx.db.insert("leads", {
+        workspaceId: workspaceState.workspaceId as any,
+        businessName: "Attributed lead",
+        sourceProvider: "manual",
+        status: "new",
+        createdAt: now,
+        updatedAt: now,
+      })
+      const campaignId = await ctx.db.insert("campaigns", {
+        workspaceId: workspaceState.workspaceId as any,
+        name: "Context campaign",
+        targetIndustry: "Agency",
+        targetCity: "Berlin",
+        targetCountry: "Germany",
+        offerType: "relaunch",
+        language: "de",
+        status: "active",
+        createdByUserId: workspaceState.userId as any,
+        createdAt: now,
+        updatedAt: now,
+      })
+      const campaignLeadId = await ctx.db.insert("campaignLeads", {
+        workspaceId: workspaceState.workspaceId as any,
+        campaignId,
+        leadId: otherLeadId,
+        status: "new",
+        createdAt: now,
+        updatedAt: now,
+      })
+      return { leadId, campaignId, campaignLeadId }
+    })
+
+    await expect(
+      t.mutation(internal.audits.createQueuedAudit, {
+        workspaceId: workspaceState.workspaceId as any,
+        userId: workspaceState.userId as any,
+        url: "https://example.com",
+        normalizedUrl: "https://example.com/",
+        domain: "example.com",
+        auditType: "standard",
+        reportLanguage: "de",
+        idempotencyKey: "invalid-campaign-context",
+        leadId: ids.leadId,
+        campaignId: ids.campaignId,
+        campaignLeadId: ids.campaignLeadId,
+      }),
+    ).rejects.toMatchObject({ data: { code: "FORBIDDEN" } })
+    const audits = await t.query((ctx) => ctx.db.query("audits").take(1))
+    assert.equal(audits.length, 0)
+  })
 })
 
 describe("listMyAudits inbox DTO", () => {

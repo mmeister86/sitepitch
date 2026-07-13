@@ -1,10 +1,10 @@
 ---
 id: TASK-5.1
 title: Improve activation and report engagement tracking
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-03 20:04'
-updated_date: '2026-07-13 08:18'
+updated_date: '2026-07-13 08:35'
 labels:
   - post-mvp
   - activation
@@ -17,7 +17,7 @@ documentation:
   - .docs/PRD-SitePitch-Post-MVP.md
 parent_task_id: TASK-5
 priority: medium
-ordinal: 3000
+ordinal: 35000
 ---
 
 ## Description

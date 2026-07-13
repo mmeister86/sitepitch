@@ -306,6 +306,39 @@ describe("campaigns.getMyCampaign", () => {
   })
 })
 
+describe("campaigns.listAssignableCampaigns", () => {
+  test("returns eligible campaigns that are not already linked", async () => {
+    const t = createTest()
+    const linkedCampaignId = await createCampaign(t, "active")
+    const draftCampaignId = await createCampaign(t, "draft")
+    const archivedCampaignId = await createCampaign(t, "archived")
+    const pausedCampaignId = await createCampaign(t, "active")
+    await withAlice(t).mutation(api.campaigns.setStatus, {
+      campaignId: pausedCampaignId,
+      status: "paused",
+    })
+    const leadId = await saveLead(t, { campaignId: linkedCampaignId })
+
+    const result = await withAlice(t).query(api.campaigns.listAssignableCampaigns, {
+      leadId: leadId as any,
+    })
+
+    assert.deepEqual(result?.items.map((campaign) => campaign._id), [draftCampaignId])
+    assert.equal(result?.items.some((campaign) => campaign._id === archivedCampaignId), false)
+    assert.equal(result?.items.some((campaign) => campaign._id === pausedCampaignId), false)
+  })
+
+  test("does not expose another workspace's lead", async () => {
+    const t = createTest()
+    await createCampaign(t)
+    const leadId = await saveLead(t)
+    const result = await withBob(t).query(api.campaigns.listAssignableCampaigns, {
+      leadId: leadId as any,
+    })
+    assert.equal(result, null)
+  })
+})
+
 describe("campaigns.attachExistingLead", () => {
   test("adds a lead to a campaign and records activity", async () => {
     const t = createTest()
@@ -424,6 +457,41 @@ describe("campaigns.updateLeadStatus", () => {
     const detailAfter = await withAlice(t).query(api.campaigns.getMyCampaign, { campaignId })
     assert.equal(detailAfter?.leads[0].status, "won")
     assert.equal(detailAfter?.leads[0].followUpAt, undefined)
+  })
+
+  test("rejects CRM edits while the campaign is paused and bounds outcome reasons", async () => {
+    const t = createTest()
+    const campaignId = await createCampaign(t)
+    await saveLead(t, { campaignId })
+    const campaignLeadId = (await withAlice(t).query(api.campaigns.getMyCampaign, { campaignId }))!.leads[0].campaignLeadId
+
+    await expect(
+      withAlice(t).mutation(api.campaigns.updateLeadStatus, {
+        campaignLeadId,
+        status: "won",
+        outcomeReason: "x".repeat(501),
+      }),
+    ).rejects.toThrow(/VALIDATION_ERROR/)
+
+    await withAlice(t).mutation(api.campaigns.setStatus, { campaignId, status: "paused" })
+    await expect(
+      withAlice(t).mutation(api.campaigns.updateLeadStatus, {
+        campaignLeadId,
+        status: "contacted",
+      }),
+    ).rejects.toThrow(/VALIDATION_ERROR/)
+    await expect(
+      withAlice(t).mutation(api.campaigns.saveLeadNote, {
+        campaignLeadId,
+        note: "Nicht im Pausemodus",
+      }),
+    ).rejects.toThrow(/VALIDATION_ERROR/)
+    await expect(
+      withAlice(t).mutation(api.campaigns.setFollowUp, {
+        campaignLeadId,
+        followUpAt: Date.now() + 86_400_000,
+      }),
+    ).rejects.toThrow(/VALIDATION_ERROR/)
   })
 })
 
@@ -609,6 +677,7 @@ describe("campaigns.metrics", () => {
     const workspace = await withAlice(t).query(api.workspaces.getMyWorkspace, {})
     const workspaceId = workspace!.workspaceId
     const now = Date.now()
+    const campaignLeadId = (await withAlice(t).query(api.campaigns.getMyCampaign, { campaignId }))!.leads[0].campaignLeadId
 
     const auditId = await withAlice(t).run(async (ctx) => {
       const user = await ctx.db
@@ -618,6 +687,8 @@ describe("campaigns.metrics", () => {
       return await ctx.db.insert("audits", {
         workspaceId: workspaceId as any,
         leadId: leadId as any,
+        campaignId,
+        campaignLeadId,
         createdByUserId: user!._id,
         url: "https://zahnarzt-weber-leipzig.de",
         normalizedUrl: "https://zahnarzt-weber-leipzig.de/",
@@ -667,26 +738,64 @@ describe("campaigns.metrics", () => {
         metadata: { draftType: "email" },
         createdAt: now,
       })
+      await ctx.db.insert("usageEvents", {
+        workspaceId: workspaceId as any,
+        auditId: auditId as any,
+        event: "outreach_copied",
+        metadata: { draftType: "email" },
+        createdAt: now + 1,
+      })
+    })
+
+    const latestAuditId = await withAlice(t).run(async (ctx) => {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", "test-token-identifier"))
+        .unique()
+      const id = await ctx.db.insert("audits", {
+        workspaceId: workspaceId as any,
+        leadId: leadId as any,
+        campaignId,
+        campaignLeadId,
+        createdByUserId: user!._id,
+        url: "https://zahnarzt-weber-leipzig.de",
+        normalizedUrl: "https://zahnarzt-weber-leipzig.de/",
+        domain: "zahnarzt-weber-leipzig.de",
+        auditType: "local",
+        reportLanguage: "de",
+        idempotencyKey: "test-key-2",
+        status: "completed",
+        publicSlug: "test-slug-2",
+        isPublic: true,
+        reportVersion: "v1",
+        overallScore: 72,
+        completedAt: now + 2,
+        createdAt: now + 2,
+        updatedAt: now + 2,
+      })
+      await ctx.db.patch(leadId as any, { auditId: id, updatedAt: now + 2 })
+      return id
     })
 
     await withAlice(t).mutation(api.campaigns.updateLeadStatus, {
-      campaignLeadId: (await withAlice(t).query(api.campaigns.getMyCampaign, { campaignId }))!.leads[0].campaignLeadId as any,
+      campaignLeadId,
       status: "won",
     })
 
     const detail = await withAlice(t).query(api.campaigns.getMyCampaign, { campaignId })
     assert.equal(detail?.metrics.leads, 1)
-    assert.equal(detail?.metrics.audits, 1)
+    assert.equal(detail?.metrics.audits, 2)
     assert.equal(detail?.metrics.reportViews, 1)
     assert.equal(detail?.metrics.reportViewsCapped, false)
     assert.equal(detail?.metrics.reportViewsPending, true)
     assert.equal(detail?.metrics.outreachCopied, 1)
     assert.equal(detail?.metrics.won, 1)
     assert.equal(detail?.metrics.lost, 0)
-    assert.equal(detail?.leads[0].audit?.overallScore, 45)
-    assert.equal(detail?.leads[0].audit?.viewCount, 1)
+    assert.equal(detail?.leads[0].audit?._id, latestAuditId)
+    assert.equal(detail?.leads[0].audit?.overallScore, 72)
+    assert.equal(detail?.leads[0].audit?.viewCount, 0)
     assert.equal(detail?.leads[0].audit?.viewCountCapped, false)
-    assert.equal(detail?.leads[0].audit?.viewCountPending, true)
+    assert.equal(detail?.leads[0].audit?.viewCountPending, false)
   })
 })
 

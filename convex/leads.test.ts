@@ -10,6 +10,7 @@ import {
   buildLeadSearchQuery,
   normalizeBusinessEmail,
   normalizeGooglePlacesResults,
+  normalizeLeadDomain,
   normalizeLeadWebsiteUrl,
   normalizeRapidApiResults,
 } from "./lib/lead_search"
@@ -238,6 +239,13 @@ describe("lead search pure helpers", () => {
     assert.equal(normalizeLeadWebsiteUrl(""), undefined)
     assert.equal(normalizeLeadWebsiteUrl("javascript:alert(1)"), undefined)
     assert.equal(normalizeLeadWebsiteUrl("not a url"), undefined)
+  })
+
+  test("normalizeLeadDomain canonicalizes case, trailing dots, and one www prefix", () => {
+    assert.equal(normalizeLeadDomain("HTTPS://WWW.Example.COM./path"), "example.com")
+    assert.equal(normalizeLeadDomain("www.www.example.com"), "www.example.com")
+    assert.equal(normalizeLeadDomain("https://shop.example.com/products"), "shop.example.com")
+    assert.equal(normalizeLeadDomain("not a url"), undefined)
   })
 
   test("normalizeRapidApiResults maps candidates including email, lat, lng", () => {
@@ -488,6 +496,31 @@ describe("lead mutations", () => {
     assert.equal(list.items.length, 1)
     assert.equal(list.items[0].businessName, "Apotheke am Markt (aktualisiert)")
     assert.equal(list.items[0].auditReady, true)
+  })
+
+  test("saveLeadFromSearch deduplicates provider variants by normalized domain", async () => {
+    const t = createTest().withIdentity({ email: "domain@example.com", name: "Domain" })
+    await t.mutation(api.workspaces.ensureCurrentWorkspace, {})
+
+    const firstId = await t.mutation(api.leads.saveLeadFromSearch, {
+      businessName: "Original GmbH",
+      websiteUrl: "https://WWW.Example.com./first",
+      sourceProvider: "manual",
+    })
+    const secondId = await t.mutation(api.leads.saveLeadFromSearch, {
+      businessName: "Provider Duplicate",
+      websiteUrl: "http://example.com/second",
+      category: "agency",
+      sourceProvider: "rapidapi",
+      sourceId: "provider-domain-duplicate",
+    })
+
+    assert.equal(secondId, firstId)
+    const list = await t.query(api.leads.listMyLeads, {})
+    assert.equal(list?.total, 1)
+    assert.equal(list?.items[0].businessName, "Original GmbH")
+    assert.equal(list?.items[0].category, "agency")
+    assert.equal(list?.items[0].normalizedDomain, "example.com")
   })
 
   test("saveLeadFromSearch stores email, lat, lng and listMyLeads returns them", async () => {

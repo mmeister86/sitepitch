@@ -1,10 +1,10 @@
 ---
 id: TASK-5.1.2
 title: Track report engagement and notifications
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-12 13:17'
-updated_date: '2026-07-13 08:18'
+updated_date: '2026-07-13 08:35'
 labels:
   - post-mvp
   - engagement
@@ -12,7 +12,7 @@ dependencies:
   - TASK-5.1.1
 parent_task_id: TASK-5.1
 priority: medium
-ordinal: 32000
+ordinal: 36000
 ---
 
 ## Description

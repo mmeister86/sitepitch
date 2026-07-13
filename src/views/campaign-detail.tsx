@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Archive,
   Check,
+  History,
   Loader2,
   Megaphone,
   Pencil,
@@ -37,6 +38,8 @@ import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/sonner"
 import { LeadSearchPanel } from "@/components/lead-search"
 import { CampaignLeadTable } from "@/components/campaign-lead-table"
+import { CampaignLeadImport } from "@/components/campaign-lead-import"
+import { ActivityFeed } from "@/components/activity-feed"
 import { api } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
 import type { CampaignOfferType, CampaignStatus } from "../../convex/lib/campaigns"
@@ -209,8 +212,9 @@ export function CampaignDetailView({ id }: { id: string }) {
     return (
       <div className="mx-auto w-full max-w-[1100px] space-y-5 p-4 md:p-6">
         <button
+          type="button"
           onClick={() => navigate({ name: "campaigns" })}
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          className="inline-flex items-center gap-1 rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         >
           <ArrowLeft className="size-3.5" />
           Zurück zu Kampagnen
@@ -230,8 +234,9 @@ export function CampaignDetailView({ id }: { id: string }) {
   return (
     <div className="mx-auto w-full max-w-[1100px] space-y-5 p-4 md:p-6">
       <button
+        type="button"
         onClick={() => navigate({ name: "campaigns" })}
-        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        className="inline-flex items-center gap-1 rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ArrowLeft className="size-3.5" />
         Zurück zu Kampagnen
@@ -353,8 +358,18 @@ export function CampaignDetailView({ id }: { id: string }) {
           defaultCountry={campaign.targetCountry}
           onSave={handleSaveLeadFromSearch}
           saveLabel="Zur Kampagne hinzufügen"
-          disabled={campaign.status !== "active"}
+          disabled={campaign.status === "paused" || campaign.status === "archived"}
         />
+
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium">Leads verwalten</p>
+            <p className="text-xs text-muted-foreground">
+              Vorhandene Leads zuordnen, manuell anlegen oder per CSV importieren.
+            </p>
+          </div>
+          <CampaignLeadImport campaignId={campaignId} campaignStatus={campaign.status} />
+        </div>
 
         <Card className="gap-0 py-0">
           <CardHeader className="border-b py-4">
@@ -372,6 +387,46 @@ export function CampaignDetailView({ id }: { id: string }) {
               campaignStatus={campaign.status}
               leads={data.leads}
             />
+          </CardContent>
+        </Card>
+
+        <Card className="gap-0 py-0">
+          <CardHeader className="border-b py-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <History className="size-4 text-muted-foreground" aria-hidden="true" />
+                <h3 id="campaign-activity-heading" className="text-sm font-semibold">Aktivität</h3>
+              </div>
+              <span className="text-xs text-muted-foreground">Letzte {data.activity.length}</span>
+            </div>
+          </CardHeader>
+          <CardContent
+            role="region"
+            aria-labelledby="campaign-activity-heading"
+            className="px-6 py-4"
+          >
+            {data.activity.length === 0 ? (
+              <div className="py-8 text-center">
+                <p className="text-sm font-medium text-muted-foreground">Noch keine Kampagnen-Aktivität</p>
+                <p className="mt-1 text-xs text-muted-foreground/70">
+                  Lead-Zuordnungen, Status, Notizen und Follow-ups erscheinen hier.
+                </p>
+              </div>
+            ) : (
+              <ActivityFeed
+                label="Kampagnen-Aktivität"
+                items={data.activity.map((item) => ({
+                  id: item._id,
+                  event: item.type,
+                  createdAt: item.createdAt,
+                  auditId: null,
+                  domain: null,
+                  businessName: item.leadName ?? null,
+                  detail: item.message,
+                }))}
+                compact
+              />
+            )}
           </CardContent>
         </Card>
       </div>

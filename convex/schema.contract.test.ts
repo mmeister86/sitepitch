@@ -7,6 +7,7 @@ import {
   auditTypeValidator,
   canonicalLeadStatusValidator,
   creditLedgerTypeValidator,
+  leadSourceProviderValidator,
   providerCallProviderValidator,
   providerCallStatusValidator,
   reportLanguageValidator,
@@ -134,6 +135,8 @@ assert.ok(auditsIndexes.some(([name, fields]) => name === "by_publicSlug" && fie
 assert.ok(auditsIndexes.some(([name, fields]) => name === "by_workspaceId_and_status" && fields.join(",") === "workspaceId,status"))
 assert.ok(auditsIndexes.some(([name, fields]) => name === "by_workspaceId_and_createdAt" && fields.join(",") === "workspaceId,createdAt"))
 assert.ok(auditsIndexes.some(([name, fields]) => name === "by_workspaceId_and_idempotencyKey" && fields.join(",") === "workspaceId,idempotencyKey"))
+assert.ok(auditsIndexes.some(([name, fields]) => name === "by_campaignId_and_createdAt" && fields.join(",") === "campaignId,createdAt"))
+assert.ok(auditsIndexes.some(([name, fields]) => name === "by_campaignLeadId_and_createdAt" && fields.join(",") === "campaignLeadId,createdAt"))
 
 const creditLedgerIndexes = (schema.tables.creditLedger as any).indexes.map(
   (index: { indexDescriptor: string }) => index.indexDescriptor,
@@ -277,6 +280,8 @@ const leadsIndexes = (schema.tables.leads as any).indexes.map(
 assert.ok(leadsIndexes.includes("by_workspaceId"))
 assert.ok(leadsIndexes.includes("by_workspaceId_and_status"))
 assert.ok(leadsIndexes.includes("by_workspaceId_and_sourceProvider_and_sourceId"))
+assert.ok(leadsIndexes.includes("by_workspaceId_and_normalizedDomain"))
+assert.ok(getValidatorValues(leadSourceProviderValidator).some((value: any) => value.value === "csv"))
 
 const leadSearchSnapshotIndexes = (schema.tables.leadSearchSnapshots as any).indexes.map(
   (index: { indexDescriptor: string }) => index.indexDescriptor,

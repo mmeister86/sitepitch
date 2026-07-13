@@ -4,7 +4,7 @@ import { action, internalMutation, internalQuery, mutation, query } from "./_gen
 import type { Id, Doc } from "./_generated/dataModel"
 import { api, internal } from "./_generated/api"
 import { findAppUser, getWorkspaceByOwner, requireExistingAppUser } from "./lib/workspace"
-import { normalizeLeadWebsiteUrl, normalizeBusinessEmail } from "./lib/lead_search"
+import { normalizeLeadWebsiteUrl, normalizeLeadDomain, normalizeBusinessEmail } from "./lib/lead_search"
 import { attachLeadToCampaign, type CampaignLeadStatus } from "./lib/campaigns"
 import { canonicalLeadStatusValidator } from "../src/lib/convex-schema-values"
 import { normalizeReportCtaText, normalizeReportCtaUrl } from "./lib/report_cta"
@@ -14,6 +14,7 @@ export type LeadListItem = {
   businessName: string
   websiteUrl?: string
   normalizedWebsiteUrl?: string
+  normalizedDomain?: string
   category?: string
   city?: string
   country?: string
@@ -103,6 +104,7 @@ export const listMyLeads = query({
           businessName: lead.businessName,
           websiteUrl: lead.websiteUrl,
           normalizedWebsiteUrl: lead.normalizedWebsiteUrl,
+          normalizedDomain: lead.normalizedDomain,
           category: lead.category,
           city: lead.city,
           country: lead.country,
@@ -147,6 +149,7 @@ export const saveLeadFromSearch = mutation({
       v.literal("rapidapi"),
       v.literal("google_places"),
       v.literal("manual"),
+      v.literal("csv"),
       v.literal("serpapi"),
       v.literal("dataforseo"),
       v.literal("apify"),
@@ -181,7 +184,9 @@ export const saveLeadFromSearch = mutation({
       throw new ConvexError({ code: "VALIDATION_ERROR", message: "Ein Unternehmensname ist erforderlich." })
     }
 
-    const normalizedWebsiteUrl = normalizeLeadWebsiteUrl(args.websiteUrl) ?? undefined
+    const submittedWebsiteUrl = args.websiteUrl ?? args.normalizedWebsiteUrl
+    const normalizedWebsiteUrl = normalizeLeadWebsiteUrl(submittedWebsiteUrl) ?? undefined
+    const normalizedDomain = normalizeLeadDomain(submittedWebsiteUrl)
     const now = Date.now()
 
     if (args.sourceId) {
@@ -215,9 +220,10 @@ export const saveLeadFromSearch = mutation({
           patch.longitude = args.longitude
         }
         if (normalizedWebsiteUrl && !existing.normalizedWebsiteUrl && !existing.websiteUrl) {
-          patch.websiteUrl = args.websiteUrl
+          patch.websiteUrl = submittedWebsiteUrl
           patch.normalizedWebsiteUrl = normalizedWebsiteUrl
         }
+        if (normalizedDomain && !existing.normalizedDomain) patch.normalizedDomain = normalizedDomain
         await ctx.db.patch(existing._id, patch)
 
         if (campaignId) {
@@ -234,11 +240,48 @@ export const saveLeadFromSearch = mutation({
       }
     }
 
+    if (normalizedDomain) {
+      const existingByDomain = await ctx.db
+        .query("leads")
+        .withIndex("by_workspaceId_and_normalizedDomain", (q) =>
+          q.eq("workspaceId", workspace._id).eq("normalizedDomain", normalizedDomain),
+        )
+        .order("asc")
+        .first()
+
+      if (existingByDomain) {
+        const patch: Partial<Doc<"leads">> = { updatedAt: now }
+        if (!existingByDomain.normalizedWebsiteUrl) patch.normalizedWebsiteUrl = normalizedWebsiteUrl
+        if (!existingByDomain.websiteUrl) patch.websiteUrl = submittedWebsiteUrl
+        if (!existingByDomain.category && args.category) patch.category = args.category
+        if (!existingByDomain.city && args.city) patch.city = args.city
+        if (!existingByDomain.country && args.country) patch.country = args.country
+        if (!existingByDomain.address && args.address) patch.address = args.address
+        if (!existingByDomain.phone && args.phone) patch.phone = args.phone
+        if (!existingByDomain.businessEmail && args.businessEmail) patch.businessEmail = args.businessEmail
+        if (existingByDomain.latitude === undefined && args.latitude !== undefined) patch.latitude = args.latitude
+        if (existingByDomain.longitude === undefined && args.longitude !== undefined) patch.longitude = args.longitude
+        await ctx.db.patch(existingByDomain._id, patch)
+
+        if (campaignId) {
+          await attachLeadToCampaign(ctx, {
+            workspaceId: workspace._id,
+            campaignId,
+            leadId: existingByDomain._id,
+            userId: user.userId,
+          })
+          await ctx.db.patch(campaignId, { updatedAt: now })
+        }
+        return existingByDomain._id
+      }
+    }
+
     const leadId = await ctx.db.insert("leads", {
       workspaceId: workspace._id,
       businessName,
       websiteUrl: args.websiteUrl,
       normalizedWebsiteUrl,
+      normalizedDomain,
       category: args.category,
       city: args.city,
       country: args.country,
@@ -310,9 +353,25 @@ export const updateLeadWebsite = mutation({
       })
     }
 
+    const normalizedDomain = normalizeLeadDomain(normalizedWebsiteUrl)!
+    const duplicate = await ctx.db
+      .query("leads")
+      .withIndex("by_workspaceId_and_normalizedDomain", (q) =>
+        q.eq("workspaceId", workspace._id).eq("normalizedDomain", normalizedDomain),
+      )
+      .order("asc")
+      .first()
+    if (duplicate && duplicate._id !== lead._id) {
+      throw new ConvexError({
+        code: "DUPLICATE_LEAD_DOMAIN",
+        message: "Für diese Domain existiert bereits ein Lead.",
+      })
+    }
+
     await ctx.db.patch(args.leadId, {
       websiteUrl,
       normalizedWebsiteUrl,
+      normalizedDomain,
       updatedAt: Date.now(),
     })
   },
@@ -489,6 +548,8 @@ export const startAuditFromLead = action({
     auditType: v.union(v.literal("standard"), v.literal("local"), v.literal("quick")),
     reportLanguage: v.union(v.literal("de"), v.literal("en")),
     idempotencyKey: v.string(),
+    campaignId: v.optional(v.id("campaigns")),
+    campaignLeadId: v.optional(v.id("campaignLeads")),
   },
   handler: async (ctx, args): Promise<LeadAuditStartResult> => {
     const workspaceBootstrap = await ctx.runMutation(api.workspaces.ensureCurrentWorkspace)
@@ -519,6 +580,8 @@ export const startAuditFromLead = action({
       reportLanguage: args.reportLanguage,
       idempotencyKey: args.idempotencyKey,
       leadId: args.leadId,
+      campaignId: args.campaignId,
+      campaignLeadId: args.campaignLeadId,
     })
   },
 })
