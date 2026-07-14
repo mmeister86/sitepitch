@@ -1,10 +1,10 @@
 ---
 id: TASK-5.3.4
 title: Build campaign and CSV batch audit workflows
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-13 20:00'
-updated_date: '2026-07-13 20:18'
+updated_date: '2026-07-14 21:34'
 labels: []
 dependencies: []
 parent_task_id: TASK-5.3
@@ -36,5 +36,13 @@ Add campaign lead selection, CSV-backed batch setup, preflight feedback, and rea
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Implemented campaign multi-select, existing CSV import handoff, debounced preflight, and reactive list/detail routes with controls, failures, costs, cache, credits, and QA summaries. Frontend tests and production build pass.
+Implemented campaign multi-select, existing CSV import handoff, debounced preflight, and reactive list/detail routes with controls, failures, costs, cache, credits, and QA summaries.
+
+Arc manual acceptance verified authenticated batch list/detail, campaign selection, 3-lead preflight, and CSV dialog. The default local-audit preflight visibly includes the required estimated provider cost of 0.037 USD for 3 items.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented campaign multi-selection, CSV import handoff, reactive preflight, batch list/detail routes, lifecycle controls, and visible credit, cost, cache, failure, and QA summaries. Arc acceptance passed.
+<!-- SECTION:FINAL_SUMMARY:END -->

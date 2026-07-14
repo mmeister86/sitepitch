@@ -1,10 +1,10 @@
 ---
 id: TASK-5.3.1
 title: Add batch policy schema and atomic credit reservations
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-13 20:00'
-updated_date: '2026-07-13 20:18'
+updated_date: '2026-07-14 21:33'
 labels: []
 dependencies: []
 parent_task_id: TASK-5.3
@@ -38,3 +38,9 @@ Add the plan policy, durable batch data model, and idempotent aggregate credit r
 <!-- SECTION:NOTES:BEGIN -->
 Implemented Agency/Scale policy, indexed batch schema, and atomic idempotent reserve/consume/refund primitives. Covered by policy, schema-contract, and credit invariant tests.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented Agency/Scale batch policy, normalized batch schema with indexed relations, and atomic idempotent reserve/consume/refund credit primitives. Policy, schema-contract, and credit invariant tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->

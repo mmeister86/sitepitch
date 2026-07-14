@@ -330,9 +330,7 @@ export function NewBatchAuditView() {
                     <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Plan-Limit</dt><dd className="font-semibold tabular-nums">{preview.planLimit}</dd></div>
                     <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Parallel</dt><dd className="font-semibold tabular-nums">{preview.maxParallelism}</dd></div>
                     <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Credits</dt><dd className="font-semibold tabular-nums">{preview.estimatedCredits} von {preview.availableCredits}</dd></div>
-                    {preview.estimatedCostUsd !== undefined && (
-                      <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Geschätzte Kosten</dt><dd className="font-semibold tabular-nums">{formatUsd(preview.estimatedCostUsd)}</dd></div>
-                    )}
+                    <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Geschätzte Kosten</dt><dd className="font-semibold tabular-nums">{formatUsd(preview.estimatedCostUsd)}</dd></div>
                   </dl>
 
                   {preview.invalidItems.length > 0 && (

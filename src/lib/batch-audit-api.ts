@@ -53,7 +53,8 @@ export type BatchPreview = {
   availableCredits: number
   shortfall: number
   effectiveReportLanguage: BatchReportLanguage
-  estimatedCostUsd?: number
+  estimatedCostUsd: number
+  costPricingVersion: string
   blockReasons?: string[]
   blockingCode: string | null
 }

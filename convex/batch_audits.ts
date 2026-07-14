@@ -33,6 +33,10 @@ import { getWorkspacePlan, requireOwnerWorkspace } from "./lib/workspace"
 import type { SubscriptionPlan } from "./lib/rate_limit_helpers"
 import { checkBatchStartLimits } from "./lib/audit_rate_limit"
 import { isBatchQaPositionSelected } from "./lib/batch_audit_qa"
+import {
+  estimateBatchAuditCostUsd,
+  PROVIDER_COST_RATE_VERSION,
+} from "./lib/provider_cost_rates"
 
 type BatchSource = "campaign" | "csv"
 type AuditType = "standard" | "local" | "quick"
@@ -270,6 +274,11 @@ export const previewBatch = action({
       planLimit: size.policy.maxItems,
       maxParallelism: size.policy.maxParallelism,
       estimatedCredits: prepared.items.length,
+      estimatedCostUsd: estimateBatchAuditCostUsd(
+        prepared.auditType,
+        prepared.items.length,
+      ),
+      costPricingVersion: PROVIDER_COST_RATE_VERSION,
       availableCredits: prepared.availableCredits,
       shortfall,
       effectiveReportLanguage: prepared.reportLanguage,

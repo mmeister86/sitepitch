@@ -1,10 +1,10 @@
 ---
 id: TASK-5.3
 title: Implement batch audits with credit and cost controls
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-03 20:05'
-updated_date: '2026-07-13 20:18'
+updated_date: '2026-07-14 21:34'
 labels:
   - post-mvp
   - batch-audits
@@ -51,6 +51,15 @@ Scope includes batch jobs from lead lists or CSV, credit estimation/reservation,
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Implementation landed across Convex batch policy/schema/credits, bounded Workpool orchestration, workspace-local provider cache/cost/QA, campaign/CSV UI, and deletion/retention paths.
-Automated verification: 47 Vitest files / 440 tests, schema contract, Convex codegen, TypeScript, production build, and diff check passed. Task remains In Progress pending explicit user confirmation after manual browser acceptance.
+Implemented Convex batch policy/schema/credits, bounded Workpool orchestration, workspace-local provider cache/cost/QA, campaign/CSV UI, and deletion/retention paths.
+
+Arc manual acceptance on 2026-07-14 verified the authenticated batch list, completed batch detail, new campaign batch setup, 3-lead preflight, and CSV import dialog read-only. The missing provider-cost estimate was fixed; the default local-audit preflight shows 0.037 USD for 3 items. No batch was started and no credits/data were mutated.
+
+Final verification: 49 Vitest files / 450 tests, schema contract, Convex codegen, TypeScript, production build, and diff check passed.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Delivered plan-gated batch audits for campaigns and CSV workflows with atomic credit control, bounded asynchronous orchestration, pause/resume/cancel and safe retries, workspace-local cache reuse, provider-cost aggregation and preflight estimates, deterministic sampling QA, deletion/retention support, and reactive batch UI. Verified by 49 Vitest files / 450 tests, schema contract, TypeScript, production build, diff check, and authenticated Arc acceptance.
+<!-- SECTION:FINAL_SUMMARY:END -->

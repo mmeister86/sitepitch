@@ -1,10 +1,10 @@
 ---
 id: TASK-5.3.3
 title: Add provider caching cost aggregation and sampling QA
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-13 20:00'
-updated_date: '2026-07-13 20:18'
+updated_date: '2026-07-14 21:33'
 labels: []
 dependencies: []
 parent_task_id: TASK-5.3
@@ -37,4 +37,12 @@ Track workspace-local provider cache usage, batch provider costs, and determinis
 
 <!-- SECTION:NOTES:BEGIN -->
 Implemented versioned workspace-local TTL cache, zero-cost hit attribution, per-item/batch provider cost aggregation, deterministic QA sampling, and screenshot reference-safe retention.
+
+Added a versioned preflight provider-cost estimator based on one-pass token budgets per audit type. Preview counts only valid deduplicated items, exposes pricing version, excludes retries, and does not seed settled batch costs. Unit coverage added.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented workspace-scoped versioned provider caching, reference-safe screenshot retention, batch cost aggregation, deterministic sampling QA, and versioned preflight provider-cost estimates.
+<!-- SECTION:FINAL_SUMMARY:END -->
