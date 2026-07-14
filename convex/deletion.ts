@@ -26,7 +26,11 @@ const phases = [
   "auditPersonaReviews",
   "auditCopyReviews",
   "auditDesignCritiques",
+  "batchAuditQaResults",
+  "batchAuditItemAuditReference",
+  "batchAuditItemPreviousReference",
   "auditAssets",
+  "auditCacheEntries",
   "usageEvents",
   "providerCosts",
   "adminActions",
@@ -91,7 +95,7 @@ export async function enqueueAuditDeletion(
 
 async function deleteSimplePhase(
   ctx: MutationCtx,
-  phase: Exclude<AuditDeletionPhase, "usageEvents" | "providerCosts" | "adminActions" | "creditLedger" | "rerunReferences" | "leads" | "auditAssets" | "audit">,
+  phase: Exclude<AuditDeletionPhase, "batchAuditItemAuditReference" | "batchAuditItemPreviousReference" | "auditCacheEntries" | "usageEvents" | "providerCosts" | "adminActions" | "creditLedger" | "rerunReferences" | "leads" | "auditAssets" | "audit">,
   auditId: Id<"audits">,
 ) {
   switch (phase) {
@@ -113,6 +117,7 @@ async function deleteSimplePhase(
     case "auditPersonaReviews": return await ctx.db.query("auditPersonaReviews").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
     case "auditCopyReviews": return await ctx.db.query("auditCopyReviews").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
     case "auditDesignCritiques": return await ctx.db.query("auditDesignCritiques").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
+    case "batchAuditQaResults": return await ctx.db.query("batchAuditQaResults").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
   }
 }
 
@@ -129,8 +134,42 @@ export const processAuditDeletion = internalMutation({
     if (phase === "auditAssets") {
       const rows = await ctx.db.query("auditAssets").withIndex("by_auditId", (q) => q.eq("auditId", job.auditId!)).take(BATCH_SIZE)
       for (const row of rows) {
-        if (row.storageId) await ctx.storage.delete(row.storageId)
+        const cacheEntry = row.auditCacheEntryId ? await ctx.db.get(row.auditCacheEntryId) : null
+        if (cacheEntry) {
+          const referenceCount = Math.max(0, cacheEntry.referenceCount - 1)
+          if (referenceCount === 0 && cacheEntry.expiresAt <= now) {
+            if (cacheEntry.storageId) await ctx.storage.delete(cacheEntry.storageId)
+            await ctx.db.delete(cacheEntry._id)
+          } else {
+            await ctx.db.patch(cacheEntry._id, { referenceCount, updatedAt: now })
+          }
+        } else if (row.storageId) {
+          await ctx.storage.delete(row.storageId)
+        }
         await ctx.db.delete(row._id)
+      }
+      processed = rows.length
+    } else if (phase === "batchAuditItemAuditReference") {
+      const rows = await ctx.db.query("batchAuditItems").withIndex("by_auditId", (q) => q.eq("auditId", job.auditId!)).take(BATCH_SIZE)
+      for (const row of rows) await ctx.db.patch(row._id, { auditId: undefined, updatedAt: now })
+      processed = rows.length
+    } else if (phase === "batchAuditItemPreviousReference") {
+      const rows = await ctx.db.query("batchAuditItems").withIndex("by_previousAuditId", (q) => q.eq("previousAuditId", job.auditId!)).take(BATCH_SIZE)
+      for (const row of rows) await ctx.db.patch(row._id, { previousAuditId: undefined, updatedAt: now })
+      processed = rows.length
+    } else if (phase === "auditCacheEntries") {
+      const rows = await ctx.db.query("auditCacheEntries").withIndex("by_sourceAuditId", (q) => q.eq("sourceAuditId", job.auditId!)).take(BATCH_SIZE)
+      for (const row of rows) {
+        const retainedAsset = await ctx.db
+          .query("auditAssets")
+          .withIndex("by_auditCacheEntryId", (q) => q.eq("auditCacheEntryId", row._id))
+          .first()
+        if (retainedAsset) {
+          await ctx.db.patch(row._id, { sourceAuditId: undefined, updatedAt: now })
+        } else {
+          if (row.storageId) await ctx.storage.delete(row.storageId)
+          await ctx.db.delete(row._id)
+        }
       }
       processed = rows.length
     } else if (phase === "usageEvents") {
@@ -274,6 +313,7 @@ const workspacePhases = [
   "notifications", "outreachTemplates",
   "auditPipelineStates", "providerCalls", "auditPages", "auditBusinessData", "auditAgentRuns",
   "auditPersonaReviews", "auditCopyReviews", "auditDesignCritiques",
+  "batchAuditQaResults", "batchAuditItems", "batchAuditJobs", "auditCacheEntries",
   "leadActivities", "campaignLeads", "campaigns", "leads", "leadSearchSnapshots",
   "usageEvents", "providerCosts", "adminActions", "creditLedger", "creditBalances",
   "subscriptions", "retentionPreferenceEvents", "logoUploads", "workspaceMembers",
@@ -368,7 +408,7 @@ export const startWorkspaceDeletionForAuthUser = internalMutation({
   },
 })
 
-async function workspaceRows(ctx: MutationCtx, phase: Exclude<WorkspaceDeletionPhase, "audits" | "auditAssets" | "logoUploads" | "billingEvents" | "deletionJobs" | "workspace">, workspaceId: Id<"workspaces">) {
+async function workspaceRows(ctx: MutationCtx, phase: Exclude<WorkspaceDeletionPhase, "audits" | "auditAssets" | "auditCacheEntries" | "logoUploads" | "billingEvents" | "deletionJobs" | "workspace">, workspaceId: Id<"workspaces">) {
   switch (phase) {
     case "auditRawData": return await ctx.db.query("auditRawData").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "auditPerformance": return await ctx.db.query("auditPerformance").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
@@ -389,6 +429,9 @@ async function workspaceRows(ctx: MutationCtx, phase: Exclude<WorkspaceDeletionP
     case "auditPersonaReviews": return await ctx.db.query("auditPersonaReviews").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "auditCopyReviews": return await ctx.db.query("auditCopyReviews").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "auditDesignCritiques": return await ctx.db.query("auditDesignCritiques").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "batchAuditQaResults": return await ctx.db.query("batchAuditQaResults").withIndex("by_workspaceId_and_checkedAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "batchAuditItems": return await ctx.db.query("batchAuditItems").withIndex("by_workspaceId_and_createdAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "batchAuditJobs": return await ctx.db.query("batchAuditJobs").withIndex("by_workspaceId_and_createdAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "leadActivities": return await ctx.db.query("leadActivities").withIndex("by_workspaceId_and_createdAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "campaignLeads": return await ctx.db.query("campaignLeads").withIndex("by_workspaceId_and_leadId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "campaigns": return await ctx.db.query("campaigns").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
@@ -420,7 +463,17 @@ export const processWorkspaceDeletion = internalMutation({
       if (audits.length) { await ctx.scheduler.runAfter(1000, internal.deletion.processWorkspaceDeletion, { jobId: job._id }); return { completed: false, phase, processed: audits.length } }
     } else if (phase === "auditAssets") {
       const rows = await ctx.db.query("auditAssets").withIndex("by_workspaceId", q => q.eq("workspaceId", job.workspaceId)).take(BATCH_SIZE)
-      for (const row of rows) { if (row.storageId) await ctx.storage.delete(row.storageId); await ctx.db.delete(row._id) }
+      for (const row of rows) {
+        if (row.storageId && !row.auditCacheEntryId) await ctx.storage.delete(row.storageId)
+        await ctx.db.delete(row._id)
+      }
+      processed = rows.length
+    } else if (phase === "auditCacheEntries") {
+      const rows = await ctx.db.query("auditCacheEntries").withIndex("by_workspaceId_and_expiresAt", q => q.eq("workspaceId", job.workspaceId)).take(BATCH_SIZE)
+      for (const row of rows) {
+        if (row.storageId) await ctx.storage.delete(row.storageId)
+        await ctx.db.delete(row._id)
+      }
       processed = rows.length
     } else if (phase === "logoUploads") {
       const rows = await ctx.db.query("logoUploads").withIndex("by_workspaceId", q => q.eq("workspaceId", job.workspaceId)).take(BATCH_SIZE)

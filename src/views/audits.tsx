@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Search, Eye, ArrowRight, Plus, Copy, Trash2, RotateCcw, MousePointerClick, FileDown } from "lucide-react"
+import { Search, Eye, ArrowRight, Plus, Copy, Trash2, RotateCcw, MousePointerClick, FileDown, FileStack } from "lucide-react"
 import { useMutation, useQuery } from "convex/react"
 
 import {
@@ -130,14 +130,20 @@ export function AuditsView() {
             {filtered.length} von {totalCount} Audits · nach Potenzial priorisieren
           </p>
         </div>
-        <NewAuditDialog
-          trigger={
-            <Button className="gap-2">
-              <Plus className="size-4" />
-              Neuer Audit
-            </Button>
-          }
-        />
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="gap-2" onClick={() => navigate({ name: "batch-audits" })}>
+            <FileStack className="size-4" />
+            Batch-Audits
+          </Button>
+          <NewAuditDialog
+            trigger={
+              <Button className="gap-2">
+                <Plus className="size-4" />
+                Neuer Audit
+              </Button>
+            }
+          />
+        </div>
       </div>
 
       <Card className="gap-0 py-0">

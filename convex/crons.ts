@@ -78,11 +78,49 @@ export const purgeExpiredScreenshots = internalMutation({
     let deleted = 0
     for (const row of page.page) {
       if (row.type === "pdf" || await isExtended(ctx, row.workspaceId)) continue
-      if (row.storageId) await ctx.storage.delete(row.storageId)
+      const cacheEntry = row.auditCacheEntryId ? await ctx.db.get(row.auditCacheEntryId) : null
+      if (cacheEntry) {
+        const referenceCount = Math.max(0, cacheEntry.referenceCount - 1)
+        if (referenceCount === 0 && cacheEntry.expiresAt <= Date.now()) {
+          if (cacheEntry.storageId) await ctx.storage.delete(cacheEntry.storageId)
+          await ctx.db.delete(cacheEntry._id)
+        } else {
+          await ctx.db.patch(cacheEntry._id, { referenceCount, updatedAt: Date.now() })
+        }
+      } else if (row.storageId) {
+        await ctx.storage.delete(row.storageId)
+      }
       await ctx.db.delete(row._id)
       deleted++
     }
     if (!page.isDone) await ctx.scheduler.runAfter(0, internal.crons.purgeExpiredScreenshots, { cursor: page.continueCursor })
+    return { deleted, isDone: page.isDone }
+  },
+})
+
+export const purgeExpiredAuditCacheEntries = internalMutation({
+  args: { cursor: v.optional(cursorValidator) },
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("auditCacheEntries")
+      .withIndex("by_expiresAt", (q) => q.lt("expiresAt", Date.now()))
+      .paginate({ numItems: BATCH_SIZE, cursor: args.cursor ?? null })
+    let deleted = 0
+    for (const row of page.page) {
+      const retainedAsset = await ctx.db
+        .query("auditAssets")
+        .withIndex("by_auditCacheEntryId", (q) => q.eq("auditCacheEntryId", row._id))
+        .first()
+      if (retainedAsset) continue
+      if (row.storageId) await ctx.storage.delete(row.storageId)
+      await ctx.db.delete(row._id)
+      deleted += 1
+    }
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(0, internal.crons.purgeExpiredAuditCacheEntries, {
+        cursor: page.continueCursor,
+      })
+    }
     return { deleted, isDone: page.isDone }
   },
 })
@@ -116,6 +154,7 @@ crons.interval("purge provider calls", { hours: 24 }, internal.crons.purgeExpire
 crons.interval("purge agent runs", { hours: 24 }, internal.crons.purgeExpiredAgentRuns, {})
 crons.interval("purge extracted markdown", { hours: 24 }, internal.crons.purgeExpiredExtractedMarkdown, {})
 crons.interval("purge screenshots", { hours: 24 }, internal.crons.purgeExpiredScreenshots, {})
+crons.interval("purge audit cache", { hours: 24 }, internal.crons.purgeExpiredAuditCacheEntries, {})
 crons.interval("purge usage events", { hours: 24 }, internal.crons.purgeExpiredUsageEvents, {})
 crons.interval("purge provider costs", { hours: 24 }, internal.crons.purgeExpiredProviderCosts, {})
 crons.interval("purge admin actions", { hours: 24 }, internal.crons.purgeExpiredAdminActions, {})

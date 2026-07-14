@@ -7,6 +7,9 @@ export type View =
   | { name: "dashboard" }
   | { name: "activity" }
   | { name: "audits" }
+  | { name: "batch-audits" }
+  | { name: "new-batch-audit" }
+  | { name: "batch-audit"; id: string }
   | { name: "new-audit" }
   | { name: "audit"; id: string }
   | { name: "leads" }
@@ -20,6 +23,15 @@ export type View =
 function parsePath(pathname: string): View {
   const parts = pathname.split("/").filter(Boolean)
   if (parts[0] === "app") parts.shift()
+  if (parts[0] === "audits" && parts[1] === "batches" && parts[2] === "new") {
+    return { name: "new-batch-audit" }
+  }
+  if (parts[0] === "audits" && parts[1] === "batches" && parts[2]) {
+    return { name: "batch-audit", id: decodeURIComponent(parts[2]) }
+  }
+  if (parts[0] === "audits" && parts[1] === "batches") {
+    return { name: "batch-audits" }
+  }
   if (parts[0] === "audits" && parts[1] === "new") {
     return { name: "new-audit" }
   }
@@ -46,6 +58,12 @@ function viewToPath(view: View): string {
       return "/app"
     case "new-audit":
       return "/app/audits/new"
+    case "batch-audits":
+      return "/app/audits/batches"
+    case "new-batch-audit":
+      return "/app/audits/batches/new"
+    case "batch-audit":
+      return `/app/audits/batches/${encodeURIComponent(view.id)}`
     case "audit":
       return `/app/audits/${encodeURIComponent(view.id)}`
     case "lead-search":

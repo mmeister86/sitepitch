@@ -8,6 +8,13 @@ export const auditWorkpool = new Workpool(components.auditWorkpool, {
   logLevel: "WARN",
 })
 
+export const batchAuditWorkpool = new Workpool(components.batchAuditWorkpool, {
+  maxParallelism: 4,
+  retryActionsByDefault: true,
+  defaultRetryBehavior: { maxAttempts: 2, initialBackoffMs: 5_000, base: 2 },
+  logLevel: "WARN",
+})
+
 export const providerWorkpool = new Workpool(components.providerWorkpool, {
   maxParallelism: 4,
   retryActionsByDefault: false,

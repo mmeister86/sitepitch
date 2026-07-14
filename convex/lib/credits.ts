@@ -61,6 +61,19 @@ async function getAuditLedgerEntries(
     .take(10)
 }
 
+async function getLedgerEntryByIdempotencyKey(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  idempotencyKey: string,
+) {
+  return await ctx.db
+    .query("creditLedger")
+    .withIndex("by_workspaceId_and_idempotencyKey", (q) =>
+      q.eq("workspaceId", workspaceId).eq("idempotencyKey", idempotencyKey),
+    )
+    .unique()
+}
+
 export async function getWorkspaceCreditBalance(ctx: QueryCtx, workspaceId: Id<"workspaces">) {
   return await ctx.db
     .query("creditBalances")
@@ -158,6 +171,165 @@ export async function reserveWorkspaceCredit(
   })
 
   return { ...snapshot, reserved: snapshot.reserved + 1, remaining: snapshot.remaining - 1 }
+}
+
+export async function reserveWorkspaceBatchCredits(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  createdByUserId: Id<"users">,
+  batchAuditJobId: Id<"batchAuditJobs">,
+  amount: number,
+  idempotencyKey: string,
+) {
+  if (!Number.isInteger(amount) || amount < 1 || amount > 100) {
+    throw new ConvexError({ code: "INVALID_CREDIT_AMOUNT", message: "Invalid batch credit amount" })
+  }
+  const existing = await getLedgerEntryByIdempotencyKey(ctx, workspaceId, idempotencyKey)
+  if (existing) {
+    if (existing.batchAuditJobId !== batchAuditJobId || existing.type !== "reserve" || existing.amount !== amount) {
+      throw new ConvexError({ code: "IDEMPOTENCY_CONFLICT", message: "Credit reservation key is already in use" })
+    }
+    return getWorkspaceCreditSnapshot(await getWorkspaceCreditBalance(ctx, workspaceId))
+  }
+
+  const balance = await ensureWorkspaceCreditBalance(ctx, workspaceId, createdByUserId)
+  if (!balance || toSnapshot(balance).remaining < amount) {
+    throw new ConvexError({ code: "INSUFFICIENT_CREDITS", message: "Not enough credits for this batch" })
+  }
+
+  const now = Date.now()
+  await ctx.db.patch(balance._id, {
+    reservedCredits: balance.reservedCredits + amount,
+    updatedAt: now,
+  })
+  await ctx.db.insert("creditLedger", {
+    workspaceId,
+    batchAuditJobId,
+    type: "reserve",
+    amount,
+    balanceScope: "mixed",
+    idempotencyKey,
+    reason: "batch_audit_start",
+    createdByUserId,
+    createdAt: now,
+  })
+
+  return getWorkspaceCreditSnapshot({ ...balance, reservedCredits: balance.reservedCredits + amount })
+}
+
+export async function reserveWorkspaceBatchItemRetryCredit(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  createdByUserId: Id<"users">,
+  batchAuditJobId: Id<"batchAuditJobs">,
+  batchAuditItemId: Id<"batchAuditItems">,
+  idempotencyKey: string,
+) {
+  const existing = await getLedgerEntryByIdempotencyKey(ctx, workspaceId, idempotencyKey)
+  if (existing) return getWorkspaceCreditSnapshot(await getWorkspaceCreditBalance(ctx, workspaceId))
+
+  const balance = await ensureWorkspaceCreditBalance(ctx, workspaceId, createdByUserId)
+  if (!balance || toSnapshot(balance).remaining < 1) {
+    throw new ConvexError({ code: "INSUFFICIENT_CREDITS", message: "No credits available for retry" })
+  }
+  const now = Date.now()
+  await ctx.db.patch(balance._id, {
+    reservedCredits: balance.reservedCredits + 1,
+    updatedAt: now,
+  })
+  await ctx.db.insert("creditLedger", {
+    workspaceId,
+    batchAuditJobId,
+    batchAuditItemId,
+    type: "reserve",
+    amount: 1,
+    balanceScope: "mixed",
+    idempotencyKey,
+    reason: "batch_audit_retry",
+    createdByUserId,
+    createdAt: now,
+  })
+  return getWorkspaceCreditSnapshot({ ...balance, reservedCredits: balance.reservedCredits + 1 })
+}
+
+export async function consumeWorkspaceBatchItemCredit(
+  ctx: MutationCtx,
+  args: {
+    workspaceId: Id<"workspaces">
+    batchAuditJobId: Id<"batchAuditJobs">
+    batchAuditItemId: Id<"batchAuditItems">
+    auditId: Id<"audits">
+    idempotencyKey: string
+  },
+) {
+  const existing = await getLedgerEntryByIdempotencyKey(ctx, args.workspaceId, args.idempotencyKey)
+  if (existing) return getWorkspaceCreditSnapshot(await getWorkspaceCreditBalance(ctx, args.workspaceId))
+  const balance = await getWorkspaceCreditBalance(ctx, args.workspaceId)
+  if (!balance || balance.reservedCredits < 1) {
+    throw new ConvexError({ code: "CREDIT_INVARIANT_VIOLATION", message: "Missing batch credit reservation" })
+  }
+  const useMonthly = balance.usedMonthlyCredits < balance.monthlyCredits
+  const now = Date.now()
+  const next = {
+    ...balance,
+    reservedCredits: balance.reservedCredits - 1,
+    usedMonthlyCredits: balance.usedMonthlyCredits + (useMonthly ? 1 : 0),
+    usedExtraCredits: balance.usedExtraCredits + (useMonthly ? 0 : 1),
+  }
+  await ctx.db.patch(balance._id, {
+    reservedCredits: next.reservedCredits,
+    usedMonthlyCredits: next.usedMonthlyCredits,
+    usedExtraCredits: next.usedExtraCredits,
+    updatedAt: now,
+  })
+  await ctx.db.insert("creditLedger", {
+    workspaceId: args.workspaceId,
+    auditId: args.auditId,
+    batchAuditJobId: args.batchAuditJobId,
+    batchAuditItemId: args.batchAuditItemId,
+    type: "consume",
+    amount: 1,
+    balanceScope: useMonthly ? "monthly" : "extra",
+    idempotencyKey: args.idempotencyKey,
+    reason: "batch_audit_completed",
+    createdAt: now,
+  })
+  return getWorkspaceCreditSnapshot(next)
+}
+
+export async function releaseWorkspaceBatchItemCredit(
+  ctx: MutationCtx,
+  args: {
+    workspaceId: Id<"workspaces">
+    batchAuditJobId: Id<"batchAuditJobs">
+    batchAuditItemId: Id<"batchAuditItems">
+    auditId?: Id<"audits">
+    idempotencyKey: string
+    reason: string
+  },
+) {
+  const existing = await getLedgerEntryByIdempotencyKey(ctx, args.workspaceId, args.idempotencyKey)
+  if (existing) return getWorkspaceCreditSnapshot(await getWorkspaceCreditBalance(ctx, args.workspaceId))
+  const balance = await getWorkspaceCreditBalance(ctx, args.workspaceId)
+  if (!balance || balance.reservedCredits < 1) {
+    throw new ConvexError({ code: "CREDIT_INVARIANT_VIOLATION", message: "Missing batch credit reservation" })
+  }
+  const now = Date.now()
+  const nextReserved = balance.reservedCredits - 1
+  await ctx.db.patch(balance._id, { reservedCredits: nextReserved, updatedAt: now })
+  await ctx.db.insert("creditLedger", {
+    workspaceId: args.workspaceId,
+    auditId: args.auditId,
+    batchAuditJobId: args.batchAuditJobId,
+    batchAuditItemId: args.batchAuditItemId,
+    type: "refund",
+    amount: 1,
+    balanceScope: "mixed",
+    idempotencyKey: args.idempotencyKey,
+    reason: args.reason,
+    createdAt: now,
+  })
+  return getWorkspaceCreditSnapshot({ ...balance, reservedCredits: nextReserved })
 }
 
 export async function consumeWorkspaceCreditReservation(

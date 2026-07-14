@@ -1,12 +1,12 @@
 import { ConvexError } from "convex/values"
 
-export type SubscriptionPlan = "free" | "starter" | "pro" | "agency"
+export type SubscriptionPlan = "free" | "starter" | "pro" | "agency" | "scale"
 
 export type ProviderLimitKind =
   | "content" | "screenshot" | "pagespeed" | "businessData" | "llm" | "pdf"
 
 export function isPaidPlan(plan: SubscriptionPlan): boolean {
-  return plan === "starter" || plan === "pro" || plan === "agency"
+  return plan === "starter" || plan === "pro" || plan === "agency" || plan === "scale"
 }
 
 export function providerToLimitKind(provider: string): ProviderLimitKind {

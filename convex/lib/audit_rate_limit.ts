@@ -21,6 +21,10 @@ export const auditRateLimiter = new RateLimiter(components.rateLimiter, {
   auditStartsFree: { kind: "fixed window", rate: 10, period: HOUR },
   auditStartsPaid: { kind: "fixed window", rate: 10, period: HOUR },
   auditStartsByWorkspace: { kind: "fixed window", rate: 10, period: HOUR },
+  batchStartsByWorkspace: { kind: "fixed window", rate: 3, period: HOUR },
+  batchStartsByUser: { kind: "fixed window", rate: 3, period: HOUR },
+  batchItemsAgency: { kind: "fixed window", rate: 25, period: HOUR },
+  batchItemsScale: { kind: "fixed window", rate: 100, period: HOUR },
   demoAuditByIp: { kind: "fixed window", rate: 1, period: DAY },
   leadSearchByWorkspace: { kind: "fixed window", rate: 10, period: HOUR },
   publicReportViewsByViewer: { kind: "fixed window", rate: 30, period: HOUR },
@@ -55,9 +59,36 @@ export async function checkLeadSearchLimit(
   if (!result.ok) throwRateLimited(result.retryAfter)
 }
 
+export async function checkBatchStartLimits(
+  ctx: AnyCtx,
+  args: { workspaceId: string; userId: string; plan: SubscriptionPlan; itemCount: number },
+): Promise<void> {
+  const batchByWorkspace = await auditRateLimiter.limit(ctx, "batchStartsByWorkspace", {
+    key: args.workspaceId,
+  })
+  if (!batchByWorkspace.ok) throwRateLimited(batchByWorkspace.retryAfter)
+  const batchByUser = await auditRateLimiter.limit(ctx, "batchStartsByUser", {
+    key: args.userId,
+  })
+  if (!batchByUser.ok) throwRateLimited(batchByUser.retryAfter)
+
+  const itemLimit = args.plan === "scale" ? "batchItemsScale" : "batchItemsAgency"
+  for (const key of [`workspace:${args.workspaceId}`, `user:${args.userId}`, `plan:${args.plan}:${args.workspaceId}`]) {
+    const result = await auditRateLimiter.limit(ctx, itemLimit, { key, count: args.itemCount })
+    if (!result.ok) throwRateLimited(result.retryAfter)
+  }
+}
+
 export async function checkProviderLimit(
   ctx: AnyCtx,
-  args: { kind: ProviderLimitKind; provider: string },
+  args: {
+    kind: ProviderLimitKind
+    provider: string
+    workspaceId?: string
+    userId?: string
+    plan?: SubscriptionPlan
+    apiKeyId?: string
+  },
 ): Promise<void> {
   const limitName =
     args.kind === "screenshot" ? "screenshotProviderCalls"
@@ -66,6 +97,15 @@ export async function checkProviderLimit(
       : args.kind === "llm" ? "llmGenerations"
       : args.kind === "pdf" ? "pdfExportsByWorkspace"
       : "contentProviderCalls"
-  const result = await auditRateLimiter.limit(ctx, limitName, { key: args.provider })
-  if (!result.ok) throwRateLimited(result.retryAfter)
+  const keys = [
+    args.workspaceId || args.userId || args.plan || args.apiKeyId ? `global:${args.provider}` : args.provider,
+    args.workspaceId ? `workspace:${args.workspaceId}:${args.provider}` : null,
+    args.userId ? `user:${args.userId}:${args.provider}` : null,
+    args.plan ? `plan:${args.plan}:${args.provider}` : null,
+    args.apiKeyId ? `api_key:${args.apiKeyId}:${args.provider}` : null,
+  ].filter((key): key is string => Boolean(key))
+  for (const key of keys) {
+    const result = await auditRateLimiter.limit(ctx, limitName, { key })
+    if (!result.ok) throwRateLimited(result.retryAfter)
+  }
 }

@@ -15,6 +15,41 @@ export const subscriptionPlanValidator = v.union(
   v.literal("starter"),
   v.literal("pro"),
   v.literal("agency"),
+  v.literal("scale"),
+)
+
+export const batchAuditJobStatusValidator = v.union(
+  v.literal("queued"),
+  v.literal("running"),
+  v.literal("paused"),
+  v.literal("completed"),
+  v.literal("failed"),
+  v.literal("cancelled"),
+)
+
+export const batchAuditItemStatusValidator = v.union(
+  v.literal("queued"),
+  v.literal("running"),
+  v.literal("paused"),
+  v.literal("completed"),
+  v.literal("failed"),
+  v.literal("cancelled"),
+)
+
+export const batchAuditSourceValidator = v.union(v.literal("campaign"), v.literal("csv"))
+
+export const batchAuditQaStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("passed"),
+  v.literal("failed"),
+  v.literal("skipped"),
+)
+
+export const auditCacheKindValidator = v.union(
+  v.literal("content"),
+  v.literal("screenshot"),
+  v.literal("pagespeed"),
+  v.literal("business_data"),
 )
 
 export const subscriptionStatusValidator = v.union(

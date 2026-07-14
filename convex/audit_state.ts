@@ -4,6 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel"
 import { internalMutation } from "./_generated/server"
 import type { MutationCtx } from "./_generated/server"
 import { releaseWorkspaceCreditReservation } from "./lib/credits"
+import { settleBatchAuditItem } from "./batch_audits"
 
 function now() {
   return Date.now()
@@ -105,9 +106,14 @@ export const claimAuditPipelineWork = internalMutation({
       updatedAt: current,
     })
 
+    const batch = audit.batchAuditJobId ? await ctx.db.get(audit.batchAuditJobId) : null
     return {
       auditId: audit._id,
       workspaceId: audit.workspaceId,
+      batchAuditJobId: audit.batchAuditJobId,
+      batchAuditItemId: audit.batchAuditItemId,
+      createdByUserId: audit.createdByUserId,
+      planSnapshot: batch?.planSnapshot,
       leaseToken,
       leaseExpiresAt,
       url: audit.url,
@@ -268,6 +274,15 @@ export const failAuditPipeline = internalMutation({
       })
     }
 
+    if (audit.batchAuditItemId) {
+      await settleBatchAuditItem(ctx, {
+        auditId: audit._id,
+        outcome: "failed",
+        errorCode: args.errorCode,
+        errorMessage: args.errorMessage,
+      })
+    }
+
     return state._id
   },
 })
@@ -295,9 +310,12 @@ export const logProviderCallStart = internalMutation({
   },
   handler: async (ctx, args) => {
     if (args.auditId && !(await auditAcceptsWrites(ctx, args.auditId))) throw new Error("AUDIT_DELETION_PENDING")
+    const audit = args.auditId ? await ctx.db.get(args.auditId) : null
     return await ctx.db.insert("providerCalls", {
       workspaceId: args.workspaceId,
       auditId: args.auditId,
+      batchAuditJobId: audit?.batchAuditJobId,
+      batchAuditItemId: audit?.batchAuditItemId,
       provider: args.provider,
       operation: args.operation,
       status: "started",
@@ -385,9 +403,12 @@ export const recordProviderCost = internalMutation({
       throw new Error("recordProviderCost requires at least estimated or actual cost")
     }
 
+    const audit = args.auditId ? await ctx.db.get(args.auditId) : null
     return await ctx.db.insert("providerCosts", {
       workspaceId: args.workspaceId,
       auditId: args.auditId,
+      batchAuditJobId: audit?.batchAuditJobId,
+      batchAuditItemId: audit?.batchAuditItemId,
       providerCallId: args.providerCallId,
       costKey: args.costKey,
       provider: args.provider,
@@ -587,6 +608,7 @@ export const storeAuditAsset = internalMutation({
   args: {
     workspaceId: v.id("workspaces"),
     auditId: v.id("audits"),
+    auditCacheEntryId: v.optional(v.id("auditCacheEntries")),
     type: v.union(v.literal("desktop_screenshot"), v.literal("mobile_screenshot"), v.literal("fullpage_screenshot"), v.literal("pdf")),
     storageId: v.optional(v.id("_storage")),
     storageProvider: v.union(v.literal("convex"), v.literal("r2"), v.literal("external")),
@@ -601,9 +623,38 @@ export const storeAuditAsset = internalMutation({
       .withIndex("by_auditId_and_type", (q) => q.eq("auditId", args.auditId).eq("type", args.type))
       .unique()
 
+    if (args.auditCacheEntryId) {
+      const cacheEntry = await ctx.db.get(args.auditCacheEntryId)
+      if (
+        !cacheEntry ||
+        cacheEntry.workspaceId !== args.workspaceId ||
+        cacheEntry.kind !== "screenshot" ||
+        cacheEntry.storageId !== args.storageId
+      ) {
+        throw new Error("INVALID_AUDIT_CACHE_REFERENCE")
+      }
+      if (existing?.auditCacheEntryId !== cacheEntry._id) {
+        await ctx.db.patch(cacheEntry._id, {
+          referenceCount: cacheEntry.referenceCount + 1,
+          updatedAt: now(),
+        })
+      }
+    }
+
+    if (existing?.auditCacheEntryId && existing.auditCacheEntryId !== args.auditCacheEntryId) {
+      const previousCacheEntry = await ctx.db.get(existing.auditCacheEntryId)
+      if (previousCacheEntry) {
+        await ctx.db.patch(previousCacheEntry._id, {
+          referenceCount: Math.max(0, previousCacheEntry.referenceCount - 1),
+          updatedAt: now(),
+        })
+      }
+    }
+
     const payload = {
       workspaceId: args.workspaceId,
       auditId: args.auditId,
+      auditCacheEntryId: args.auditCacheEntryId,
       type: args.type,
       storageId: args.storageId,
       storageProvider: args.storageProvider,

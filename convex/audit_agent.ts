@@ -9,6 +9,7 @@ import { auditAgentOutputSchema, type AuditAgentOutput } from "./lib/audit_agent
 import { personaPanelOutputSchema } from "./lib/audit_persona_schemas"
 import { copyReviewOutputSchema } from "./lib/audit_copy_review_schemas"
 import { designCritiqueOutputSchema } from "./lib/audit_design_critique_schemas"
+import { settleBatchAuditItem } from "./batch_audits"
 
 export interface AuditAgentContextCheck {
   category: CheckCategory
@@ -317,6 +318,8 @@ export const finishAuditAgentRun = internalMutation({
       await ctx.db.insert("providerCosts", {
         workspaceId: run.workspaceId,
         auditId: run.auditId,
+        batchAuditJobId: audit.batchAuditJobId,
+        batchAuditItemId: audit.batchAuditItemId,
         costKey,
         provider: run.provider,
         operation: `llm:${run.purpose}`,
@@ -688,6 +691,13 @@ export const completeAuditFromAgent = internalMutation({
       })
     }
 
+    if (audit.batchAuditItemId) {
+      await settleBatchAuditItem(ctx, {
+        auditId: audit._id,
+        outcome: "completed",
+      })
+    }
+
     return { auditId: args.auditId, completedAt: current }
   },
 })
@@ -764,6 +774,15 @@ export const markAuditAgentFailed = internalMutation({
           idempotencyKey: `audit_failed:${args.auditId}`,
           metadata: { code: args.errorCode },
           createdAt: current,
+        })
+      }
+
+      if (audit.batchAuditItemId) {
+        await settleBatchAuditItem(ctx, {
+          auditId: audit._id,
+          outcome: "failed",
+          errorCode: args.errorCode,
+          errorMessage: args.errorMessage,
         })
       }
     }

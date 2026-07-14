@@ -2,6 +2,7 @@ import { defineSchema, defineTable } from "convex/server"
 import { v } from "convex/values"
 
 import {
+  auditCacheKindValidator,
   auditAgentRunPurposeValidator,
   auditAgentRunProviderValidator,
   auditAgentRunStatusValidator,
@@ -18,6 +19,10 @@ import {
   auditPipelineStatusValidator,
   auditStatusValidator,
   auditTypeValidator,
+  batchAuditItemStatusValidator,
+  batchAuditJobStatusValidator,
+  batchAuditQaStatusValidator,
+  batchAuditSourceValidator,
   creditLedgerTypeValidator,
   leadActivityTypeValidator,
   leadSourceProviderValidator,
@@ -178,6 +183,8 @@ export default defineSchema({
   creditLedger: defineTable({
     workspaceId: v.id("workspaces"),
     auditId: v.optional(v.id("audits")),
+    batchAuditJobId: v.optional(v.id("batchAuditJobs")),
+    batchAuditItemId: v.optional(v.id("batchAuditItems")),
     subscriptionId: v.optional(v.id("subscriptions")),
     type: creditLedgerTypeValidator,
     amount: v.number(),
@@ -189,6 +196,8 @@ export default defineSchema({
   })
     .index("by_workspaceId", ["workspaceId"])
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
+    .index("by_workspaceId_and_batchAuditJobId", ["workspaceId", "batchAuditJobId"])
+    .index("by_batchAuditItemId", ["batchAuditItemId"])
     .index("by_workspaceId_and_subscriptionId", ["workspaceId", "subscriptionId"])
     .index("by_workspaceId_and_type", ["workspaceId", "type"])
     .index("by_workspaceId_and_idempotencyKey", ["workspaceId", "idempotencyKey"])
@@ -268,6 +277,8 @@ export default defineSchema({
 
   audits: defineTable({
     workspaceId: v.id("workspaces"),
+    batchAuditJobId: v.optional(v.id("batchAuditJobs")),
+    batchAuditItemId: v.optional(v.id("batchAuditItems")),
     leadId: v.optional(v.id("leads")),
     campaignId: v.optional(v.id("campaigns")),
     campaignLeadId: v.optional(v.id("campaignLeads")),
@@ -304,6 +315,8 @@ export default defineSchema({
     .index("by_workspaceId_and_createdByUserId", ["workspaceId", "createdByUserId"])
     .index("by_workspaceId_and_idempotencyKey", ["workspaceId", "idempotencyKey"])
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
+    .index("by_batchAuditJobId_and_createdAt", ["batchAuditJobId", "createdAt"])
+    .index("by_batchAuditItemId", ["batchAuditItemId"])
     .index("by_leadId", ["leadId"])
     .index("by_campaignId_and_createdAt", ["campaignId", "createdAt"])
     .index("by_campaignLeadId_and_createdAt", ["campaignLeadId", "createdAt"])
@@ -354,6 +367,7 @@ export default defineSchema({
   auditAssets: defineTable({
     workspaceId: v.id("workspaces"),
     auditId: v.id("audits"),
+    auditCacheEntryId: v.optional(v.id("auditCacheEntries")),
     type: auditAssetTypeValidator,
     storageProvider: auditAssetStorageProviderValidator,
     storageId: v.optional(v.id("_storage")),
@@ -366,6 +380,7 @@ export default defineSchema({
     .index("by_auditId", ["auditId"])
     .index("by_auditId_and_type", ["auditId", "type"])
     .index("by_workspaceId_and_type", ["workspaceId", "type"])
+    .index("by_auditCacheEntryId", ["auditCacheEntryId"])
     .index("by_createdAt", ["createdAt"]),
 
   auditPerformance: defineTable({
@@ -587,6 +602,8 @@ export default defineSchema({
   providerCalls: defineTable({
     workspaceId: v.id("workspaces"),
     auditId: v.optional(v.id("audits")),
+    batchAuditJobId: v.optional(v.id("batchAuditJobs")),
+    batchAuditItemId: v.optional(v.id("batchAuditItems")),
     provider: providerCallProviderValidator,
     operation: v.string(),
     status: providerCallStatusValidator,
@@ -603,6 +620,8 @@ export default defineSchema({
   })
     .index("by_workspaceId", ["workspaceId"])
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
+    .index("by_batchAuditJobId_and_createdAt", ["batchAuditJobId", "createdAt"])
+    .index("by_batchAuditItemId_and_createdAt", ["batchAuditItemId", "createdAt"])
     .index("by_auditId", ["auditId"])
     .index("by_workspaceId_and_provider", ["workspaceId", "provider"])
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
@@ -800,6 +819,8 @@ export default defineSchema({
   providerCosts: defineTable({
     workspaceId: v.id("workspaces"),
     auditId: v.optional(v.id("audits")),
+    batchAuditJobId: v.optional(v.id("batchAuditJobs")),
+    batchAuditItemId: v.optional(v.id("batchAuditItems")),
     providerCallId: v.optional(v.id("providerCalls")),
     costKey: v.string(),
     provider: providerCallProviderValidator,
@@ -823,9 +844,131 @@ export default defineSchema({
     .index("by_workspaceId", ["workspaceId"])
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
     .index("by_auditId", ["auditId"])
+    .index("by_batchAuditJobId_and_createdAt", ["batchAuditJobId", "createdAt"])
+    .index("by_batchAuditItemId_and_createdAt", ["batchAuditItemId", "createdAt"])
     .index("by_provider_and_createdAt", ["provider", "createdAt"])
     .index("by_createdAt", ["createdAt"])
     .index("by_costKey", ["costKey"]),
+
+  batchAuditJobs: defineTable({
+    workspaceId: v.id("workspaces"),
+    campaignId: v.optional(v.id("campaigns")),
+    createdByUserId: v.id("users"),
+    source: batchAuditSourceValidator,
+    planSnapshot: subscriptionPlanValidator,
+    planLimitSnapshot: v.number(),
+    maxParallelismSnapshot: v.number(),
+    auditType: auditTypeValidator,
+    reportLanguage: reportLanguageValidator,
+    idempotencyKey: v.string(),
+    status: batchAuditJobStatusValidator,
+    totalItems: v.number(),
+    queuedItems: v.number(),
+    runningItems: v.number(),
+    completedItems: v.number(),
+    failedItems: v.number(),
+    cancelledItems: v.number(),
+    initialReservedCredits: v.number(),
+    reservedCredits: v.number(),
+    consumedCredits: v.number(),
+    refundedCredits: v.number(),
+    estimatedCostUsd: v.optional(v.number()),
+    actualCostUsd: v.optional(v.number()),
+    providerRequestCount: v.optional(v.number()),
+    cacheHitItems: v.number(),
+    cacheHitOperations: v.number(),
+    qaSelectedItems: v.number(),
+    qaPassedItems: v.number(),
+    qaFailedItems: v.number(),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
+    .index("by_workspaceId_and_idempotencyKey", ["workspaceId", "idempotencyKey"])
+    .index("by_status_and_updatedAt", ["status", "updatedAt"])
+    .index("by_campaignId_and_createdAt", ["campaignId", "createdAt"]),
+
+  batchAuditItems: defineTable({
+    batchAuditJobId: v.id("batchAuditJobs"),
+    workspaceId: v.id("workspaces"),
+    leadId: v.optional(v.id("leads")),
+    campaignLeadId: v.optional(v.id("campaignLeads")),
+    position: v.number(),
+    url: v.string(),
+    normalizedUrl: v.string(),
+    domain: v.string(),
+    status: batchAuditItemStatusValidator,
+    attemptCount: v.number(),
+    manualRetryCount: v.number(),
+    auditId: v.optional(v.id("audits")),
+    previousAuditId: v.optional(v.id("audits")),
+    workpoolId: v.optional(v.string()),
+    errorCode: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    retryable: v.optional(v.boolean()),
+    creditSettled: v.boolean(),
+    cacheHitCount: v.number(),
+    qaSelected: v.boolean(),
+    qaStatus: batchAuditQaStatusValidator,
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_batchAuditJobId", ["batchAuditJobId"])
+    .index("by_batchAuditJobId_and_status", ["batchAuditJobId", "status"])
+    .index("by_batchAuditJobId_and_position", ["batchAuditJobId", "position"])
+    .index("by_auditId", ["auditId"])
+    .index("by_previousAuditId", ["previousAuditId"])
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"]),
+
+  batchAuditQaResults: defineTable({
+    workspaceId: v.id("workspaces"),
+    batchAuditJobId: v.id("batchAuditJobs"),
+    batchAuditItemId: v.id("batchAuditItems"),
+    auditId: v.id("audits"),
+    status: batchAuditQaStatusValidator,
+    ruleVersion: v.string(),
+    schemaValid: v.boolean(),
+    evidenceGrounded: v.boolean(),
+    claimSafetyPassed: v.boolean(),
+    issueCount: v.number(),
+    summary: v.optional(v.string()),
+    checkedAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_batchAuditJobId_and_checkedAt", ["batchAuditJobId", "checkedAt"])
+    .index("by_batchAuditItemId", ["batchAuditItemId"])
+    .index("by_auditId", ["auditId"])
+    .index("by_workspaceId_and_checkedAt", ["workspaceId", "checkedAt"]),
+
+  auditCacheEntries: defineTable({
+    workspaceId: v.id("workspaces"),
+    kind: auditCacheKindValidator,
+    cacheKey: v.string(),
+    normalizedUrl: v.string(),
+    domain: v.string(),
+    auditType: auditTypeValidator,
+    provider: providerCallProviderValidator,
+    operation: v.string(),
+    version: v.string(),
+    sourceAuditId: v.optional(v.id("audits")),
+    payload: v.optional(v.any()),
+    storageId: v.optional(v.id("_storage")),
+    mimeType: v.optional(v.string()),
+    referenceCount: v.number(),
+    expiresAt: v.number(),
+    lastHitAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspaceId_and_cacheKey", ["workspaceId", "cacheKey"])
+    .index("by_workspaceId_and_expiresAt", ["workspaceId", "expiresAt"])
+    .index("by_expiresAt", ["expiresAt"])
+    .index("by_sourceAuditId", ["sourceAuditId"]),
 
   adminActions: defineTable({
     actorUserId: v.id("users"),

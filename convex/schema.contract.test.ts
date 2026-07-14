@@ -2,9 +2,14 @@ import assert from "node:assert/strict"
 
 import schema from "./schema.ts"
 import {
+  auditCacheKindValidator,
   auditStatusValidator,
   auditPipelineStatusValidator,
   auditTypeValidator,
+  batchAuditItemStatusValidator,
+  batchAuditJobStatusValidator,
+  batchAuditQaStatusValidator,
+  batchAuditSourceValidator,
   canonicalLeadStatusValidator,
   creditLedgerTypeValidator,
   leadSourceProviderValidator,
@@ -22,6 +27,7 @@ assert.deepEqual(tableNames, [
   "auditAgentRuns",
   "auditAssets",
   "auditBusinessData",
+  "auditCacheEntries",
   "auditChecks",
   "auditCopyReviews",
   "auditDesignCritiques",
@@ -34,6 +40,9 @@ assert.deepEqual(tableNames, [
   "auditScores",
   "auditSummaries",
   "audits",
+  "batchAuditItems",
+  "batchAuditJobs",
+  "batchAuditQaResults",
   "billingEvents",
   "campaignLeads",
   "campaigns",
@@ -125,6 +134,86 @@ assert.deepEqual(getValidatorValues(providerCallStatusValidator), [
   { type: "literal", value: "completed" },
   { type: "literal", value: "failed" },
 ])
+assert.deepEqual(getValidatorValues(batchAuditJobStatusValidator), [
+  { type: "literal", value: "queued" },
+  { type: "literal", value: "running" },
+  { type: "literal", value: "paused" },
+  { type: "literal", value: "completed" },
+  { type: "literal", value: "failed" },
+  { type: "literal", value: "cancelled" },
+])
+assert.deepEqual(getValidatorValues(batchAuditItemStatusValidator), [
+  { type: "literal", value: "queued" },
+  { type: "literal", value: "running" },
+  { type: "literal", value: "paused" },
+  { type: "literal", value: "completed" },
+  { type: "literal", value: "failed" },
+  { type: "literal", value: "cancelled" },
+])
+assert.deepEqual(getValidatorValues(batchAuditSourceValidator), [
+  { type: "literal", value: "campaign" },
+  { type: "literal", value: "csv" },
+])
+assert.deepEqual(getValidatorValues(batchAuditQaStatusValidator), [
+  { type: "literal", value: "pending" },
+  { type: "literal", value: "passed" },
+  { type: "literal", value: "failed" },
+  { type: "literal", value: "skipped" },
+])
+assert.deepEqual(getValidatorValues(auditCacheKindValidator), [
+  { type: "literal", value: "content" },
+  { type: "literal", value: "screenshot" },
+  { type: "literal", value: "pagespeed" },
+  { type: "literal", value: "business_data" },
+])
+
+const indexDescriptors = (tableName: keyof typeof schema.tables) =>
+  (schema.tables[tableName] as any).indexes.map(
+    (index: { indexDescriptor: string }) => index.indexDescriptor,
+  )
+
+for (const index of [
+  "by_workspaceId_and_createdAt",
+  "by_workspaceId_and_idempotencyKey",
+  "by_status_and_updatedAt",
+  "by_campaignId_and_createdAt",
+]) {
+  assert.ok(indexDescriptors("batchAuditJobs").includes(index))
+}
+for (const index of [
+  "by_batchAuditJobId",
+  "by_batchAuditJobId_and_status",
+  "by_batchAuditJobId_and_position",
+  "by_auditId",
+  "by_previousAuditId",
+  "by_workspaceId_and_createdAt",
+]) {
+  assert.ok(indexDescriptors("batchAuditItems").includes(index))
+}
+for (const index of [
+  "by_batchAuditJobId_and_checkedAt",
+  "by_batchAuditItemId",
+  "by_auditId",
+  "by_workspaceId_and_checkedAt",
+]) {
+  assert.ok(indexDescriptors("batchAuditQaResults").includes(index))
+}
+for (const index of [
+  "by_workspaceId_and_cacheKey",
+  "by_workspaceId_and_expiresAt",
+  "by_expiresAt",
+  "by_sourceAuditId",
+]) {
+  assert.ok(indexDescriptors("auditCacheEntries").includes(index))
+}
+assert.ok(indexDescriptors("creditLedger").includes("by_workspaceId_and_batchAuditJobId"))
+assert.ok(indexDescriptors("creditLedger").includes("by_batchAuditItemId"))
+assert.ok(indexDescriptors("audits").includes("by_batchAuditJobId_and_createdAt"))
+assert.ok(indexDescriptors("audits").includes("by_batchAuditItemId"))
+assert.ok(indexDescriptors("providerCalls").includes("by_batchAuditJobId_and_createdAt"))
+assert.ok(indexDescriptors("providerCalls").includes("by_batchAuditItemId_and_createdAt"))
+assert.ok(indexDescriptors("providerCosts").includes("by_batchAuditJobId_and_createdAt"))
+assert.ok(indexDescriptors("providerCosts").includes("by_batchAuditItemId_and_createdAt"))
 
 const auditsTable = schema.tables.audits as any
 const auditsIndexes = (auditsTable.indexes as Array<{ indexDescriptor: string; fields: string[] }>).map(
@@ -156,6 +245,7 @@ const auditAssetsIndexes = (schema.tables.auditAssets as any).indexes.map(
   (index: { indexDescriptor: string }) => index.indexDescriptor,
 )
 assert.ok(auditAssetsIndexes.includes("by_auditId_and_type"))
+assert.ok(auditAssetsIndexes.includes("by_auditCacheEntryId"))
 
 const usageEventsTable = schema.tables.usageEvents
 assert.ok(

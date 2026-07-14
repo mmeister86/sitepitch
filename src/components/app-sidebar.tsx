@@ -42,6 +42,7 @@ import { Logo } from "@/components/logo"
 import { NewAuditDialog } from "@/components/new-audit-dialog"
 import { useRouter, type View } from "@/lib/router"
 import { authClient } from "@/lib/auth-client"
+import { getPlanLabel } from "@/lib/plan-display"
 import { api } from "../../convex/_generated/api"
 
 const nav: {
@@ -71,11 +72,12 @@ export function AppSidebar() {
   const email = data?.user.email ?? session.data?.user?.email ?? ""
   const workspaceName = data?.workspace.name ?? "SitePitch Workspace"
   const initials = (displayName || email || "SP").slice(0, 2).toUpperCase()
+  const planLabel = data ? getPlanLabel(data.plan) : "Plan wird geladen …"
   const prefersReducedMotion = useReducedMotion()
 
   const isActive = (v: View) =>
     v.name === view.name ||
-    (v.name === "audits" && view.name === "audit") ||
+    (v.name === "audits" && ["audit", "batch-audits", "new-batch-audit", "batch-audit"].includes(view.name)) ||
     (v.name === "campaigns" && view.name === "campaign")
 
   async function signOut() {
@@ -163,7 +165,7 @@ export function AppSidebar() {
           <Progress value={pct} className="mt-2 h-1.5 bg-sidebar-border" />
           <div className="mt-2 flex items-center gap-1.5 text-[11px] text-sidebar-foreground/50">
             <Sparkles className="size-3" />
-            Free-Plan · MVP
+            {planLabel}
           </div>
         </div>
 

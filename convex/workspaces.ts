@@ -117,6 +117,7 @@ export const getMyWorkspace = query({
   args: {},
   handler: async (ctx) => {
     const { user, workspace } = await requireOwnerWorkspace(ctx)
+    const plan = await getWorkspacePlan(ctx, workspace._id)
     const subscription = await ctx.db
       .query("subscriptions")
       .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspace._id))
@@ -151,6 +152,7 @@ export const getMyWorkspace = query({
         createdAt: workspace.createdAt,
       },
       credits: getWorkspaceCreditSnapshot(await getWorkspaceCreditBalance(ctx, workspace._id)),
+      plan,
       subscription: subscription
         ? {
             plan: subscription.plan,

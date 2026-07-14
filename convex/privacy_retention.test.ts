@@ -37,6 +37,104 @@ async function seedAudit(t: ReturnType<typeof convexTest>, userId: Id<"users">, 
   })
 }
 
+async function seedBatchRecords(
+  t: ReturnType<typeof convexTest>,
+  userId: Id<"users">,
+  workspaceId: Id<"workspaces">,
+  auditId: Id<"audits">,
+) {
+  return await t.run(async (ctx) => {
+    const now = Date.now()
+    const batchAuditJobId = await ctx.db.insert("batchAuditJobs", {
+      workspaceId,
+      createdByUserId: userId,
+      source: "csv",
+      planSnapshot: "agency",
+      planLimitSnapshot: 25,
+      maxParallelismSnapshot: 2,
+      auditType: "standard",
+      reportLanguage: "de",
+      idempotencyKey: `privacy-batch-${now}`,
+      status: "completed",
+      totalItems: 1,
+      queuedItems: 0,
+      runningItems: 0,
+      completedItems: 1,
+      failedItems: 0,
+      cancelledItems: 0,
+      initialReservedCredits: 1,
+      reservedCredits: 0,
+      consumedCredits: 1,
+      refundedCredits: 0,
+      cacheHitItems: 1,
+      cacheHitOperations: 1,
+      qaSelectedItems: 1,
+      qaPassedItems: 1,
+      qaFailedItems: 0,
+      startedAt: now,
+      completedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    })
+    const batchAuditItemId = await ctx.db.insert("batchAuditItems", {
+      batchAuditJobId,
+      workspaceId,
+      position: 0,
+      url: "https://example.com",
+      normalizedUrl: "https://example.com/",
+      domain: "example.com",
+      status: "completed",
+      attemptCount: 1,
+      manualRetryCount: 0,
+      auditId,
+      previousAuditId: auditId,
+      creditSettled: true,
+      cacheHitCount: 1,
+      qaSelected: true,
+      qaStatus: "passed",
+      startedAt: now,
+      completedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    })
+    const qaResultId = await ctx.db.insert("batchAuditQaResults", {
+      workspaceId,
+      batchAuditJobId,
+      batchAuditItemId,
+      auditId,
+      status: "passed",
+      ruleVersion: "privacy-test-v1",
+      schemaValid: true,
+      evidenceGrounded: true,
+      claimSafetyPassed: true,
+      issueCount: 0,
+      checkedAt: now,
+      createdAt: now,
+    })
+    const cacheStorageId = await ctx.storage.store(new Blob(["cached-sensitive-data"], { type: "text/plain" }))
+    const cacheEntryId = await ctx.db.insert("auditCacheEntries", {
+      workspaceId,
+      kind: "content",
+      cacheKey: `privacy-cache-${now}`,
+      normalizedUrl: "https://example.com/",
+      domain: "example.com",
+      auditType: "standard",
+      provider: "direct_html",
+      operation: "fetch_html",
+      version: "privacy-test-v1",
+      sourceAuditId: auditId,
+      payload: { extractedMarkdown: "sensitive" },
+      storageId: cacheStorageId,
+      mimeType: "text/plain",
+      referenceCount: 1,
+      expiresAt: now + 60_000,
+      createdAt: now,
+      updatedAt: now,
+    })
+    return { batchAuditJobId, batchAuditItemId, qaResultId, cacheEntryId, cacheStorageId }
+  })
+}
+
 describe("privacy retention backend", () => {
   test("workspace bootstrap records signed_up once at workspace creation time", async () => {
     const t = convexTest(schema, modules).withIdentity({
@@ -211,11 +309,81 @@ describe("privacy retention backend", () => {
     expect(remaining.extendedStorage).not.toBeNull()
   })
 
+  test("purges expired cache payloads while retaining storage still owned by an audit asset", async () => {
+    const t = convexTest(schema, modules)
+    const { userId, workspaceId } = await seedWorkspace(t)
+    const auditId = await seedAudit(t, userId, workspaceId)
+    const seeded = await t.run(async (ctx) => {
+      const now = Date.now()
+      const orphanStorageId = await ctx.storage.store(new Blob(["orphan-cache"], { type: "image/png" }))
+      const retainedStorageId = await ctx.storage.store(new Blob(["retained-audit-asset"], { type: "image/png" }))
+      const orphanCacheId = await ctx.db.insert("auditCacheEntries", {
+        workspaceId,
+        kind: "screenshot",
+        cacheKey: "expired-orphan-cache",
+        normalizedUrl: "https://orphan.example.com/",
+        domain: "orphan.example.com",
+        auditType: "standard",
+        provider: "screenshotone",
+        operation: "desktop",
+        version: "privacy-test-v1",
+        storageId: orphanStorageId,
+        referenceCount: 0,
+        expiresAt: now - 1,
+        createdAt: now - 60_000,
+        updatedAt: now - 60_000,
+      })
+      const retainedCacheId = await ctx.db.insert("auditCacheEntries", {
+        workspaceId,
+        kind: "screenshot",
+        cacheKey: "expired-retained-cache",
+        normalizedUrl: "https://example.com/",
+        domain: "example.com",
+        auditType: "standard",
+        provider: "screenshotone",
+        operation: "desktop",
+        version: "privacy-test-v1",
+        sourceAuditId: auditId,
+        storageId: retainedStorageId,
+        referenceCount: 1,
+        expiresAt: now - 1,
+        createdAt: now - 60_000,
+        updatedAt: now - 60_000,
+      })
+      const assetId = await ctx.db.insert("auditAssets", {
+        workspaceId,
+        auditId,
+        auditCacheEntryId: retainedCacheId,
+        type: "desktop_screenshot",
+        storageProvider: "convex",
+        storageId: retainedStorageId,
+        createdAt: now,
+      })
+      return { orphanStorageId, retainedStorageId, orphanCacheId, retainedCacheId, assetId }
+    })
+
+    const result = await t.mutation(internal.crons.purgeExpiredAuditCacheEntries, {})
+    expect(result.deleted).toBe(1)
+    const remaining = await t.run(async (ctx) => ({
+      orphanCache: await ctx.db.get(seeded.orphanCacheId),
+      retainedCache: await ctx.db.get(seeded.retainedCacheId),
+      orphanStorage: await ctx.db.system.get("_storage", seeded.orphanStorageId),
+      retainedStorage: await ctx.db.system.get("_storage", seeded.retainedStorageId),
+      asset: await ctx.db.get(seeded.assetId),
+    }))
+    expect(remaining.orphanCache).toBeNull()
+    expect(remaining.retainedCache).not.toBeNull()
+    expect(remaining.orphanStorage).toBeNull()
+    expect(remaining.retainedStorage).not.toBeNull()
+    expect(remaining.asset).not.toBeNull()
+  })
+
   test("audit deletion removes Convex storage and the audit through resumable phases", async () => {
     vi.useFakeTimers()
     const t = convexTest(schema, modules)
     const { userId, workspaceId } = await seedWorkspace(t)
     const auditId = await seedAudit(t, userId, workspaceId)
+    const batch = await seedBatchRecords(t, userId, workspaceId, auditId)
     const { storageId, jobId } = await t.run(async (ctx) => {
       const storageId = await ctx.storage.store(new Blob(["image"], { type: "image/png" }))
       await ctx.db.insert("auditAssets", { workspaceId, auditId, type: "desktop_screenshot", storageProvider: "convex", storageId, mimeType: "image/png", createdAt: Date.now() })
@@ -226,7 +394,7 @@ describe("privacy retention backend", () => {
         idempotencyKey: `first_shared_report:${workspaceId}`,
         createdAt: Date.now(),
       })
-      const jobId = await ctx.db.insert("deletionJobs", { kind: "audit", workspaceId, auditId, phase: "auditAssets", status: "pending", createdAt: Date.now(), updatedAt: Date.now() })
+      const jobId = await ctx.db.insert("deletionJobs", { kind: "audit", workspaceId, auditId, phase: "batchAuditQaResults", status: "pending", createdAt: Date.now(), updatedAt: Date.now() })
       return { storageId, jobId }
     })
     await t.mutation(internal.deletion.processAuditDeletion, { jobId })
@@ -234,10 +402,21 @@ describe("privacy retention backend", () => {
     const remaining = await t.run(async ctx => ({
       audit: await ctx.db.get(auditId),
       asset: await ctx.db.system.get("_storage", storageId),
+      batchJob: await ctx.db.get(batch.batchAuditJobId),
+      batchItem: await ctx.db.get(batch.batchAuditItemId),
+      qaResult: await ctx.db.get(batch.qaResultId),
+      cacheEntry: await ctx.db.get(batch.cacheEntryId),
+      cacheStorage: await ctx.db.system.get("_storage", batch.cacheStorageId),
       milestones: await ctx.db.query("usageEvents").withIndex("by_workspaceId_and_event", q => q.eq("workspaceId", workspaceId).eq("event", "first_shared_report")).take(10),
     }))
     expect(remaining.audit).toBeNull()
     expect(remaining.asset).toBeNull()
+    expect(remaining.batchJob).not.toBeNull()
+    expect(remaining.batchItem?.auditId).toBeUndefined()
+    expect(remaining.batchItem?.previousAuditId).toBeUndefined()
+    expect(remaining.qaResult).toBeNull()
+    expect(remaining.cacheEntry).toBeNull()
+    expect(remaining.cacheStorage).toBeNull()
     expect(remaining.milestones).toHaveLength(1)
     vi.useRealTimers()
   })
@@ -273,6 +452,7 @@ describe("privacy retention backend", () => {
     const t = convexTest(schema, modules)
     const { userId, workspaceId } = await seedWorkspace(t)
     const auditId = await seedAudit(t, userId, workspaceId)
+    const batch = await seedBatchRecords(t, userId, workspaceId, auditId)
     const seeded = await t.run(async (ctx) => {
       const storageId = await ctx.storage.store(new Blob(["workspace-image"], { type: "image/png" }))
       await ctx.db.insert("auditAssets", { workspaceId, auditId, type: "desktop_screenshot", storageProvider: "convex", storageId, createdAt: Date.now() })
@@ -292,6 +472,11 @@ describe("privacy retention backend", () => {
       jobs: await ctx.db.query("deletionJobs").take(10),
       templates: await ctx.db.query("outreachTemplates").withIndex("by_workspaceId_and_updatedAt", q => q.eq("workspaceId", workspaceId)).take(1),
       notifications: await ctx.db.query("notifications").withIndex("by_workspaceId_and_createdAt", q => q.eq("workspaceId", workspaceId)).take(1),
+      batchJob: await ctx.db.get(batch.batchAuditJobId),
+      batchItem: await ctx.db.get(batch.batchAuditItemId),
+      qaResult: await ctx.db.get(batch.qaResultId),
+      cacheEntry: await ctx.db.get(batch.cacheEntryId),
+      cacheStorage: await ctx.db.system.get("_storage", batch.cacheStorageId),
     }))
     expect(remaining.user).toBeNull()
     expect(remaining.workspace).toBeNull()
@@ -302,6 +487,11 @@ describe("privacy retention backend", () => {
     expect(remaining.jobs).toHaveLength(0)
     expect(remaining.templates).toHaveLength(0)
     expect(remaining.notifications).toHaveLength(0)
+    expect(remaining.batchJob).toBeNull()
+    expect(remaining.batchItem).toBeNull()
+    expect(remaining.qaResult).toBeNull()
+    expect(remaining.cacheEntry).toBeNull()
+    expect(remaining.cacheStorage).toBeNull()
     vi.useRealTimers()
   })
 })

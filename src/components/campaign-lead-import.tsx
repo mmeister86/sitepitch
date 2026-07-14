@@ -78,9 +78,13 @@ const classificationLabels = {
 export function CampaignLeadImport({
   campaignId,
   campaignStatus,
+  initialTab = "existing",
+  triggerLabel = "Lead hinzufügen",
 }: {
   campaignId: Id<"campaigns">
   campaignStatus: CampaignStatus
+  initialTab?: "existing" | "manual" | "csv"
+  triggerLabel?: string
 }) {
   const canAdd = campaignStatus === "draft" || campaignStatus === "active"
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -223,7 +227,7 @@ export function CampaignLeadImport({
       <DialogTrigger asChild>
         <Button variant="outline" className="gap-1.5" disabled={!canAdd}>
           <Plus className="size-4" />
-          Lead hinzufügen
+          {triggerLabel}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
@@ -234,7 +238,7 @@ export function CampaignLeadImport({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="existing">
+        <Tabs defaultValue={initialTab}>
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="existing">Vorhanden</TabsTrigger>
             <TabsTrigger value="manual">Manuell</TabsTrigger>

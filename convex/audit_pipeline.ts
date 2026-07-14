@@ -25,6 +25,13 @@ import {
 import { validatePublicAuditTarget } from "./lib/audit_url"
 import { sanitizeError } from "./lib/telemetry_safety"
 import {
+  AUDIT_CACHE_VERSION,
+  buildAuditCacheKey,
+  cacheExpiresAt,
+  toCacheValue,
+  type AuditCacheKind,
+} from "./lib/audit_cache"
+import {
   buildZeroCost,
   estimateFirecrawlCost,
   estimatePageSpeedCost,
@@ -35,6 +42,10 @@ import {
 type Claim = {
   auditId: Id<"audits">
   workspaceId: Id<"workspaces">
+  batchAuditJobId?: Id<"batchAuditJobs">
+  batchAuditItemId?: Id<"batchAuditItems">
+  createdByUserId: Id<"users">
+  planSnapshot?: "free" | "starter" | "pro" | "agency" | "scale"
   leaseToken: string
   leaseExpiresAt: number
   url: string
@@ -43,6 +54,112 @@ type Claim = {
   auditType: "quick" | "standard" | "local"
   reportLanguage: "de" | "en"
   idempotencyKey: string
+}
+
+type CacheProvider =
+  | "direct_html"
+  | "jina"
+  | "firecrawl"
+  | "screenshotone"
+  | "pagespeed"
+  | "local_business_data"
+  | "google_places"
+  | "openai"
+  | "anthropic"
+  | "other"
+
+async function readProviderCache<T>(
+  ctx: ActionCtx,
+  claim: Claim,
+  args: { kind: AuditCacheKind; provider: CacheProvider; operation: string; normalizedUrl?: string },
+): Promise<T | null> {
+  const normalizedUrl = args.normalizedUrl ?? claim.normalizedUrl
+  const cacheKey = buildAuditCacheKey({
+    workspaceId: claim.workspaceId,
+    normalizedUrl,
+    auditType: claim.auditType,
+    kind: args.kind,
+    provider: args.provider,
+    operation: args.operation,
+  })
+  const entry = await ctx.runQuery(internal.audit_cache.getEntry, {
+    workspaceId: claim.workspaceId,
+    cacheKey,
+    now: Date.now(),
+  })
+  if (!entry?.payload) return null
+  await ctx.runMutation(internal.audit_cache.recordHit, {
+    auditId: claim.auditId,
+    auditCacheEntryId: entry._id,
+  })
+  return entry.payload as T
+}
+
+async function writeProviderCache<T>(
+  ctx: ActionCtx,
+  claim: Claim,
+  value: T,
+  args: { kind: AuditCacheKind; provider: CacheProvider; operation: string; normalizedUrl?: string },
+) {
+  const payload = toCacheValue(value)
+  const encoded = JSON.stringify(payload)
+  if (encoded.length > 750_000) return
+  const normalizedUrl = args.normalizedUrl ?? claim.normalizedUrl
+  const cacheKey = buildAuditCacheKey({
+    workspaceId: claim.workspaceId,
+    normalizedUrl,
+    auditType: claim.auditType,
+    kind: args.kind,
+    provider: args.provider,
+    operation: args.operation,
+  })
+  await ctx.runMutation(internal.audit_cache.putEntry, {
+    workspaceId: claim.workspaceId,
+    kind: args.kind,
+    cacheKey,
+    normalizedUrl,
+    domain: claim.domain,
+    auditType: claim.auditType,
+    provider: args.provider,
+    operation: args.operation,
+    version: AUDIT_CACHE_VERSION,
+    sourceAuditId: claim.auditId,
+    payload,
+    expiresAt: cacheExpiresAt(args.kind),
+  })
+}
+
+async function readScreenshotCache(
+  ctx: ActionCtx,
+  claim: Claim,
+  targetUrl: string,
+  viewport: "desktop" | "mobile",
+) {
+  const normalizedUrl = normalizeUrlForAudit(targetUrl)
+  const cacheKey = buildAuditCacheKey({
+    workspaceId: claim.workspaceId,
+    normalizedUrl,
+    auditType: claim.auditType,
+    kind: "screenshot",
+    provider: "firecrawl",
+    operation: `capture_${viewport}_screenshot`,
+  })
+  const entry = await ctx.runQuery(internal.audit_cache.getEntry, {
+    workspaceId: claim.workspaceId,
+    cacheKey,
+    now: Date.now(),
+  })
+  if (!entry?.storageId || !entry.mimeType) return null
+  await ctx.runMutation(internal.audit_cache.recordHit, {
+    auditId: claim.auditId,
+    auditCacheEntryId: entry._id,
+  })
+  return {
+    viewport,
+    storageId: entry.storageId,
+    mimeType: entry.mimeType,
+    auditCacheEntryId: entry._id,
+  }
 }
 
 type PrimaryFetchResult =
@@ -380,7 +497,13 @@ async function runProviderAttempt<T>(
 
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      await checkProviderLimit(ctx, { kind: options.limitKind ?? providerToLimitKind(provider), provider })
+      await checkProviderLimit(ctx, {
+        kind: options.limitKind ?? providerToLimitKind(provider),
+        provider,
+        workspaceId: claim.workspaceId,
+        userId: claim.createdByUserId,
+        plan: claim.planSnapshot,
+      })
     } catch (error) {
       if (options.optional) {
         return null
@@ -767,11 +890,23 @@ async function mapWithFirecrawl(ctx: ActionCtx, claim: Claim, baseUrl: string): 
 }
 
 async function fetchPrimaryHtml(ctx: ActionCtx, claim: Claim): Promise<PrimaryFetchResult> {
+  const cached = await readProviderCache<PrimaryFetchResult>(ctx, claim, {
+    kind: "content",
+    provider: "other",
+    operation: "primary_content",
+  })
+  if (cached) return cached
+
   // Firecrawl is the primary crawler. If it fails or returns no usable content,
   // fall back to a direct HTML fetch. Jina has been removed from the pipeline.
   try {
     const firecrawlResult = await scrapeHomepageWithFirecrawl(ctx, claim)
     if (firecrawlResult) {
+      await writeProviderCache(ctx, claim, firecrawlResult, {
+        kind: "content",
+        provider: "other",
+        operation: "primary_content",
+      })
       return firecrawlResult
     }
   } catch (error) {
@@ -825,6 +960,11 @@ async function fetchPrimaryHtml(ctx: ActionCtx, claim: Claim): Promise<PrimaryFe
   )
 
   if (directResult) {
+    await writeProviderCache(ctx, claim, directResult, {
+      kind: "content",
+      provider: "other",
+      operation: "primary_content",
+    })
     return directResult
   }
 
@@ -936,6 +1076,8 @@ async function captureScreenshotWithFirecrawl(
   viewport: "desktop" | "mobile",
   requestEvidence: string,
 ) {
+  const cached = await readScreenshotCache(ctx, claim, targetUrl, viewport)
+  if (cached) return cached
   if (!isFirecrawlConfigured()) {
     return null
   }
@@ -1011,12 +1153,37 @@ async function captureScreenshotWithFirecrawl(
         imageResponse.body.byteOffset + imageResponse.body.byteLength,
       ) as ArrayBuffer
       const storageId = await ctx.storage.store(new Blob([arrayBuffer as ArrayBuffer], { type: mimeType }))
+      const normalizedUrl = normalizeUrlForAudit(targetUrl)
+      const cacheKey = buildAuditCacheKey({
+        workspaceId: claim.workspaceId,
+        normalizedUrl,
+        auditType: claim.auditType,
+        kind: "screenshot",
+        provider: "firecrawl",
+        operation: `capture_${viewport}_screenshot`,
+      })
+      const auditCacheEntryId = await ctx.runMutation(internal.audit_cache.putEntry, {
+        workspaceId: claim.workspaceId,
+        kind: "screenshot",
+        cacheKey,
+        normalizedUrl,
+        domain: claim.domain,
+        auditType: claim.auditType,
+        provider: "firecrawl",
+        operation: `capture_${viewport}_screenshot`,
+        version: AUDIT_CACHE_VERSION,
+        sourceAuditId: claim.auditId,
+        storageId,
+        mimeType,
+        expiresAt: cacheExpiresAt("screenshot"),
+      })
 
       return {
         value: {
           viewport,
           storageId,
           mimeType,
+          auditCacheEntryId,
         },
         responseStatus: scrapeResponse.statusCode,
       }
@@ -1026,6 +1193,15 @@ async function captureScreenshotWithFirecrawl(
 }
 
 async function runPageSpeedAnalysis(ctx: ActionCtx, claim: Claim, targetUrl: string, strategy: "mobile" | "desktop") {
+  const normalizedTarget = normalizeUrlForAudit(targetUrl)
+  const cached = await readProviderCache<ReturnType<typeof parsePageSpeed>>(ctx, claim, {
+    kind: "pagespeed",
+    provider: "pagespeed",
+    operation: `run_${strategy}_pagespeed`,
+    normalizedUrl: normalizedTarget,
+  })
+  if (cached) return cached
+
   const key = env.PAGESPEED_API_KEY
   const timeout = parseInt(env.PAGESPEED_TIMEOUT_MS ?? "90000", 10)
   const pagespeedUrl = new URL("https://www.googleapis.com/pagespeedonline/v5/runPagespeed")
@@ -1072,11 +1248,25 @@ async function runPageSpeedAnalysis(ctx: ActionCtx, claim: Claim, targetUrl: str
     { optional: true },
   )
 
+  if (result) {
+    await writeProviderCache(ctx, claim, result, {
+      kind: "pagespeed",
+      provider: "pagespeed",
+      operation: `run_${strategy}_pagespeed`,
+      normalizedUrl: normalizedTarget,
+    })
+  }
   return result
 }
 
 async function lookupBusinessData(ctx: ActionCtx, claim: Claim, businessName: string | undefined) {
   const query = [businessName, claim.domain].filter(Boolean).join(" ").trim() || claim.domain
+  const cached = await readProviderCache<ReturnType<typeof normalizeBusinessResult>>(ctx, claim, {
+    kind: "business_data",
+    provider: "other",
+    operation: `business:${query.toLowerCase()}`,
+  })
+  if (cached) return cached
 
   const local = env.LOCAL_BUSINESS_DATA_API_KEY
     ? await runProviderAttempt(
@@ -1123,6 +1313,11 @@ async function lookupBusinessData(ctx: ActionCtx, claim: Claim, businessName: st
     : null
 
   if (local) {
+    await writeProviderCache(ctx, claim, local, {
+      kind: "business_data",
+      provider: "other",
+      operation: `business:${query.toLowerCase()}`,
+    })
     return local
   }
 
@@ -1130,7 +1325,7 @@ async function lookupBusinessData(ctx: ActionCtx, claim: Claim, businessName: st
     return null
   }
 
-  return await runProviderAttempt(
+  const google = await runProviderAttempt(
     ctx,
     claim,
     "google_places",
@@ -1171,6 +1366,14 @@ async function lookupBusinessData(ctx: ActionCtx, claim: Claim, businessName: st
     },
     { optional: true },
   )
+  if (google) {
+    await writeProviderCache(ctx, claim, google, {
+      kind: "business_data",
+      provider: "other",
+      operation: `business:${query.toLowerCase()}`,
+    })
+  }
+  return google
 }
 
 function normalizeBusinessResult(payload: unknown, query: string, sourceProvider: string) {
@@ -1281,18 +1484,20 @@ async function storeScreenshot(
   storageId: Id<"_storage">,
   type: "desktop_screenshot" | "mobile_screenshot",
   mimeType: string,
+  auditCacheEntryId?: Id<"auditCacheEntries">,
 ) {
   try {
     await ctx.runMutation(internal.audit_state.storeAuditAsset, {
       workspaceId: claim.workspaceId,
       auditId: claim.auditId,
+      auditCacheEntryId,
       type,
       storageId,
       storageProvider: "convex",
       mimeType,
     })
   } catch (error) {
-    await ctx.storage.delete(storageId)
+    if (!auditCacheEntryId) await ctx.storage.delete(storageId)
     throw error
   }
 }
@@ -1526,6 +1731,7 @@ export const processAuditPipeline = internalAction({
           result.value.storageId,
           result.value.viewport === "desktop" ? "desktop_screenshot" : "mobile_screenshot",
           result.value.mimeType,
+          result.value.auditCacheEntryId,
         )
       }
     }

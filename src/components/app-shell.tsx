@@ -146,6 +146,12 @@ function useTitle() {
       return "Aktivität"
     case "audits":
       return "Audits"
+    case "batch-audits":
+      return "Batch-Audits"
+    case "new-batch-audit":
+      return "Batch vorbereiten"
+    case "batch-audit":
+      return "Batch-Audit"
     case "new-audit":
       return "Neuer Audit"
     case "audit":
