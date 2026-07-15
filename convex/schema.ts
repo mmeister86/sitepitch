@@ -45,6 +45,23 @@ const primitiveMetadataValidator = v.record(
   v.union(v.string(), v.number(), v.boolean(), v.null()),
 )
 
+const reportThemeValidator = v.union(
+  v.literal("classic"),
+  v.literal("minimal"),
+  v.literal("editorial"),
+)
+
+const reportSectionValidator = v.union(
+  v.literal("score"),
+  v.literal("summary"),
+  v.literal("opportunities"),
+  v.literal("strengths_weaknesses"),
+  v.literal("screenshots"),
+  v.literal("findings"),
+  v.literal("next_steps"),
+  v.literal("cta"),
+)
+
 export default defineSchema({
   users: defineTable({
     tokenIdentifier: v.string(),
@@ -125,6 +142,30 @@ export default defineSchema({
     .index("by_workspaceId", ["workspaceId"])
     .index("by_userId", ["userId"])
     .index("by_workspaceId_and_userId", ["workspaceId", "userId"]),
+
+  reportDomains: defineTable({
+    workspaceId: v.id("workspaces"),
+    hostname: v.string(),
+    verificationToken: v.string(),
+    status: v.union(
+      v.literal("pending_dns"),
+      v.literal("verified"),
+      v.literal("pending_host"),
+      v.literal("active"),
+      v.literal("suspended"),
+      v.literal("disabled"),
+      v.literal("error"),
+    ),
+    failureCount: v.number(),
+    verifiedAt: v.optional(v.number()),
+    activatedAt: v.optional(v.number()),
+    lastCheckedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_hostname", ["hostname"])
+    .index("by_status_and_updatedAt", ["status", "updatedAt"]),
 
   subscriptions: defineTable({
     workspaceId: v.id("workspaces"),
@@ -555,6 +596,91 @@ export default defineSchema({
     .index("by_viewAggregationState", ["viewAggregationState"])
     .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"]),
 
+  reportSettings: defineTable({
+    workspaceId: v.id("workspaces"),
+    auditId: v.id("audits"),
+    sourceCampaignId: v.optional(v.id("campaigns")),
+    sourceLeadId: v.optional(v.id("leads")),
+    brandName: v.string(),
+    logoStorageId: v.optional(v.id("_storage")),
+    theme: reportThemeValidator,
+    primaryColor: v.string(),
+    backgroundColor: v.string(),
+    textColor: v.string(),
+    language: reportLanguageValidator,
+    hiddenSections: v.array(reportSectionValidator),
+    introText: v.optional(v.string()),
+    ctaText: v.optional(v.string()),
+    ctaUrl: v.optional(v.string()),
+    introOverride: v.optional(v.string()),
+    ctaTextOverride: v.optional(v.string()),
+    ctaUrlOverride: v.optional(v.string()),
+    introSource: v.optional(v.union(v.literal("report"), v.literal("campaign"))),
+    ctaTextSource: v.optional(v.union(
+      v.literal("report"),
+      v.literal("lead"),
+      v.literal("campaign"),
+      v.literal("workspace"),
+    )),
+    ctaUrlSource: v.optional(v.union(
+      v.literal("report"),
+      v.literal("lead"),
+      v.literal("campaign"),
+      v.literal("workspace"),
+    )),
+    showPoweredByPreference: v.boolean(),
+    passwordHash: v.optional(v.string()),
+    passwordSalt: v.optional(v.string()),
+    passwordAlgorithm: v.optional(v.literal("scrypt-v1")),
+    expiresAt: v.optional(v.number()),
+    settingsVersion: v.number(),
+    accessVersion: v.number(),
+    snapshottedAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_auditId", ["auditId"])
+    .index("by_logoStorageId", ["logoStorageId"])
+    .index("by_workspaceId_and_updatedAt", ["workspaceId", "updatedAt"]),
+
+  reportAccessGrants: defineTable({
+    workspaceId: v.id("workspaces"),
+    auditId: v.id("audits"),
+    tokenHash: v.string(),
+    accessVersion: v.number(),
+    expiresAt: v.number(),
+    lastUsedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_tokenHash", ["tokenHash"])
+    .index("by_auditId_and_accessVersion", ["auditId", "accessVersion"])
+    .index("by_workspaceId_and_auditId", ["workspaceId", "auditId"])
+    .index("by_expiresAt", ["expiresAt"]),
+
+  reportPdfArtifacts: defineTable({
+    workspaceId: v.id("workspaces"),
+    auditId: v.id("audits"),
+    settingsVersion: v.number(),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("generating"),
+      v.literal("ready"),
+      v.literal("failed"),
+      v.literal("stale"),
+    ),
+    storageId: v.optional(v.id("_storage")),
+    size: v.optional(v.number()),
+    checksum: v.optional(v.string()),
+    errorCode: v.optional(v.string()),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_auditId", ["auditId"])
+    .index("by_auditId_and_settingsVersion", ["auditId", "settingsVersion"])
+    .index("by_workspaceId_and_status", ["workspaceId", "status"]),
+
   usageEvents: defineTable({
     workspaceId: v.id("workspaces"),
     userId: v.optional(v.id("users")),
@@ -774,6 +900,9 @@ export default defineSchema({
     targetCountry: v.string(),
     offerType: campaignOfferTypeValidator,
     language: reportLanguageValidator,
+    reportIntro: v.optional(v.string()),
+    reportCtaText: v.optional(v.string()),
+    reportCtaUrl: v.optional(v.string()),
     status: campaignStatusValidator,
     createdByUserId: v.id("users"),
     createdAt: v.number(),

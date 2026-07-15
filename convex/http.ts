@@ -1,7 +1,7 @@
 import { httpRouter } from "convex/server"
 
 import { authComponent, createAuth } from "./auth"
-import { internal } from "./_generated/api"
+import { api, internal } from "./_generated/api"
 import { env, httpAction } from "./_generated/server"
 import { timingSafeHexEqual } from "./lib/lemonsqueezy"
 import { isJsonContentType, readLimitedRequestText } from "./lib/webhook_request"
@@ -58,6 +58,50 @@ http.route({
     } catch {
       return new Response("Invalid webhook", { status: 400 })
     }
+  }),
+})
+
+http.route({
+  path: "/reports/pdf",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const url = new URL(request.url)
+    const slug = url.searchParams.get("slug")?.trim()
+    if (!slug) return new Response("Not found", { status: 404 })
+    const authorization = request.headers.get("authorization")
+    const grantToken = authorization?.startsWith("Bearer ")
+      ? authorization.slice("Bearer ".length).trim() || undefined
+      : undefined
+    const reportHost = request.headers.get("x-report-host") ?? undefined
+    const download = await ctx.runQuery(internal.report_pdf.getPublicPdfDownloadContext, {
+      slug,
+      host: reportHost,
+      grantToken,
+    })
+    if (!download) {
+      return new Response("Not found", {
+        status: 404,
+        headers: { "X-Robots-Tag": "noindex, nofollow, noarchive" },
+      })
+    }
+    const file = await fetch(download.downloadUrl)
+    if (!file.ok || !file.body) return new Response("Not found", { status: 404 })
+    await ctx.runMutation(api.reports.recordPublicReportPdfExport, {
+      slug,
+      host: reportHost,
+      grantToken,
+    })
+    const asciiFilename = download.filename.replace(/[^a-zA-Z0-9._-]/g, "-")
+    return new Response(file.body, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${asciiFilename}"`,
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+        "X-Robots-Tag": "noindex, nofollow, noarchive",
+      },
+    })
   }),
 })
 

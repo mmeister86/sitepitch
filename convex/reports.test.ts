@@ -35,7 +35,13 @@ function createTest() {
   return convexTest(schema, modules)
 }
 
+function requireAvailable<T>(value: T): T extends { status: "available"; report: infer R } ? R : never {
+  assert.ok(value && typeof value === "object" && "status" in value && value.status === "available")
+  return (value as unknown as { report: unknown }).report as never
+}
+
 beforeEach(() => {
+  vi.stubEnv("SITE_URL", "https://trysitepitch.test")
   mocks.auditRateLimiter.limit.mockReset()
   mocks.auditRateLimiter.limit.mockResolvedValue({ ok: true, retryAfter: null })
 })
@@ -178,7 +184,7 @@ describe("getPublicReportBySlug", () => {
     const result = await t.query(api.reports.getPublicReportBySlug, {
       slug: "does-not-exist",
     })
-    assert.equal(result, null)
+    assert.equal(result.status, "unavailable")
   })
 
   test("returns null when the report is disabled", async () => {
@@ -191,7 +197,7 @@ describe("getPublicReportBySlug", () => {
     const result = await t.query(api.reports.getPublicReportBySlug, {
       slug: "disabled-slug",
     })
-    assert.equal(result, null)
+    assert.equal(result.status, "unavailable")
 
     const audit = await t.query((ctx) => ctx.db.get(auditId))
     assert.ok(audit)
@@ -208,7 +214,7 @@ describe("getPublicReportBySlug", () => {
     const result = await t.query(api.reports.getPublicReportBySlug, {
       slug: "running-slug",
     })
-    assert.equal(result, null)
+    assert.equal(result.status, "unavailable")
   })
 
   test("returns a sanitized DTO for an enabled completed report", async () => {
@@ -223,11 +229,12 @@ describe("getPublicReportBySlug", () => {
     })
 
     assert.ok(result)
-    assert.equal(result!.domain, "acme.com")
-    assert.equal(result!.overallScore, 62)
-    assert.equal(result!.findings.length, 1)
-    assert.equal(result!.findings[0]!.title, "Klarer CTA fehlt")
-    assert.equal(result!.nextSteps.length, 1)
+    const report = requireAvailable(result)
+    assert.equal(report.domain, "acme.com")
+    assert.equal(report.overallScore, 62)
+    assert.equal(report.findings.length, 1)
+    assert.equal(report.findings[0]!.title, "Klarer CTA fehlt")
+    assert.equal(report.nextSteps.length, 1)
 
     // Sanitised: no internal IDs or sales-only fields
     const json = JSON.stringify(result)
@@ -238,13 +245,13 @@ describe("getPublicReportBySlug", () => {
     assert.equal(json.includes("idempotencyKey"), false, "must not leak idempotencyKey")
 
     // Branding is present
-    assert.equal(result!.branding.name, "Test Studio")
-    assert.equal(result!.branding.accentColor, "#5b5bd6")
+    assert.equal(report.branding.name, "Test Studio")
+    assert.equal(report.branding.accentColor, "#5b5bd6")
 
     // Category scores have percentage weights
-    assert.ok(result!.categoryScores)
-    assert.equal(result!.categoryScores!.length, 6)
-    const conversion = result!.categoryScores!.find((c) => c.key === "conversion")
+    assert.ok(report.categoryScores)
+    assert.equal(report.categoryScores!.length, 6)
+    const conversion = report.categoryScores!.find((c) => c.key === "conversion")
     assert.ok(conversion)
     assert.equal(conversion!.weight, 25)
   })
@@ -271,8 +278,9 @@ describe("getPublicReportBySlug", () => {
 
     const result = await t.query(api.reports.getPublicReportBySlug, { slug: "safe-url-slug" })
     assert.ok(result)
-    assert.equal(result.normalizedUrl, "https://acme.com/path")
-    assert.equal(result.screenshots.desktop, null)
+    const report = requireAvailable(result)
+    assert.equal(report.normalizedUrl, "https://acme.com/path")
+    assert.equal(report.screenshots.desktop, null)
     assert.equal(JSON.stringify(result).includes("canary-secret"), false)
   })
 
@@ -289,7 +297,7 @@ describe("getPublicReportBySlug", () => {
     const result = await t.query(api.reports.getPublicReportBySlug, {
       slug: "workspace-deletion-slug",
     })
-    assert.equal(result, null)
+    assert.equal(result.status, "unavailable")
   })
 })
 
@@ -465,8 +473,8 @@ describe("setPublicReportEnabled", () => {
     await owner.mutation(api.reports.setPublicReportEnabled, { auditId, enabled: true })
 
     let publicReport = await t.query(api.reports.getPublicReportBySlug, { slug: "stable-cta-slug" })
-    assert.equal(publicReport?.branding.ctaText, "Lead CTA v1")
-    assert.equal(publicReport?.branding.ctaUrl, "https://studio.example.com/contact")
+    assert.equal(requireAvailable(publicReport).branding.ctaText, "Lead CTA v1")
+    assert.equal(requireAvailable(publicReport).branding.ctaUrl, "https://studio.example.com/contact")
 
     await t.run(async (ctx) => {
       await ctx.db.patch(leadId, {
@@ -483,14 +491,14 @@ describe("setPublicReportEnabled", () => {
 
     publicReport = await t.query(api.reports.getPublicReportBySlug, { slug: "stable-cta-slug" })
     const internalReport = await owner.query(api.reports.getInternalReportById, { auditId })
-    assert.equal(publicReport?.branding.ctaText, "Lead CTA v1")
-    assert.equal(publicReport?.branding.ctaUrl, "https://studio.example.com/contact")
+    assert.equal(requireAvailable(publicReport).branding.ctaText, "Lead CTA v1")
+    assert.equal(requireAvailable(publicReport).branding.ctaUrl, "https://studio.example.com/contact")
     assert.equal(internalReport?.branding.ctaText, "Lead CTA v1")
 
     await owner.mutation(api.reports.refreshPublicReportCta, { auditId })
     publicReport = await t.query(api.reports.getPublicReportBySlug, { slug: "stable-cta-slug" })
-    assert.equal(publicReport?.branding.ctaText, "Lead CTA v2")
-    assert.equal(publicReport?.branding.ctaUrl, "tel:+4930123456")
+    assert.equal(requireAvailable(publicReport).branding.ctaText, "Lead CTA v2")
+    assert.equal(requireAvailable(publicReport).branding.ctaUrl, "tel:+4930123456")
   })
 
   test("snapshots the effective workspace website fallback when no CTA URL exists", async () => {
@@ -505,7 +513,7 @@ describe("setPublicReportEnabled", () => {
     await t.run((ctx) => ctx.db.patch(workspaceId, { website: "https://studio.example.com/changed" }))
 
     const report = await t.query(api.reports.getPublicReportBySlug, { slug: "website-fallback-slug" })
-    assert.equal(report?.branding.ctaUrl, "https://studio.example.com")
+    assert.equal(requireAvailable(report).branding.ctaUrl, "https://studio.example.com")
   })
 
   test("rejects refresh before publish and first publish snapshots the latest values", async () => {
@@ -541,8 +549,8 @@ describe("setPublicReportEnabled", () => {
     await owner.mutation(api.reports.setPublicReportEnabled, { auditId, enabled: true })
 
     let report = await t.query(api.reports.getPublicReportBySlug, { slug: "absent-cta-slug" })
-    assert.equal(report?.branding.ctaSnapshotted, true)
-    assert.equal(report?.branding.ctaUrl, undefined)
+    assert.equal(requireAvailable(report).branding.ctaSnapshotted, true)
+    assert.equal(requireAvailable(report).branding.ctaUrl, undefined)
 
     await t.run((ctx) => ctx.db.patch(workspaceId, {
       ctaUrl: "https://safe.example.com/new",
@@ -550,12 +558,12 @@ describe("setPublicReportEnabled", () => {
       contactEmail: "safe@example.com",
     }))
     report = await t.query(api.reports.getPublicReportBySlug, { slug: "absent-cta-slug" })
-    assert.equal(report?.branding.ctaSnapshotted, true)
-    assert.equal(report?.branding.ctaUrl, undefined)
+    assert.equal(requireAvailable(report).branding.ctaSnapshotted, true)
+    assert.equal(requireAvailable(report).branding.ctaUrl, undefined)
 
     await owner.mutation(api.reports.refreshPublicReportCta, { auditId })
     report = await t.query(api.reports.getPublicReportBySlug, { slug: "absent-cta-slug" })
-    assert.equal(report?.branding.ctaUrl, "https://safe.example.com/new")
+    assert.equal(requireAvailable(report).branding.ctaUrl, "https://safe.example.com/new")
   })
 
   test("toggles isPublic for the workspace owner", async () => {
@@ -710,7 +718,7 @@ describe("recordPublicReportView", () => {
     )
     assert.equal(views.length, 1)
     assert.equal(views[0]!.workspaceId, workspaceId)
-    assert.equal(views[0]!.referrer, "https://google.com/search?q=webdesign")
+    assert.equal(views[0]!.referrer, "google.com")
 
     const aggregate = await t.query((ctx) =>
       ctx.db

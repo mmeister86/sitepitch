@@ -1,9 +1,10 @@
 ---
 id: TASK-5.4
 title: Add white-label report distribution controls
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-07-03 20:05'
+updated_date: '2026-07-14 22:16'
 labels:
   - post-mvp
   - white-label
@@ -16,7 +17,7 @@ documentation:
   - .docs/PRD-SitePitch-Post-MVP.md
 parent_task_id: TASK-5
 priority: medium
-ordinal: 24000
+ordinal: 47000
 ---
 
 ## Description
@@ -36,3 +37,22 @@ Scope includes white-label-light branding, report themes, custom domains, passwo
 - [ ] #5 PDF exports match the public report structure closely and contain no internal IDs, API data, provider payloads, or private metadata.
 - [ ] #6 Deactivated, expired, or regenerated reports behave predictably and public reports remain noindex by default.
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. TASK-5.4.1 — Report policy and snapshot data model
+2. TASK-5.4.2 — Report configuration and renderer
+3. TASK-5.4.3 — Secure report access and link lifecycle
+4. TASK-5.4.4 — Sanitized branded PDF exports
+5. TASK-5.4.5 — Verified custom report domains
+6. TASK-5.4.6 — Migration, retention, and release QA
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implementation started on branch codex/task-5-4-white-label-reports. Parent remains In Progress until explicit manual confirmation.
+
+Implementation complete for automated scope on codex/task-5-4-white-label-reports: Convex codegen, typecheck, 57 Vitest files / 498 tests, schema contract, git diff check, and production build pass. Parent acceptance criteria and Done status remain pending the specified five-report manual QA and explicit user confirmation.
+<!-- SECTION:NOTES:END -->

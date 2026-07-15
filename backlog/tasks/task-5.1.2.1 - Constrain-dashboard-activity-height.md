@@ -4,7 +4,7 @@ title: Add progressive activity exploration
 status: In Progress
 assignee: []
 created_date: '2026-07-12 14:09'
-updated_date: '2026-07-13 08:18'
+updated_date: '2026-07-15 19:21'
 labels: []
 dependencies: []
 modified_files:
@@ -42,6 +42,7 @@ Replace the dashboard activity scroll region with progressive disclosure: five r
 - [ ] #5 No task is marked Done until manual user confirmation after responsive and accessibility testing.
 - [x] #6 At 2xl the engagement and activity cards resize smoothly between 8/4 and 5/7 columns via coordinated Motion layout animation with reduced-motion fallback.
 - [x] #7 The expand/collapse action stays in the card's upper-right action slot and collapsing never causes transient vertical overflow or movement of the following dashboard row.
+- [x] #8 The engagement and activity cards keep the same shared height in compact and expanded states, including intermediate Motion frames and feeds with 6–14 entries.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -68,4 +69,8 @@ Motion refinement implemented: CardAction keeps the responsive controls in the u
 Live Arc QA confirmed the collapsed and expanded endpoints, upper-right control placement, correct accessible labels, stable following dashboard row, and the 3-column expanded feed. Verification: 35 test files / 382 tests pass, typecheck passes, production build passes, and git diff --check passes. next-env.d.ts build output was restored to its prior state. Task remains In Progress pending explicit user confirmation.
 
 Nutzerbestätigung 2026-07-13: Task bleibt In Progress; dezidierte manuelle Responsive- und Accessibility-Abnahme steht noch aus.
+
+Follow-up requested on 2026-07-15: expansion must change only the horizontal proportions; the engagement/activity row height and the following dashboard row must remain stationary.
+
+Fixed the engagement/activity row height at the existing 220px content anchor and normalized compact feed rows to 44px, so five compact rows and five expanded grid rows fit exactly without clipping. Live Arc QA with 8 events confirmed identical top/bottom card edges and an unmoved following dashboard row across expand/collapse. Verification: 57 test files / 498 tests pass, typecheck passes, production build passes, and git diff --check passes.
 <!-- SECTION:NOTES:END -->

@@ -6,6 +6,7 @@ import { api, internal } from "./_generated/api"
 import {
   requireExistingAppUser,
   getWorkspaceByOwner,
+  getWorkspacePlan,
   findAppUser,
 } from "./lib/workspace"
 import {
@@ -33,6 +34,13 @@ import {
   reportLanguageValidator,
 } from "../src/lib/convex-schema-values"
 import { loadReportViewCount } from "./lib/report_view_stats"
+import { normalizeReportCtaText, normalizeReportCtaUrl } from "./lib/report_cta"
+import {
+  normalizeReportIntro,
+  reportFeaturePolicy,
+  requireReportCapability,
+  type ReportFeaturePolicy,
+} from "./lib/report_policy"
 
 const CampaignLeadStatusValidator = campaignLeadStatusValidator
 const CampaignOfferTypeValidator = campaignOfferTypeValidator
@@ -51,6 +59,9 @@ function toCampaignListItem(
     targetCountry: campaign.targetCountry,
     offerType: campaign.offerType as CampaignOfferType,
     language: campaign.language as "de" | "en",
+    ...(campaign.reportIntro ? { reportIntro: campaign.reportIntro } : {}),
+    ...(campaign.reportCtaText ? { reportCtaText: campaign.reportCtaText } : {}),
+    ...(campaign.reportCtaUrl ? { reportCtaUrl: campaign.reportCtaUrl } : {}),
     status: campaign.status as CampaignStatus,
     createdAt: campaign.createdAt,
     updatedAt: campaign.updatedAt,
@@ -78,6 +89,9 @@ export type CampaignListItem = {
   targetCountry: string
   offerType: CampaignOfferType
   language: "de" | "en"
+  reportIntro?: string
+  reportCtaText?: string
+  reportCtaUrl?: string
   status: CampaignStatus
   createdAt: number
   updatedAt: number
@@ -298,6 +312,7 @@ export const getMyCampaign = query({
     args,
   ): Promise<{
     campaign: CampaignListItem
+    reportCapabilities: ReportFeaturePolicy
     metrics: CampaignMetrics
     leads: CampaignLeadListItem[]
     activity: CampaignActivityItem[]
@@ -445,6 +460,7 @@ export const getMyCampaign = query({
 
     return {
       campaign: toCampaignListItem(campaign, metrics),
+      reportCapabilities: reportFeaturePolicy(await getWorkspacePlan(ctx, workspace._id)),
       metrics,
       leads,
       activity,
@@ -527,6 +543,40 @@ export const update = mutation({
       targetCountry,
       offerType: args.offerType,
       language: args.language,
+      updatedAt: Date.now(),
+    })
+  },
+})
+
+export const updateReportDefaults = mutation({
+  args: {
+    campaignId: v.id("campaigns"),
+    reportIntro: v.string(),
+    reportCtaText: v.string(),
+    reportCtaUrl: v.string(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const user = await requireExistingAppUser(ctx)
+    const workspace = await getWorkspaceByOwner(ctx, user.userId)
+    if (!workspace || workspace.deletionRequestedAt) {
+      throw new ConvexError({ code: "WORKSPACE_NOT_READY", message: "Workspace not ready" })
+    }
+
+    const campaign = await loadCampaignForMutation(ctx, args.campaignId, workspace._id)
+    if (campaign.status === "archived") {
+      throw new ConvexError({
+        code: "VALIDATION_ERROR",
+        message: "Archivierte Kampagnen können nicht bearbeitet werden.",
+      })
+    }
+
+    const plan = await getWorkspacePlan(ctx, workspace._id)
+    requireReportCapability(reportFeaturePolicy(plan), "campaignCta")
+
+    await ctx.db.patch(campaign._id, {
+      reportIntro: normalizeReportIntro(args.reportIntro),
+      reportCtaText: normalizeReportCtaText(args.reportCtaText),
+      reportCtaUrl: normalizeReportCtaUrl(args.reportCtaUrl),
       updatedAt: Date.now(),
     })
   },

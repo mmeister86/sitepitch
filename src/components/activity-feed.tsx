@@ -86,8 +86,8 @@ export function ActivityFeed({
             <motion.li
               key={item.id}
               className={cn(
-                "flex min-w-0 items-start gap-3 first:pt-0",
-                compact ? "py-2" : "py-2.5",
+                "flex min-w-0 items-start gap-3",
+                compact ? "h-11 py-1" : "py-2.5 first:pt-0",
                 compactAfter !== undefined && index >= compactAfter && "max-2xl:hidden",
                 itemClassName,
               )}
@@ -121,7 +121,7 @@ export function ActivityFeed({
                 <p
                   className={cn(
                     "text-sm",
-                    compact ? "truncate leading-tight" : "line-clamp-2 leading-snug",
+                    compact ? "truncate leading-4" : "line-clamp-2 leading-snug",
                   )}
                   title={item.detail ?? item.event}
                 >

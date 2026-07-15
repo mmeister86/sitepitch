@@ -19,6 +19,9 @@ const phases = [
   "outreachDrafts",
   "reportViews",
   "reportViewStats",
+  "reportAccessGrants",
+  "reportPdfArtifacts",
+  "reportSettings",
   "notifications",
   "providerCalls",
   "auditPipelineStates",
@@ -95,7 +98,7 @@ export async function enqueueAuditDeletion(
 
 async function deleteSimplePhase(
   ctx: MutationCtx,
-  phase: Exclude<AuditDeletionPhase, "batchAuditItemAuditReference" | "batchAuditItemPreviousReference" | "auditCacheEntries" | "usageEvents" | "providerCosts" | "adminActions" | "creditLedger" | "rerunReferences" | "leads" | "auditAssets" | "audit">,
+  phase: Exclude<AuditDeletionPhase, "batchAuditItemAuditReference" | "batchAuditItemPreviousReference" | "auditCacheEntries" | "usageEvents" | "providerCosts" | "adminActions" | "creditLedger" | "rerunReferences" | "leads" | "auditAssets" | "reportPdfArtifacts" | "reportSettings" | "audit">,
   auditId: Id<"audits">,
 ) {
   switch (phase) {
@@ -110,6 +113,7 @@ async function deleteSimplePhase(
     case "outreachDrafts": return await ctx.db.query("outreachDrafts").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
     case "reportViews": return await ctx.db.query("reportViews").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
     case "reportViewStats": return await ctx.db.query("reportViewStats").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
+    case "reportAccessGrants": return await ctx.db.query("reportAccessGrants").withIndex("by_auditId_and_accessVersion", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
     case "notifications": return await ctx.db.query("notifications").withIndex("by_auditId_and_type", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
     case "providerCalls": return await ctx.db.query("providerCalls").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
     case "auditPipelineStates": return await ctx.db.query("auditPipelineStates").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
@@ -195,6 +199,31 @@ export const processAuditDeletion = internalMutation({
     } else if (phase === "leads") {
       const rows = await ctx.db.query("leads").withIndex("by_workspaceId_and_auditId", (q) => q.eq("workspaceId", job.workspaceId).eq("auditId", job.auditId)).take(BATCH_SIZE)
       for (const row of rows) await ctx.db.patch(row._id, { auditId: undefined, updatedAt: now })
+      processed = rows.length
+    } else if (phase === "reportPdfArtifacts") {
+      const rows = await ctx.db.query("reportPdfArtifacts").withIndex("by_auditId", (q) => q.eq("auditId", job.auditId!)).take(BATCH_SIZE)
+      for (const row of rows) {
+        if (row.storageId) await ctx.storage.delete(row.storageId)
+        await ctx.db.delete(row._id)
+      }
+      processed = rows.length
+    } else if (phase === "reportSettings") {
+      const rows = await ctx.db.query("reportSettings").withIndex("by_auditId", (q) => q.eq("auditId", job.auditId!)).take(BATCH_SIZE)
+      for (const row of rows) {
+        const logoStorageId = row.logoStorageId
+        await ctx.db.delete(row._id)
+        if (logoStorageId) {
+          const [workspace, otherReference, upload] = await Promise.all([
+            ctx.db.get(row.workspaceId),
+            ctx.db.query("reportSettings").withIndex("by_logoStorageId", (q) => q.eq("logoStorageId", logoStorageId)).first(),
+            ctx.db.query("logoUploads").withIndex("by_storageId", (q) => q.eq("storageId", logoStorageId)).unique(),
+          ])
+          if (!otherReference && workspace?.logoStorageId !== logoStorageId && upload) {
+            await ctx.storage.delete(logoStorageId)
+            await ctx.db.delete(upload._id)
+          }
+        }
+      }
       processed = rows.length
     } else if (phase === "audit") {
       const audit = await ctx.db.get(job.auditId)
@@ -310,6 +339,7 @@ const workspacePhases = [
   "audits",
   "auditRawData", "auditAssets", "auditPerformance", "auditChecks", "auditScores",
   "auditFindings", "auditSummaries", "outreachDrafts", "reportViews", "reportViewStats",
+  "reportAccessGrants", "reportPdfArtifacts", "reportSettings", "reportDomains",
   "notifications", "outreachTemplates",
   "auditPipelineStates", "providerCalls", "auditPages", "auditBusinessData", "auditAgentRuns",
   "auditPersonaReviews", "auditCopyReviews", "auditDesignCritiques",
@@ -408,7 +438,7 @@ export const startWorkspaceDeletionForAuthUser = internalMutation({
   },
 })
 
-async function workspaceRows(ctx: MutationCtx, phase: Exclude<WorkspaceDeletionPhase, "audits" | "auditAssets" | "auditCacheEntries" | "logoUploads" | "billingEvents" | "deletionJobs" | "workspace">, workspaceId: Id<"workspaces">) {
+async function workspaceRows(ctx: MutationCtx, phase: Exclude<WorkspaceDeletionPhase, "audits" | "auditAssets" | "auditCacheEntries" | "reportPdfArtifacts" | "logoUploads" | "billingEvents" | "deletionJobs" | "workspace">, workspaceId: Id<"workspaces">) {
   switch (phase) {
     case "auditRawData": return await ctx.db.query("auditRawData").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "auditPerformance": return await ctx.db.query("auditPerformance").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
@@ -419,6 +449,9 @@ async function workspaceRows(ctx: MutationCtx, phase: Exclude<WorkspaceDeletionP
     case "outreachDrafts": return await ctx.db.query("outreachDrafts").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "reportViews": return await ctx.db.query("reportViews").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "reportViewStats": return await ctx.db.query("reportViewStats").withIndex("by_workspaceId_and_auditId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "reportAccessGrants": return await ctx.db.query("reportAccessGrants").withIndex("by_workspaceId_and_auditId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "reportSettings": return await ctx.db.query("reportSettings").withIndex("by_workspaceId_and_updatedAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "reportDomains": return await ctx.db.query("reportDomains").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "notifications": return await ctx.db.query("notifications").withIndex("by_workspaceId_and_createdAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "outreachTemplates": return await ctx.db.query("outreachTemplates").withIndex("by_workspaceId_and_updatedAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "auditPipelineStates": return await ctx.db.query("auditPipelineStates").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
@@ -478,6 +511,13 @@ export const processWorkspaceDeletion = internalMutation({
     } else if (phase === "logoUploads") {
       const rows = await ctx.db.query("logoUploads").withIndex("by_workspaceId", q => q.eq("workspaceId", job.workspaceId)).take(BATCH_SIZE)
       for (const row of rows) { await ctx.storage.delete(row.storageId); await ctx.db.delete(row._id) }
+      processed = rows.length
+    } else if (phase === "reportPdfArtifacts") {
+      const rows = await ctx.db.query("reportPdfArtifacts").withIndex("by_workspaceId_and_status", q => q.eq("workspaceId", job.workspaceId)).take(BATCH_SIZE)
+      for (const row of rows) {
+        if (row.storageId) await ctx.storage.delete(row.storageId)
+        await ctx.db.delete(row._id)
+      }
       processed = rows.length
     } else if (phase === "billingEvents") {
       const rows = await ctx.db.query("billingEvents").withIndex("by_workspaceId_and_processedAt", q => q.eq("workspaceId", job.workspaceId)).take(BATCH_SIZE)

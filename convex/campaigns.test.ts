@@ -306,6 +306,58 @@ describe("campaigns.getMyCampaign", () => {
   })
 })
 
+describe("campaigns.updateReportDefaults", () => {
+  test("stores report intro and CTA for pro campaigns", async () => {
+    const t = createTest()
+    const campaignId = await createCampaign(t)
+    await t.run(async (ctx) => {
+      await ctx.db.insert("subscriptions", {
+        workspaceId: workspaceState.workspaceId,
+        provider: "lemonsqueezy",
+        plan: "pro",
+        status: "active",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+    })
+
+    await withAlice(t).mutation(api.campaigns.updateReportDefaults, {
+      campaignId,
+      reportIntro: "Ihr persönlicher Website-Check",
+      reportCtaText: "Erstgespräch buchen",
+      reportCtaUrl: "https://agency.example.com/call",
+    })
+
+    const result = await withAlice(t).query(api.campaigns.getMyCampaign, { campaignId })
+    expect(result?.campaign).toMatchObject({
+      reportIntro: "Ihr persönlicher Website-Check",
+      reportCtaText: "Erstgespräch buchen",
+      reportCtaUrl: "https://agency.example.com/call",
+    })
+  })
+
+  test("rejects campaign report defaults on starter", async () => {
+    const t = createTest()
+    const campaignId = await createCampaign(t)
+    await t.run(async (ctx) => {
+      await ctx.db.insert("subscriptions", {
+        workspaceId: workspaceState.workspaceId,
+        provider: "lemonsqueezy",
+        plan: "starter",
+        status: "active",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+    })
+    await expect(withAlice(t).mutation(api.campaigns.updateReportDefaults, {
+      campaignId,
+      reportIntro: "Intro",
+      reportCtaText: "CTA",
+      reportCtaUrl: "https://agency.example.com/call",
+    })).rejects.toThrow(/PLAN_UPGRADE_REQUIRED/)
+  })
+})
+
 describe("campaigns.listAssignableCampaigns", () => {
   test("returns eligible campaigns that are not already linked", async () => {
     const t = createTest()

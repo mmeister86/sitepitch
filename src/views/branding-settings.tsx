@@ -1,4 +1,5 @@
 import { BrandingFormContent } from "@/components/branding-form-content"
+import { ReportDomainSettings } from "@/components/report-domain-settings"
 
 export function BrandingSettingsView() {
   return (
@@ -9,7 +10,10 @@ export function BrandingSettingsView() {
           Diese Angaben erscheinen auf jedem geteilten Report.
         </p>
       </div>
-      <BrandingFormContent />
+      <div className="space-y-5">
+        <BrandingFormContent />
+        <ReportDomainSettings />
+      </div>
     </div>
   )
 }

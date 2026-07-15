@@ -21,7 +21,6 @@ import {
   Smartphone,
   TrendingUp,
   ArrowUpRight,
-  Printer,
   Link2,
   Link2Off,
 } from "lucide-react"
@@ -55,7 +54,10 @@ import {
   AuditStatusBadge,
 } from "@/components/status-badges"
 import { CopyButton } from "@/components/copy-button"
-import { AuditReport } from "@/components/audit-report"
+import {
+  ConfiguredAuditReport,
+  ReportSettingsPanel,
+} from "@/components/report-settings-panel"
 import { OutreachWorkflows } from "@/components/outreach-workflows"
 import { PersonaPanel } from "@/components/persona-panel"
 import { CopyReviewPanel } from "@/components/copy-review"
@@ -261,13 +263,6 @@ function LiveAuditDetail({ id }: { id: string }) {
   }
 
   return <LiveProgressReport report={report} navigate={navigate} />
-}
-
-const shareBaseUrl =
-  typeof window !== "undefined" ? window.location.origin : "https://trysitepitch.com"
-
-function buildShareUrl(slug: string): string {
-  return `${shareBaseUrl}/r/${slug}`
 }
 
 type ProviderCallStatus = "queued" | "started" | "completed" | "failed"
@@ -533,12 +528,18 @@ function LiveCompletedReport({
   navigate: ReturnType<typeof useRouter>["navigate"]
 }) {
   const setPublic = useMutation(api.reports.setPublicReportEnabled)
-  const refreshPublicReportCta = useMutation(api.reports.refreshPublicReportCta)
+  const rotatePublicLink = useMutation(api.reports.rotatePublicReportLink)
+  const requestReportPdf = useMutation(api.report_pdf.requestReportPdf)
+  const reportPdf = useQuery(
+    api.report_pdf.getMyReportPdf,
+    report.capabilities.pdfExport ? { auditId: report.auditId } : "skip",
+  )
   const recordCopy = useMutation(api.reports.recordReportCopyEvent)
   const generateDesignCritique = useAction(api.audit_agent_action.generateDesignCritique)
   const [isGeneratingDesignCritique, setIsGeneratingDesignCritique] = useState(false)
-  const [isRefreshingCta, setIsRefreshingCta] = useState(false)
-  const shareUrl = buildShareUrl(report.publicSlug)
+  const [isRotatingLink, setIsRotatingLink] = useState(false)
+  const [isRequestingPdf, setIsRequestingPdf] = useState(false)
+  const shareUrl = report.publicUrl
   const hasOutreach = report.outreachDrafts.length > 0
   const hasChecks = report.checks.length > 0
   const hasPersonas = report.personaReviews.length > 0
@@ -564,17 +565,17 @@ function LiveCompletedReport({
     }
   }
 
-  const handleRefreshCta = async () => {
-    if (isRefreshingCta) return
-    if (!window.confirm("Report-CTA aus den aktuellen Lead- und Workspace-Daten neu übernehmen?")) return
-    setIsRefreshingCta(true)
+  const handleRotateLink = async () => {
+    if (isRotatingLink) return
+    if (!window.confirm("Der bisherige Report-Link wird sofort ungültig. Neuen Link erzeugen?")) return
+    setIsRotatingLink(true)
     try {
-      await refreshPublicReportCta({ auditId: report.auditId })
-      toast.success("Report-CTA aktualisiert")
+      const result = await rotatePublicLink({ auditId: report.auditId })
+      toast.success("Neuer Report-Link erstellt", { description: result.publicUrl })
     } catch {
-      toast.error("Report-CTA konnte nicht aktualisiert werden")
+      toast.error("Report-Link konnte nicht erneuert werden")
     } finally {
-      setIsRefreshingCta(false)
+      setIsRotatingLink(false)
     }
   }
 
@@ -587,6 +588,25 @@ function LiveCompletedReport({
       toast.error("Design-Analyse konnte nicht erzeugt werden")
     } finally {
       setIsGeneratingDesignCritique(false)
+    }
+  }
+
+  const handlePdfExport = async () => {
+    if (reportPdf?.status === "ready" && reportPdf.downloadUrl) {
+      const link = document.createElement("a")
+      link.href = reportPdf.downloadUrl
+      link.download = reportPdf.filename
+      link.click()
+      return
+    }
+    setIsRequestingPdf(true)
+    try {
+      await requestReportPdf({ auditId: report.auditId })
+      toast.success("PDF wird erzeugt", { description: "Der Download ist gleich verfügbar." })
+    } catch {
+      toast.error("PDF konnte nicht erzeugt werden")
+    } finally {
+      setIsRequestingPdf(false)
     }
   }
 
@@ -617,21 +637,23 @@ function LiveCompletedReport({
               Website
             </a>
           </Button>
-          <Button variant="outline" className="gap-2" onClick={() => window.print()}>
-            <Printer className="size-4" />
-            Drucken
-          </Button>
+          {report.capabilities.pdfExport && (
+            <Button variant="outline" className="gap-2" onClick={() => void handlePdfExport()} disabled={isRequestingPdf || reportPdf?.status === "queued" || reportPdf?.status === "generating"}>
+              <Download className="size-4" />
+              {reportPdf?.status === "ready" ? "PDF laden" : reportPdf?.status === "queued" || reportPdf?.status === "generating" ? "PDF wird erzeugt…" : "PDF erzeugen"}
+            </Button>
+          )}
           {report.isPublic ? (
             <>
               <CopyButton text={shareUrl} label="Link kopieren" toastMessage="Report-Link kopiert" onCopied={recordPublicLinkCopy} />
               <Button
                 variant="outline"
                 className="gap-2"
-                disabled={isRefreshingCta}
-                onClick={() => void handleRefreshCta()}
+                disabled={isRotatingLink}
+                onClick={() => void handleRotateLink()}
               >
-                <RefreshCw className={cn("size-4", isRefreshingCta && "animate-spin")} />
-                CTA aktualisieren
+                <RefreshCw className={cn("size-4", isRotatingLink && "animate-spin")} />
+                Link erneuern
               </Button>
               <Button
                 variant="outline"
@@ -679,6 +701,7 @@ function LiveCompletedReport({
       <Tabs defaultValue="report" className="w-full">
         <TabsList className="no-print">
           <TabsTrigger value="report">Report</TabsTrigger>
+          <TabsTrigger value="report-settings" className="no-print">Konfiguration</TabsTrigger>
           <TabsTrigger value="findings">
             Findings
             <Badge className="ml-1.5 h-5 min-w-5 border-0 bg-muted px-1 text-muted-foreground">
@@ -704,7 +727,11 @@ function LiveCompletedReport({
         </TabsList>
 
         <TabsContent value="report">
-          <AuditReport report={report} variant="internal" />
+          <ConfiguredAuditReport auditId={report.auditId} report={report} variant="internal" />
+        </TabsContent>
+
+        <TabsContent value="report-settings" className="no-print">
+          <ReportSettingsPanel auditId={report.auditId} report={report} />
         </TabsContent>
 
         <TabsContent value="findings" className="space-y-3">

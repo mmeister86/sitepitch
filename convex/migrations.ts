@@ -7,6 +7,7 @@ import schema from "./schema.js"
 import { resolveReportCtaSnapshotValues } from "./lib/report_cta.js"
 import { hasAccurateViewAggregate } from "./lib/report_view_stats.js"
 import { normalizeLeadDomain } from "./lib/lead_search.js"
+import { normalizeReportReferrer } from "./lib/report_privacy.js"
 
 const migrations = new Migrations<DataModel, typeof schema>(components.migrations, {
   internalMutation,
@@ -90,6 +91,20 @@ export const verifyNormalizedLeadDomains = internalQuery({
         normalizeLeadDomain(lead.normalizedWebsiteUrl ?? lead.websiteUrl) !== undefined,
       ))
     return { complete: sample === undefined, sampleRemainingLeadId: sample?._id ?? null }
+  },
+})
+
+/**
+ * Privacy hardening for legacy report views. Query strings and paths can carry
+ * campaign identifiers or personal data, so only a normalized referrer host is retained.
+ */
+export const minimizeLegacyReportReferrers = migrations.define({
+  table: "reportViews",
+  migrateOne: (_ctx, view) => {
+    if (view.referrer === undefined) return
+    const referrer = normalizeReportReferrer(view.referrer)
+    if (referrer === view.referrer) return
+    return { referrer }
   },
 })
 

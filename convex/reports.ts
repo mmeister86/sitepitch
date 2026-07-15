@@ -1,12 +1,12 @@
 import { ConvexError, v } from "convex/values"
 import { paginationOptsValidator } from "convex/server"
 
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server"
+import { env, internalQuery, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server"
 import type { Doc, Id } from "./_generated/dataModel"
 import { CATEGORY_WEIGHTS } from "./lib/audit_scoring"
 import { auditRateLimiter } from "./lib/audit_rate_limit"
-import { toSafeDisplayUrl } from "./lib/audit_url"
-import { DEFAULT_WORKSPACE_ACCENT, findAppUser, getWorkspaceByOwner } from "./lib/workspace"
+import { generatePublicSlug, toSafeDisplayUrl } from "./lib/audit_url"
+import { DEFAULT_WORKSPACE_ACCENT, findAppUser, getWorkspaceByOwner, getWorkspacePlan } from "./lib/workspace"
 import { outreachDraftTypeValidator } from "../src/lib/convex-schema-values.ts"
 import { recordReportView } from "./retention"
 import {
@@ -15,7 +15,16 @@ import {
   loadWorkspaceReportViewCount,
   resolveReportViewCount,
 } from "./lib/report_view_stats"
-import { resolveReportCtaSnapshotValues } from "./lib/report_cta"
+import { resolvePublicReportAccess } from "./lib/report_access"
+import { resolveReportPublicUrl } from "./lib/report_domain"
+import { reportFeaturePolicy } from "./lib/report_policy"
+import { normalizeReportReferrer } from "./lib/report_privacy"
+import { queueReportPdfArtifact } from "./lib/report_pdf_queue"
+import {
+  buildReportSettingsSnapshotValues,
+  ensureReportSettingsSnapshot,
+} from "./report_settings"
+import type { PublicReportDocumentModel } from "../src/lib/report-document"
 
 // ---------------------------------------------------------------------------
 // Category metadata
@@ -114,6 +123,7 @@ export interface PerformanceDto {
 export interface BrandingDto {
   name: string
   accentColor: string
+  logoUrl?: string
   ctaText?: string
   ctaUrl?: string
   ctaSnapshotted: boolean
@@ -447,6 +457,77 @@ async function resolveScreenshotUrls(
   }
 }
 
+async function buildPublicReportDocument(
+  ctx: QueryCtx,
+  audit: Doc<"audits">,
+  workspace: Doc<"workspaces">,
+  storedSettings: Doc<"reportSettings"> | null,
+  plan: Parameters<typeof reportFeaturePolicy>[0],
+): Promise<PublicReportDocumentModel> {
+  const [score, summary, findings, screenshots, fallbackSettings] = await Promise.all([
+    ctx.db
+      .query("auditScores")
+      .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+      .unique(),
+    ctx.db
+      .query("auditSummaries")
+      .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+      .unique(),
+    ctx.db
+      .query("auditFindings")
+      .withIndex("by_auditId_and_sortOrder", (q) => q.eq("auditId", audit._id))
+      .take(50),
+    resolveScreenshotUrls(ctx, audit._id),
+    storedSettings ? Promise.resolve(null) : buildReportSettingsSnapshotValues(ctx, audit),
+  ])
+  const settings = storedSettings ?? fallbackSettings
+  if (!settings) throw new Error("Report settings unavailable")
+
+  const policy = reportFeaturePolicy(plan)
+  const logoUrl = settings.logoStorageId
+    ? await ctx.storage.getUrl(settings.logoStorageId)
+    : null
+  const summaryDto = buildSummary(summary)
+
+  return {
+    domain: audit.domain,
+    normalizedUrl: toSafeDisplayUrl(audit.normalizedUrl),
+    completedAt: audit.completedAt ?? null,
+    reportLanguage: settings.language,
+    overallScore: audit.overallScore ?? score?.overallScore ?? null,
+    categoryScores: buildCategoryScores(score),
+    summary: summaryDto,
+    findings: buildPublicFindings(findings),
+    nextSteps: summaryDto?.nextSteps ?? [],
+    screenshots,
+    intro: settings.introText,
+    hiddenSections: settings.hiddenSections,
+    theme: {
+      preset: policy.themes ? settings.theme : "classic",
+      primaryColor: policy.customColors
+        ? settings.primaryColor
+        : workspace.accentColor ?? DEFAULT_WORKSPACE_ACCENT,
+      backgroundColor: policy.customColors ? settings.backgroundColor : "#ffffff",
+      textColor: policy.customColors ? settings.textColor : "#18181b",
+    },
+    branding: {
+      name: settings.brandName,
+      logoUrl: logoUrl ?? undefined,
+      accentColor: policy.customColors
+        ? settings.primaryColor
+        : workspace.accentColor ?? DEFAULT_WORKSPACE_ACCENT,
+      ctaText: settings.ctaText,
+      ctaUrl: settings.ctaUrl,
+      ctaSnapshotted: true,
+      website: workspace.website,
+      contactEmail: workspace.contactEmail,
+    },
+    showPoweredBy: policy.poweredByToggle
+      ? settings.showPoweredByPreference
+      : true,
+  }
+}
+
 function computeWarnings(args: {
   hasScore: boolean
   hasSummary: boolean
@@ -483,6 +564,23 @@ export const getInternalReportById = query({
 
     const workspace = await getWorkspaceByOwner(ctx, user._id)
     if (!workspace || workspace.deletionRequestedAt || audit.workspaceId !== workspace._id) return null
+
+    const [storedSettings, reportDomain, workspacePlan] = await Promise.all([
+      ctx.db
+        .query("reportSettings")
+        .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+        .unique(),
+      ctx.db
+        .query("reportDomains")
+        .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspace._id))
+        .unique(),
+      getWorkspacePlan(ctx, workspace._id),
+    ])
+    const effectiveSettings = storedSettings ?? await buildReportSettingsSnapshotValues(ctx, audit)
+    const logoUrl = effectiveSettings.logoStorageId
+      ? await ctx.storage.getUrl(effectiveSettings.logoStorageId)
+      : null
+    const capabilities = reportFeaturePolicy(workspacePlan)
 
     const [score, summary, findings, checks, outreach, performanceRows, reportViews, reportViewStats, personaReviews, copyReviewDoc, designCritiqueDoc, providerCalls] =
       await Promise.all([
@@ -559,6 +657,19 @@ export const getInternalReportById = query({
       statusMessage: audit.statusMessage ?? null,
       isPublic: audit.isPublic,
       publicSlug: audit.publicSlug,
+      publicUrl: resolveReportPublicUrl({
+        siteUrl: env.SITE_URL,
+        publicSlug: audit.publicSlug,
+        plan: workspacePlan,
+        domain: reportDomain,
+      }),
+      publicationStatus: !audit.isPublic
+        ? "disabled"
+        : effectiveSettings.expiresAt !== undefined && effectiveSettings.expiresAt <= Date.now()
+          ? "expired"
+          : effectiveSettings.passwordHash
+            ? "protected"
+            : "active",
       reportLanguage: audit.reportLanguage,
       domain: audit.domain,
       normalizedUrl: toSafeDisplayUrl(audit.normalizedUrl),
@@ -580,7 +691,17 @@ export const getInternalReportById = query({
       viewCount: viewCount.count,
       viewCountCapped: viewCount.capped,
       viewCountPending: viewCount.pending,
-      branding: buildBranding(workspace, audit),
+      branding: {
+        ...buildBranding(workspace, audit),
+        name: effectiveSettings.brandName,
+        accentColor: capabilities.customColors
+          ? effectiveSettings.primaryColor
+          : workspace.accentColor ?? DEFAULT_WORKSPACE_ACCENT,
+        logoUrl: logoUrl ?? undefined,
+        ctaText: effectiveSettings.ctaText,
+        ctaUrl: effectiveSettings.ctaUrl,
+      },
+      capabilities,
       personaReviews: buildPersonaReviews(personaReviews),
       copyReview: buildCopyReview(copyReviewDoc ?? null),
       designCritique: buildDesignCritique(designCritiqueDoc ?? null),
@@ -595,54 +716,47 @@ export const getInternalReportById = query({
 // ---------------------------------------------------------------------------
 
 export const getPublicReportBySlug = query({
-  args: { slug: v.string() },
+  args: {
+    slug: v.string(),
+    host: v.optional(v.string()),
+    grantToken: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
-    const audit = await ctx.db
-      .query("audits")
-      .withIndex("by_publicSlug", (q) => q.eq("publicSlug", args.slug))
-      .unique()
+    const access = await resolvePublicReportAccess(ctx, args)
+    if (access.status === "unavailable") return { status: "unavailable" as const }
+    if (access.status === "password_required") {
+      return { status: "password_required" as const }
+    }
+    return {
+      status: "available" as const,
+      report: await buildPublicReportDocument(
+        ctx,
+        access.audit,
+        access.workspace,
+        access.settings,
+        access.plan,
+      ),
+      publicUrl: access.publicUrl,
+      capabilities: reportFeaturePolicy(access.plan),
+    }
+  },
+})
 
-    if (!audit) return null
-    if (!audit.isPublic) return null
-    if (audit.status !== "completed") return null
-
+export const getPdfReportModel = internalQuery({
+  args: { auditId: v.id("audits") },
+  handler: async (ctx, args) => {
+    const audit = await ctx.db.get(args.auditId)
+    if (!audit || audit.status !== "completed" || audit.deletionRequestedAt) return null
     const workspace = await ctx.db.get(audit.workspaceId)
     if (!workspace || workspace.deletionRequestedAt) return null
-
-    const [score, summary, findings] = await Promise.all([
+    const [settings, plan] = await Promise.all([
       ctx.db
-        .query("auditScores")
+        .query("reportSettings")
         .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
         .unique(),
-      ctx.db
-        .query("auditSummaries")
-        .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
-        .unique(),
-      ctx.db
-        .query("auditFindings")
-        .withIndex("by_auditId_and_sortOrder", (q) => q.eq("auditId", audit._id))
-        .take(50),
+      getWorkspacePlan(ctx, workspace._id),
     ])
-
-    const screenshots = await resolveScreenshotUrls(ctx, audit._id)
-
-    const categoryScores = buildCategoryScores(score)
-    const overallScore = audit.overallScore ?? score?.overallScore ?? null
-    const summaryDto = buildSummary(summary)
-
-    return {
-      domain: audit.domain,
-      normalizedUrl: toSafeDisplayUrl(audit.normalizedUrl),
-      reportLanguage: audit.reportLanguage,
-      completedAt: audit.completedAt ?? null,
-      overallScore,
-      categoryScores,
-      summary: summaryDto,
-      findings: buildPublicFindings(findings),
-      nextSteps: summaryDto?.nextSteps ?? [],
-      screenshots,
-      branding: buildBranding(workspace, audit),
-    }
+    return await buildPublicReportDocument(ctx, audit, workspace, settings, plan)
   },
 })
 
@@ -688,31 +802,99 @@ export const setPublicReportEnabled = mutation({
 
     const now = Date.now()
     const firstShare = args.enabled && !audit.isPublic
+    const settings = args.enabled
+      ? await ensureReportSettingsSnapshot(ctx, audit)
+      : await ctx.db
+          .query("reportSettings")
+          .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+          .unique()
     const shouldSnapshotCta = firstShare && audit.reportCtaSnapshottedAt === undefined
-    const ctaSnapshot = shouldSnapshotCta
-      ? await resolveReportCtaSnapshot(ctx, audit, workspace)
-      : null
     await ctx.db.patch(args.auditId, {
       isPublic: args.enabled,
-      reportCtaText: shouldSnapshotCta ? ctaSnapshot?.text : audit.reportCtaText,
-      reportCtaUrl: shouldSnapshotCta ? ctaSnapshot?.url : audit.reportCtaUrl,
+      reportCtaText: shouldSnapshotCta ? settings?.ctaText : audit.reportCtaText,
+      reportCtaUrl: shouldSnapshotCta ? settings?.ctaUrl : audit.reportCtaUrl,
       reportCtaSnapshottedAt: shouldSnapshotCta ? now : audit.reportCtaSnapshottedAt,
       updatedAt: now,
     })
+    if (!args.enabled && settings) {
+      await ctx.db.patch(settings._id, {
+        accessVersion: settings.accessVersion + 1,
+        updatedAt: now,
+      })
+    }
+    if (args.enabled && settings) {
+      const policy = reportFeaturePolicy(await getWorkspacePlan(ctx, workspace._id))
+      if (policy.pdfExport) {
+        await queueReportPdfArtifact(ctx, {
+          workspaceId: workspace._id,
+          auditId: audit._id,
+          settingsVersion: settings.settingsVersion,
+        })
+      }
+    }
 
     return { auditId: args.auditId, isPublic: args.enabled }
   },
 })
 
-async function resolveReportCtaSnapshot(
-  ctx: MutationCtx,
-  audit: Doc<"audits">,
-  workspace: Doc<"workspaces">,
-): Promise<{ text?: string; url?: string }> {
-  const lead = audit.leadId ? await ctx.db.get(audit.leadId) : null
-  const ownedLead = lead?.workspaceId === workspace._id ? lead : null
-  return resolveReportCtaSnapshotValues(workspace, ownedLead)
-}
+export const rotatePublicReportLink = mutation({
+  args: { auditId: v.id("audits") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new ConvexError({ code: "UNAUTHENTICATED", message: "Not authenticated" })
+    const user = await findAppUser(ctx, identity.tokenIdentifier)
+    if (!user) throw new ConvexError({ code: "UNAUTHENTICATED", message: "Not authenticated" })
+    const [audit, workspace] = await Promise.all([
+      ctx.db.get(args.auditId),
+      getWorkspaceByOwner(ctx, user._id),
+    ])
+    if (!audit || !workspace || audit.workspaceId !== workspace._id) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Report not found" })
+    }
+    const settings = await ensureReportSettingsSnapshot(ctx, audit)
+    let publicSlug = generatePublicSlug()
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const collision = await ctx.db
+        .query("audits")
+        .withIndex("by_publicSlug", (q) => q.eq("publicSlug", publicSlug))
+        .unique()
+      if (!collision) break
+      publicSlug = generatePublicSlug()
+      if (attempt === 4) throw new Error("Unable to allocate report link")
+    }
+    const now = Date.now()
+    await ctx.db.patch(audit._id, { publicSlug, updatedAt: now })
+    await ctx.db.patch(settings._id, {
+      accessVersion: settings.accessVersion + 1,
+      updatedAt: now,
+    })
+    const artifacts = await ctx.db
+      .query("reportPdfArtifacts")
+      .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+      .take(50)
+    for (const artifact of artifacts) {
+      if (artifact.status !== "stale") {
+        await ctx.db.patch(artifact._id, { status: "stale", updatedAt: now })
+      }
+    }
+    const [plan, domain] = await Promise.all([
+      getWorkspacePlan(ctx, workspace._id),
+      ctx.db
+        .query("reportDomains")
+        .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspace._id))
+        .unique(),
+    ])
+    return {
+      publicSlug,
+      publicUrl: resolveReportPublicUrl({
+        siteUrl: env.SITE_URL,
+        publicSlug,
+        plan,
+        domain,
+      }),
+    }
+  },
+})
 
 export const refreshPublicReportCta = mutation({
   args: { auditId: v.id("audits") },
@@ -739,14 +921,29 @@ export const refreshPublicReportCta = mutation({
     if (!audit.isPublic) {
       throw new ConvexError({ code: "REPORT_NOT_PUBLIC", message: "Report is not public" })
     }
-    const snapshot = await resolveReportCtaSnapshot(ctx, audit, workspace)
+    const current = await ensureReportSettingsSnapshot(ctx, audit)
+    const snapshot = await buildReportSettingsSnapshotValues(
+      ctx,
+      { ...audit, reportCtaSnapshottedAt: undefined },
+      current,
+    )
     const now = Date.now()
     await ctx.db.patch(audit._id, {
-      reportCtaText: snapshot.text,
-      reportCtaUrl: snapshot.url,
+      reportCtaText: snapshot.ctaText,
+      reportCtaUrl: snapshot.ctaUrl,
       reportCtaSnapshottedAt: now,
       updatedAt: now,
     })
+    await ctx.db.patch(current._id, snapshot)
+    const artifacts = await ctx.db
+      .query("reportPdfArtifacts")
+      .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+      .take(50)
+    for (const artifact of artifacts) {
+      if (artifact.status !== "stale") {
+        await ctx.db.patch(artifact._id, { status: "stale", updatedAt: now })
+      }
+    }
     return { auditId: audit._id, reportCtaSnapshottedAt: now }
   },
 })
@@ -758,20 +955,15 @@ export const refreshPublicReportCta = mutation({
 export const recordPublicReportView = mutation({
   args: {
     slug: v.string(),
+    host: v.optional(v.string()),
+    grantToken: v.optional(v.string()),
     referrer: v.optional(v.string()),
     userAgentHash: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const audit = await ctx.db
-      .query("audits")
-      .withIndex("by_publicSlug", (q) => q.eq("publicSlug", args.slug))
-      .unique()
-
-    if (!audit || !audit.isPublic || audit.status !== "completed") {
-      return null
-    }
-    const workspace = await ctx.db.get(audit.workspaceId)
-    if (!workspace || workspace.deletionRequestedAt) return null
+    const access = await resolvePublicReportAccess(ctx, args)
+    if (access.status !== "available") return null
+    const { audit, workspace } = access
 
     const slugLimit = await auditRateLimiter.limit(ctx, "publicReportViewsBySlug", {
       key: audit.publicSlug,
@@ -788,14 +980,10 @@ export const recordPublicReportView = mutation({
     }
 
     const now = Date.now()
-    const truncatedReferrer = args.referrer
-      ? args.referrer.slice(0, 200)
-      : undefined
-
     const viewResult = await recordReportView(ctx, {
       workspaceId: audit.workspaceId,
       auditId: audit._id,
-      referrer: truncatedReferrer,
+      referrer: normalizeReportReferrer(args.referrer),
       userAgentHash: validatedViewerHash(args.userAgentHash),
       viewedAt: now,
     })
@@ -938,19 +1126,14 @@ export const recordReportCopyEvent = mutation({
 export const recordPublicReportCtaClick = mutation({
   args: {
     slug: v.string(),
+    host: v.optional(v.string()),
+    grantToken: v.optional(v.string()),
     userAgentHash: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const audit = await ctx.db
-      .query("audits")
-      .withIndex("by_publicSlug", (q) => q.eq("publicSlug", args.slug))
-      .unique()
-
-    if (!audit || !audit.isPublic || audit.status !== "completed") {
-      return null
-    }
-    const workspace = await ctx.db.get(audit.workspaceId)
-    if (!workspace || workspace.deletionRequestedAt) return null
+    const access = await resolvePublicReportAccess(ctx, args)
+    if (access.status !== "available") return null
+    const { audit } = access
 
     const slugLimit = await auditRateLimiter.limit(ctx, "publicReportActionsBySlug", {
       key: audit.publicSlug,
@@ -988,19 +1171,14 @@ export const recordPublicReportCtaClick = mutation({
 export const recordPublicReportPdfExport = mutation({
   args: {
     slug: v.string(),
+    host: v.optional(v.string()),
+    grantToken: v.optional(v.string()),
     userAgentHash: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const audit = await ctx.db
-      .query("audits")
-      .withIndex("by_publicSlug", (q) => q.eq("publicSlug", args.slug))
-      .unique()
-
-    if (!audit || !audit.isPublic || audit.status !== "completed") {
-      return null
-    }
-    const workspace = await ctx.db.get(audit.workspaceId)
-    if (!workspace || workspace.deletionRequestedAt) return null
+    const access = await resolvePublicReportAccess(ctx, args)
+    if (access.status !== "available") return null
+    const { audit } = access
 
     const slugLimit = await auditRateLimiter.limit(ctx, "publicReportActionsBySlug", {
       key: audit.publicSlug,

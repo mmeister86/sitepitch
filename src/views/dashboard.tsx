@@ -274,8 +274,8 @@ export function DashboardView() {
               ))}
             </ul>
           </CardContent>
-          {firstOpenStep ? (
-            <CardFooter>
+          <CardFooter>
+            {firstOpenStep ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -285,31 +285,36 @@ export function DashboardView() {
                 {firstOpenStep.cta.label}
                 <ArrowRight className="size-4" />
               </Button>
-            </CardFooter>
-          ) : null}
+            ) : (
+              <div className="flex h-8 w-full items-center justify-center gap-2 text-sm text-score-strong">
+                <CheckCircle2 className="size-4" aria-hidden="true" />
+                Aktivierung abgeschlossen
+              </div>
+            )}
+          </CardFooter>
         </Card>
 
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <div>
-              <CardTitle>Letzte Audits</CardTitle>
-              <CardDescription>Nach Erstellungsdatum</CardDescription>
-            </div>
+        <Card className="lg:col-span-2 lg:gap-5 lg:py-5">
+          <CardHeader>
+            <CardTitle>Letzte Audits</CardTitle>
+            <CardDescription>Nach Erstellungsdatum</CardDescription>
             {recent.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => navigate({ name: "audits" })}
-              >
-                Alle ansehen
-                <ArrowRight className="size-4" />
-              </Button>
+              <CardAction>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => navigate({ name: "audits" })}
+                >
+                  Alle ansehen
+                  <ArrowRight className="size-4" />
+                </Button>
+              </CardAction>
             )}
           </CardHeader>
           <CardContent className="px-2">
             {recent.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 py-10 text-center">
+              <div className="flex flex-col items-center gap-3 py-10 text-center lg:py-4">
                 <div className="flex size-12 items-center justify-center rounded-full bg-muted">
                   <ScanSearch className="size-6 text-muted-foreground" />
                 </div>
@@ -346,7 +351,7 @@ export function DashboardView() {
                   <button
                     key={a._id}
                     onClick={() => navigate({ name: "audit", id: a._id })}
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-muted/60"
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-muted/60 lg:py-1"
                   >
                     {a.overallScore !== null ? (
                       <ScoreBadge score={a.overallScore} />
@@ -505,7 +510,7 @@ function ActivityCard({
       </CardHeader>
       <CardContent
         id="dashboard-activity-feed"
-        className="relative flex flex-1 flex-col overflow-clip"
+        className="relative flex h-[220px] shrink-0 flex-col overflow-clip"
       >
         {empty ? (
           <ActivityEmptyState className="h-[220px]" />
@@ -516,8 +521,11 @@ function ActivityCard({
             animateFrom={5}
             compactAfter={5}
             compact
-            className={cn(expanded && "2xl:grid 2xl:grid-cols-3 2xl:gap-x-6 2xl:divide-y-0")}
-            itemClassName={cn(expanded && "2xl:border-b 2xl:first:pt-2")}
+            className={cn(
+              "h-full content-start",
+              expanded && "2xl:grid 2xl:grid-cols-3 2xl:gap-x-6 2xl:divide-y-0",
+            )}
+            itemClassName={cn(expanded && "2xl:border-b")}
           />
         )}
       </CardContent>

@@ -161,4 +161,6 @@ crons.interval("purge admin actions", { hours: 24 }, internal.crons.purgeExpired
 crons.interval("retry deletion jobs", { minutes: 15 }, internal.deletion.retryStaleDeletionJobs, {})
 crons.interval("recover prepared account deletions", { minutes: 15 }, internal.deletion.recoverPreparedWorkspaceDeletions, {})
 crons.interval("reconcile provider costs", { hours: 24 }, internal.provider_billing.reconcileProviderCosts, {})
+crons.interval("purge expired report grants", { hours: 1 }, internal.lib.report_access.purgeExpiredAccessGrants, {})
+crons.interval("recheck report domains", { hours: 24 }, internal.report_domains.recheckReportDomains, {})
 export default crons

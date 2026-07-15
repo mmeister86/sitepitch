@@ -18,6 +18,7 @@ const app = defineApp({
     OPENROUTER_API_KEY: v.optional(v.string()),
     OPENROUTER_MODEL: v.optional(v.string()),
     SITE_URL: v.optional(v.string()),
+    REPORT_DOMAIN_CNAME_TARGET: v.optional(v.string()),
     EVE_AGENT_URL: v.optional(v.string()),
     EVE_AGENT_MODEL: v.optional(v.string()),
     TURNSTILE_SECRET_KEY: v.optional(v.string()),

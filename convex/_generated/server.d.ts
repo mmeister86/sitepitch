@@ -47,6 +47,7 @@ type Env = {
   readonly PAGESPEED_TIMEOUT_MS: string | undefined;
   readonly PROVIDER_COST_ALERT_PERCENT: string | undefined;
   readonly PROVIDER_COST_ALERT_USD: string | undefined;
+  readonly REPORT_DOMAIN_CNAME_TARGET: string | undefined;
   readonly SITE_URL: string | undefined;
   readonly SUPPORT_ADMIN_EMAILS: string | undefined;
   readonly TURNSTILE_SECRET_KEY: string | undefined;

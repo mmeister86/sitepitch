@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useMutation, useQuery } from "convex/react"
 import { useRouter } from "@/lib/router"
 import {
   ArrowLeft,
   Archive,
   Check,
+  FileText,
   History,
   Loader2,
   Megaphone,
@@ -18,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -75,6 +77,7 @@ export function CampaignDetailView({ id }: { id: string }) {
   const data = useQuery(api.campaigns.getMyCampaign, { campaignId })
   const setStatus = useMutation(api.campaigns.setStatus)
   const updateCampaign = useMutation(api.campaigns.update)
+  const updateReportDefaults = useMutation(api.campaigns.updateReportDefaults)
   const deleteCampaign = useMutation(api.campaigns.deleteCampaign)
   const saveLead = useMutation(api.leads.saveLeadFromSearch)
 
@@ -82,6 +85,10 @@ export function CampaignDetailView({ id }: { id: string }) {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [statusLoading, setStatusLoading] = useState(false)
+  const [reportDefaultsSaving, setReportDefaultsSaving] = useState(false)
+  const [reportIntro, setReportIntro] = useState("")
+  const [reportCtaText, setReportCtaText] = useState("")
+  const [reportCtaUrl, setReportCtaUrl] = useState("")
 
   const [editName, setEditName] = useState("")
   const [editIndustry, setEditIndustry] = useState("")
@@ -92,6 +99,13 @@ export function CampaignDetailView({ id }: { id: string }) {
 
   const campaign = data?.campaign
   const metrics = data?.metrics
+
+  useEffect(() => {
+    if (!campaign) return
+    setReportIntro(campaign.reportIntro ?? "")
+    setReportCtaText(campaign.reportCtaText ?? "")
+    setReportCtaUrl(campaign.reportCtaUrl ?? "")
+  }, [campaign?._id, campaign?.updatedAt])
 
   function openEdit() {
     if (!campaign) return
@@ -151,6 +165,24 @@ export function CampaignDetailView({ id }: { id: string }) {
       toast.error((error as Error)?.message ?? "Kampagne konnte nicht gelöscht werden")
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  async function handleReportDefaultsUpdate() {
+    if (!campaign || reportDefaultsSaving) return
+    setReportDefaultsSaving(true)
+    try {
+      await updateReportDefaults({
+        campaignId,
+        reportIntro,
+        reportCtaText,
+        reportCtaUrl,
+      })
+      toast.success("Report-Vorgaben gespeichert")
+    } catch (error) {
+      toast.error((error as Error)?.message ?? "Report-Vorgaben konnten nicht gespeichert werden")
+    } finally {
+      setReportDefaultsSaving(false)
     }
   }
 
@@ -230,6 +262,7 @@ export function CampaignDetailView({ id }: { id: string }) {
 
   const canEdit = campaign.status !== "archived"
   const canDelete = campaign.status === "draft" || campaign.status === "archived"
+  const canEditReportDefaults = canEdit && data.reportCapabilities.campaignCta
 
   return (
     <div className="mx-auto w-full max-w-[1100px] space-y-5 p-4 md:p-6">
@@ -351,6 +384,72 @@ export function CampaignDetailView({ id }: { id: string }) {
       </div>
 
       <div className="space-y-5">
+        <Card className="gap-0 py-0">
+          <CardHeader className="border-b py-4">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="size-4 text-muted-foreground" aria-hidden="true" />
+                <h3 className="text-sm font-semibold">Report-Vorgaben</h3>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {data.reportCapabilities.campaignCta ? "Für neue Report-Snapshots" : "Verfügbar ab Pro"}
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4 px-6 py-5">
+            <div className="space-y-1.5">
+              <Label htmlFor="campaign-report-intro">Einleitung</Label>
+              <Textarea
+                id="campaign-report-intro"
+                value={reportIntro}
+                onChange={(event) => setReportIntro(event.target.value)}
+                placeholder="Kurze persönliche Einleitung vor den Audit-Ergebnissen"
+                rows={3}
+                maxLength={2_000}
+                disabled={!canEditReportDefaults || reportDefaultsSaving}
+              />
+              <p className="text-xs text-muted-foreground">
+                Wird beim ersten Freigeben übernommen. Lead- und Report-Angaben können diese Vorgabe überschreiben.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="campaign-report-cta-text">CTA-Text</Label>
+                <Input
+                  id="campaign-report-cta-text"
+                  value={reportCtaText}
+                  onChange={(event) => setReportCtaText(event.target.value)}
+                  placeholder="Kostenloses Erstgespräch"
+                  maxLength={80}
+                  disabled={!canEditReportDefaults || reportDefaultsSaving}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="campaign-report-cta-url">CTA-Ziel</Label>
+                <Input
+                  id="campaign-report-cta-url"
+                  value={reportCtaUrl}
+                  onChange={(event) => setReportCtaUrl(event.target.value)}
+                  placeholder="https://agentur.de/kontakt"
+                  inputMode="url"
+                  maxLength={2_048}
+                  disabled={!canEditReportDefaults || reportDefaultsSaving}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                onClick={() => void handleReportDefaultsUpdate()}
+                disabled={!canEditReportDefaults || reportDefaultsSaving}
+              >
+                {reportDefaultsSaving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                Vorgaben speichern
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         <LeadSearchPanel
           campaignId={campaignId}
           defaultIndustry={campaign.targetIndustry}

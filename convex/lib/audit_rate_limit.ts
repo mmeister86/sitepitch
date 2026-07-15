@@ -31,6 +31,7 @@ export const auditRateLimiter = new RateLimiter(components.rateLimiter, {
   publicReportViewsBySlug: { kind: "fixed window", rate: 300, period: HOUR },
   publicReportCtaByViewer: { kind: "fixed window", rate: 30, period: HOUR },
   publicReportActionsBySlug: { kind: "fixed window", rate: 120, period: HOUR },
+  publicReportUnlocksBySlug: { kind: "fixed window", rate: 10, period: HOUR },
   screenshotProviderCalls: { kind: "token bucket", rate: 20, period: MINUTE, capacity: 20 },
   pagespeedProviderCalls: { kind: "token bucket", rate: 10, period: MINUTE, capacity: 10 },
   contentProviderCalls: { kind: "token bucket", rate: 60, period: MINUTE, capacity: 60 },

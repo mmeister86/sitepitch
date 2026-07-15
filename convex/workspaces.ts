@@ -265,12 +265,18 @@ export const updateBranding = mutation({
     })
 
     if (workspace.logoStorageId && workspace.logoStorageId !== nextLogoStorageId) {
-      await ctx.storage.delete(workspace.logoStorageId)
-      const previousUpload = await ctx.db
-        .query("logoUploads")
-        .withIndex("by_storageId", (q) => q.eq("storageId", workspace.logoStorageId!))
-        .unique()
-      if (previousUpload) await ctx.db.delete(previousUpload._id)
+      const snapshotReference = await ctx.db
+        .query("reportSettings")
+        .withIndex("by_logoStorageId", (q) => q.eq("logoStorageId", workspace.logoStorageId))
+        .first()
+      if (!snapshotReference) {
+        await ctx.storage.delete(workspace.logoStorageId)
+        const previousUpload = await ctx.db
+          .query("logoUploads")
+          .withIndex("by_storageId", (q) => q.eq("storageId", workspace.logoStorageId!))
+          .unique()
+        if (previousUpload) await ctx.db.delete(previousUpload._id)
+      }
     }
 
     if (!workspace.brandingCompletedAt) {
@@ -375,12 +381,18 @@ export const clearLogo = mutation({
       updatedAt: Date.now(),
     })
     if (workspace.logoStorageId) {
-      await ctx.storage.delete(workspace.logoStorageId)
-      const upload = await ctx.db
-        .query("logoUploads")
-        .withIndex("by_storageId", (q) => q.eq("storageId", workspace.logoStorageId!))
-        .unique()
-      if (upload) await ctx.db.delete(upload._id)
+      const snapshotReference = await ctx.db
+        .query("reportSettings")
+        .withIndex("by_logoStorageId", (q) => q.eq("logoStorageId", workspace.logoStorageId))
+        .first()
+      if (!snapshotReference) {
+        await ctx.storage.delete(workspace.logoStorageId)
+        const upload = await ctx.db
+          .query("logoUploads")
+          .withIndex("by_storageId", (q) => q.eq("storageId", workspace.logoStorageId!))
+          .unique()
+        if (upload) await ctx.db.delete(upload._id)
+      }
     }
   },
 })

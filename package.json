@@ -18,6 +18,7 @@
     "@convex-dev/rate-limiter": "^0.3.2",
     "@convex-dev/workpool": "^0.4.7",
     "@hookform/resolvers": "^5.2.2",
+    "@react-pdf/renderer": "^4.5.1",
     "ai": "^7.0.16",
     "better-auth": "^1.6.23",
     "class-variance-authority": "^0.7.1",
