@@ -1,10 +1,10 @@
 ---
 id: TASK-5.4.4
 title: Generate sanitized branded PDF exports
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-14 21:52'
-updated_date: '2026-07-14 22:16'
+updated_date: '2026-07-16 07:51'
 labels: []
 dependencies:
   - TASK-5.4.2
@@ -33,3 +33,9 @@ Generate versioned branded PDF artifacts from the sanitized public document mode
 <!-- SECTION:NOTES:BEGIN -->
 Implemented versioned React-PDF artifacts in the single-worker pdfWorkpool, owner generation/download, access-checked public streaming, no-store headers, checksum, retry states, and sanitized shared DTO. Automated tests/build pass; visual PDF QA pending.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Sanitisierte, gebrandete PDF-Exporte abgeschlossen und durch Nutzer bestätigt.
+<!-- SECTION:FINAL_SUMMARY:END -->

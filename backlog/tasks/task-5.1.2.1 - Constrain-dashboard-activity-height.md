@@ -1,10 +1,10 @@
 ---
 id: TASK-5.1.2.1
 title: Add progressive activity exploration
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-12 14:09'
-updated_date: '2026-07-15 19:21'
+updated_date: '2026-07-16 07:51'
 labels: []
 dependencies: []
 modified_files:
@@ -74,3 +74,9 @@ Follow-up requested on 2026-07-15: expansion must change only the horizontal pro
 
 Fixed the engagement/activity row height at the existing 220px content anchor and normalized compact feed rows to 44px, so five compact rows and five expanded grid rows fit exactly without clipping. Live Arc QA with 8 events confirmed identical top/bottom card edges and an unmoved following dashboard row across expand/collapse. Verification: 57 test files / 498 tests pass, typecheck passes, production build passes, and git diff --check passes.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Progressive Aktivitätsansicht, responsive Dashboard-Erweiterung und paginierte Verlaufseite wurden umgesetzt und durch Nutzer bestätigt.
+<!-- SECTION:FINAL_SUMMARY:END -->

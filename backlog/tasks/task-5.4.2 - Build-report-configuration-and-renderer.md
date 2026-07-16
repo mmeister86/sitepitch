@@ -1,10 +1,10 @@
 ---
 id: TASK-5.4.2
 title: Build report configuration and renderer
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-14 21:52'
-updated_date: '2026-07-14 22:16'
+updated_date: '2026-07-16 07:51'
 labels: []
 dependencies:
   - TASK-5.4.1
@@ -32,3 +32,9 @@ Extend branding, campaign, audit configuration, and the shared report renderer w
 <!-- SECTION:NOTES:BEGIN -->
 Implemented report settings UI and shared DE/EN renderer with logo, scoped themes/colors, intro, sections, CTA, powered-by, preview, and server-provided publicUrl. Automated tests pass; manual QA pending.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Report-Konfiguration und Renderer abgeschlossen und durch Nutzer bestätigt.
+<!-- SECTION:FINAL_SUMMARY:END -->

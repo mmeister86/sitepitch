@@ -1,10 +1,10 @@
 ---
 id: TASK-5.4.1
 title: Establish report policy and snapshot data model
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-14 21:52'
-updated_date: '2026-07-14 22:16'
+updated_date: '2026-07-16 07:51'
 labels: []
 dependencies: []
 references:
@@ -34,3 +34,9 @@ Add the centralized report capability policy, report settings snapshots, campaig
 <!-- SECTION:NOTES:BEGIN -->
 Implemented central plan policy, reportSettings snapshots, stable section keys, campaign defaults, legacy fallbacks, and logo reference retention. Automated tests and schema contract pass; manual QA pending.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Report-Policy und Snapshot-Datenmodell abgeschlossen und durch Nutzer bestätigt.
+<!-- SECTION:FINAL_SUMMARY:END -->

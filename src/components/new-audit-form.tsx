@@ -309,10 +309,18 @@ export function NewAuditForm({
         </Alert>
       ) : null}
 
-      <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2.5 text-xs text-muted-foreground">
-        <Sparkles className="size-3.5 text-primary" />
-        Dieser Audit reserviert <span className="font-medium text-foreground">1 Credit</span>. Noch{" "}
-        {remainingCredits} von {totalCredits} verfügbar.
+      <div className="flex flex-col gap-3 rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2.5">
+          <Sparkles className="size-4 shrink-0 text-primary" />
+          <div className="flex flex-col leading-snug">
+            <span className="whitespace-nowrap">Dieser Audit reserviert</span>
+            <span className="font-medium text-foreground">1 Credit</span>
+          </div>
+        </div>
+        <div className="border-t border-border/60 pt-3 sm:border-t-0 sm:border-l sm:pl-4 sm:pt-0">
+          Noch <span className="font-medium text-foreground">{remainingCredits} von {totalCredits}</span>{" "}
+          verfügbar.
+        </div>
       </div>
 
       <div className="flex justify-end gap-2">

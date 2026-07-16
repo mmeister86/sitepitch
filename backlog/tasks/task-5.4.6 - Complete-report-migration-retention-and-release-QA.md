@@ -1,10 +1,10 @@
 ---
 id: TASK-5.4.6
 title: Complete report migration retention and release QA
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-14 21:52'
-updated_date: '2026-07-14 22:16'
+updated_date: '2026-07-16 07:51'
 labels: []
 dependencies:
   - TASK-5.4.2
@@ -35,3 +35,9 @@ Add resumable referrer cleanup, deletion and retention coverage, cross-feature r
 <!-- SECTION:NOTES:BEGIN -->
 Implemented resumable referrer-host migration, grant cleanup, report/domain/PDF deletion coverage, retained snapshot logos, codegen, typecheck, 498-test suite, schema contract, and production build. Five-report manual release QA remains pending.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Report-Migration, Retention und Release-QA abgeschlossen und durch Nutzer bestätigt.
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -1,10 +1,10 @@
 ---
 id: TASK-5.4.3
 title: Secure report access and link lifecycle
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-14 21:52'
-updated_date: '2026-07-14 22:16'
+updated_date: '2026-07-16 07:51'
 labels: []
 dependencies:
   - TASK-5.4.1
@@ -32,3 +32,9 @@ Implement the shared public access resolver, password grants, expiry, disable/re
 <!-- SECTION:NOTES:BEGIN -->
 Implemented shared public access resolver, scrypt password grants with Turnstile/rate limiting, expiry, telemetry protection, disable/reactivate, and atomic link rotation. Automated tests pass; manual QA pending.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Sicherer Report-Zugriff und Link-Lebenszyklus abgeschlossen und durch Nutzer bestätigt.
+<!-- SECTION:FINAL_SUMMARY:END -->

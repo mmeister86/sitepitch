@@ -1,10 +1,10 @@
 ---
 id: TASK-7
 title: Show the purchased plan in the sidebar
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-13 20:32'
-updated_date: '2026-07-13 20:34'
+updated_date: '2026-07-16 07:51'
 labels: []
 dependencies: []
 priority: high
@@ -43,3 +43,9 @@ Implemented a reactive effective plan field using getWorkspacePlan, mapped free/
 Verification: npm run typecheck passed; src/plan-display.test.ts and convex/privacy_retention.test.ts passed (18 tests).
 Manual browser verification remains for the user-authenticated Arc session because the isolated browser session redirected to login.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Sidebar zeigt den aktiven Workspace-Plan zuverlässig an; Nutzerbestätigung erhalten.
+<!-- SECTION:FINAL_SUMMARY:END -->
