@@ -9,6 +9,8 @@ import { reserveWorkspaceCredit } from "./lib/credits"
 import { redactSensitiveText } from "./lib/telemetry_safety"
 import { generatePublicSlug } from "./lib/audit_url"
 import { auditWorkpool } from "./workpools"
+import { randomBase64Url } from "./lib/integration_crypto"
+import { incrementWorkspaceAuditTotal } from "./lib/workspace_audit_counter"
 
 const DAY_MS = 86_400_000
 const METRICS_WINDOW_DAYS = 30
@@ -643,6 +645,9 @@ export const _rerunAuditInternal = internalMutation({
       workspaceId: originalAudit.workspaceId,
       leadId: originalAudit.leadId,
       createdByUserId: args.actorUserId,
+      externalApiId: `aud_${randomBase64Url(16)}`,
+      creationChannel: "admin",
+      countedInWorkspaceAuditTotal: true,
       url: originalAudit.url,
       normalizedUrl: originalAudit.normalizedUrl,
       domain: originalAudit.domain,
@@ -659,6 +664,7 @@ export const _rerunAuditInternal = internalMutation({
       createdAt: current,
       updatedAt: current,
     })
+    await incrementWorkspaceAuditTotal(ctx, originalAudit.workspaceId)
 
     await ctx.db.insert("auditPipelineStates", {
       workspaceId: originalAudit.workspaceId,

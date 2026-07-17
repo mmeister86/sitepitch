@@ -100,6 +100,13 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_ownerUserId", ["ownerUserId"]),
 
+  workspaceAuditCounters: defineTable({
+    workspaceId: v.id("workspaces"),
+    total: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_workspaceId", ["workspaceId"]),
+
   apiKeys: defineTable({
     workspaceId: v.id("workspaces"),
     createdByUserId: v.id("users"),
@@ -111,6 +118,7 @@ export default defineSchema({
       v.literal("audits:create"),
       v.literal("audits:read"),
       v.literal("reports:read"),
+      v.literal("usage:read"),
     )),
     status: v.union(v.literal("active"), v.literal("grace"), v.literal("revoked")),
     rotatedFromApiKeyId: v.optional(v.id("apiKeys")),
@@ -544,6 +552,7 @@ export default defineSchema({
     createdByUserId: v.id("users"),
     externalApiId: v.optional(v.string()),
     creationChannel: v.optional(v.union(v.literal("ui"), v.literal("api"), v.literal("batch"), v.literal("admin"))),
+    countedInWorkspaceAuditTotal: v.optional(v.boolean()),
     apiKeyId: v.optional(v.id("apiKeys")),
     publishRequested: v.optional(v.boolean()),
     apiPayloadHash: v.optional(v.string()),
@@ -580,6 +589,8 @@ export default defineSchema({
     .index("by_workspaceId_and_createdByUserId", ["workspaceId", "createdByUserId"])
     .index("by_workspaceId_and_idempotencyKey", ["workspaceId", "idempotencyKey"])
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
+    .index("by_workspaceId_and_countedAudit_and_createdAt", ["workspaceId", "countedInWorkspaceAuditTotal", "createdAt"])
+    .index("by_workspaceId_and_countedAudit_and_status_and_createdAt", ["workspaceId", "countedInWorkspaceAuditTotal", "status", "createdAt"])
     .index("by_externalApiId", ["externalApiId"])
     .index("by_workspaceId_and_externalApiId", ["workspaceId", "externalApiId"])
     .index("by_batchAuditJobId_and_createdAt", ["batchAuditJobId", "createdAt"])

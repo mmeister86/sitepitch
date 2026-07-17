@@ -9,6 +9,11 @@ import { hasAccurateViewAggregate } from "./lib/report_view_stats.js"
 import { normalizeLeadDomain } from "./lib/lead_search.js"
 import { normalizeReportReferrer } from "./lib/report_privacy.js"
 import { randomBase64Url } from "./lib/integration_crypto.js"
+import {
+  ensureWorkspaceAuditCounter,
+  getWorkspaceAuditCounter,
+  incrementWorkspaceAuditTotal,
+} from "./lib/workspace_audit_counter.js"
 
 const migrations = new Migrations<DataModel, typeof schema>(components.migrations, {
   internalMutation,
@@ -34,6 +39,82 @@ export const backfillAuditExternalApiIds = migrations.define({
     return {
       externalApiId: `aud_${randomBase64Url(16)}`,
       creationChannel: audit.creationChannel ?? "ui" as const,
+    }
+  },
+})
+
+/**
+ * Creates the 1:1 counter row before audit rows are incorporated. Run this
+ * migration before backfillWorkspaceAuditMetadataAndCounters.
+ */
+export const initializeWorkspaceAuditCounters = migrations.define({
+  table: "workspaces",
+  migrateOne: async (ctx, workspace) => {
+    await ensureWorkspaceAuditCounter(ctx, workspace._id)
+  },
+})
+
+/**
+ * Widen-migrate step for public audit listing and exact workspace totals.
+ * The audit marker and counter update share one transaction, so resets and
+ * resumptions cannot count the same audit twice.
+ */
+export const backfillWorkspaceAuditMetadataAndCounters = migrations.define({
+  table: "audits",
+  migrateOne: async (ctx, audit) => {
+    let creationChannel = audit.creationChannel
+    if (audit.apiKeyId !== undefined || audit.apiPayloadHash !== undefined) {
+      creationChannel = "api"
+    } else if (audit.batchAuditJobId !== undefined || audit.batchAuditItemId !== undefined) {
+      creationChannel = "batch"
+    } else {
+      const adminRerun = await ctx.db
+        .query("adminActions")
+        .withIndex("by_auditId_and_createdAt", (q) => q.eq("auditId", audit._id))
+        .filter((q) => q.eq(q.field("action"), "audit_rerun"))
+        .first()
+      if (adminRerun) creationChannel = "admin"
+    }
+    creationChannel ??= "ui"
+
+    const shouldCount = audit.deletionRequestedAt === undefined
+    const patch: {
+      externalApiId?: string
+      creationChannel?: "ui" | "api" | "batch" | "admin"
+      countedInWorkspaceAuditTotal?: boolean
+    } = {}
+    if (audit.externalApiId === undefined) patch.externalApiId = `aud_${randomBase64Url(16)}`
+    if (audit.creationChannel !== creationChannel) patch.creationChannel = creationChannel
+    if (audit.countedInWorkspaceAuditTotal === undefined) {
+      patch.countedInWorkspaceAuditTotal = shouldCount
+      if (shouldCount) await incrementWorkspaceAuditTotal(ctx, audit.workspaceId)
+    }
+    if (Object.keys(patch).length > 0) await ctx.db.patch(audit._id, patch)
+  },
+})
+
+/** Bounded deploy verification; migration component status proves full-table traversal. */
+export const verifyWorkspaceAuditMetadataAndCounters = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const audits = await ctx.db.query("audits").take(100)
+    const missingMetadata = audits.find((audit) =>
+      audit.externalApiId === undefined ||
+      audit.creationChannel === undefined ||
+      audit.countedInWorkspaceAuditTotal === undefined,
+    )
+    const workspaceIds = [...new Set(audits.map((audit) => audit.workspaceId))]
+    let missingCounterWorkspaceId = null
+    for (const workspaceId of workspaceIds) {
+      if (!await getWorkspaceAuditCounter(ctx, workspaceId)) {
+        missingCounterWorkspaceId = workspaceId
+        break
+      }
+    }
+    return {
+      complete: missingMetadata === undefined && missingCounterWorkspaceId === null,
+      sampleMissingMetadataAuditId: missingMetadata?._id ?? null,
+      sampleMissingCounterWorkspaceId: missingCounterWorkspaceId,
     }
   },
 })

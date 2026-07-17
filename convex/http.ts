@@ -6,8 +6,10 @@ import { env, httpAction, type ActionCtx } from "./_generated/server"
 import { timingSafeHexEqual } from "./lib/lemonsqueezy"
 import { isJsonContentType, readLimitedRequestText } from "./lib/webhook_request"
 import {
+  encodeAuditListCursor,
   isValidIdempotencyKey,
   OPENAPI_V1,
+  parseAuditListRequest,
   parseCreateAuditBody,
   PUBLIC_API_BODY_LIMIT_BYTES,
 } from "./lib/public_api_contract"
@@ -93,7 +95,7 @@ function bearerToken(request: Request) {
 async function authenticatePublicApi(
   ctx: ActionCtx,
   request: Request,
-  requiredScope: "audits:create" | "audits:read" | "reports:read",
+  requiredScope: "audits:create" | "audits:read" | "reports:read" | "usage:read",
 ) {
   const rawKey = bearerToken(request)
   if (!rawKey) throw { data: { code: "INVALID_API_KEY" } }
@@ -162,6 +164,50 @@ http.route({
         status_url: new URL(`/api/v1/audits/${result.externalAuditId}`, request.url).toString(),
         report_url: new URL(`/api/v1/audits/${result.externalAuditId}/report`, request.url).toString(),
       }, 202, { location: `/api/v1/audits/${result.externalAuditId}` })
+    } catch (error) {
+      return mapPublicApiError(error)
+    }
+  }),
+})
+
+http.route({
+  path: "/api/v1/audits",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const principal = await authenticatePublicApi(ctx, request, "audits:read")
+      const parsed = parseAuditListRequest(request.url)
+      if (!parsed.ok) return apiError("validation_error", "The query parameters are invalid", 422)
+      const result = await ctx.runQuery(internal.public_api.listAudits, {
+        workspaceId: principal.workspaceId,
+        paginationOpts: { numItems: parsed.value.limit, cursor: parsed.value.convexCursor },
+        status: parsed.value.status,
+        createdAfter: parsed.value.createdAfter,
+        createdBefore: parsed.value.createdBefore,
+      })
+      return jsonResponse({
+        items: result.page,
+        has_more: !result.isDone,
+        next_cursor: result.isDone
+          ? null
+          : encodeAuditListCursor(result.continueCursor, parsed.value.fingerprint),
+      })
+    } catch (error) {
+      return mapPublicApiError(error)
+    }
+  }),
+})
+
+http.route({
+  path: "/api/v1/usage",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const principal = await authenticatePublicApi(ctx, request, "usage:read")
+      const usage = await ctx.runQuery(internal.public_api.getUsage, {
+        workspaceId: principal.workspaceId,
+      })
+      return usage ? jsonResponse(usage) : apiError("not_found", "Resource not found", 404)
     } catch (error) {
       return mapPublicApiError(error)
     }

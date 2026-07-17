@@ -15,6 +15,7 @@ import { LEGACY_VIEW_COUNT_CAP, resolveReportViewCount } from "./lib/report_view
 import { startAuditForPrincipal, type SharedAuditStartResult } from "./lib/audit_start"
 import { randomBase64Url } from "./lib/integration_crypto"
 import { recordIntegrationEvent } from "./integrations"
+import { incrementWorkspaceAuditTotal } from "./lib/workspace_audit_counter"
 
 type CanonicalLeadStatus = "new" | "audited" | "contacted" | "follow_up" | "interested" | "won" | "lost"
 
@@ -237,6 +238,7 @@ export const createQueuedAudit = internalMutation({
       createdByUserId: args.userId,
       externalApiId,
       creationChannel: args.creationChannel ?? "ui",
+      countedInWorkspaceAuditTotal: true,
       apiKeyId: args.apiKeyId,
       publishRequested: args.publishRequested ?? false,
       apiPayloadHash: args.apiPayloadHash,
@@ -255,6 +257,7 @@ export const createQueuedAudit = internalMutation({
       createdAt: now,
       updatedAt: now,
     })
+    await incrementWorkspaceAuditTotal(ctx, args.workspaceId)
 
     await ctx.db.insert("auditPipelineStates", {
       workspaceId: args.workspaceId,

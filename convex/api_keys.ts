@@ -6,12 +6,13 @@ import { checkPublicApiTransportLimits } from "./lib/audit_rate_limit"
 import { randomBase64Url, sha256Base64Url } from "./lib/integration_crypto"
 import { getWorkspacePlan, getWorkspaceByOwner, requireExistingAppUser } from "./lib/workspace"
 
-export type PublicApiScope = "audits:create" | "audits:read" | "reports:read"
+export type PublicApiScope = "audits:create" | "audits:read" | "reports:read" | "usage:read"
 
 const apiScopeValidator = v.union(
   v.literal("audits:create"),
   v.literal("audits:read"),
   v.literal("reports:read"),
+  v.literal("usage:read"),
 )
 
 const MAX_ACTIVE_KEYS = 5
@@ -32,7 +33,7 @@ function fail(code: string, message: string): never {
 
 function normalizeScopes(scopes: PublicApiScope[]): PublicApiScope[] {
   const unique = Array.from(new Set(scopes))
-  if (unique.length === 0 || unique.length > 3) {
+  if (unique.length === 0 || unique.length > 4) {
     fail("VALIDATION_ERROR", "Wähle mindestens einen gültigen API-Scope aus.")
   }
   return unique.sort()
@@ -110,17 +111,27 @@ export const listApiKeys = query({
   args: {},
   handler: async (ctx) => {
     const { workspace, plan } = await requireApiKeyAdminWorkspace(ctx)
-    const keys = await ctx.db
-      .query("apiKeys")
-      .withIndex("by_workspaceId_and_createdAt", (q) => q.eq("workspaceId", workspace._id))
-      .order("desc")
-      .take(50)
+    const [activeKeys, graceKeys] = await Promise.all([
+      ctx.db
+        .query("apiKeys")
+        .withIndex("by_workspaceId_and_status", (q) => q.eq("workspaceId", workspace._id).eq("status", "active"))
+        .order("desc")
+        .take(50),
+      ctx.db
+        .query("apiKeys")
+        .withIndex("by_workspaceId_and_status", (q) => q.eq("workspaceId", workspace._id).eq("status", "grace"))
+        .order("desc")
+        .take(50),
+    ])
+    const visibleKeys = [...activeKeys, ...graceKeys]
+      .sort((left, right) => right.createdAt - left.createdAt)
+      .slice(0, 50)
     return {
       featureEnabled: publicApiFeatureEnabled(env.PUBLIC_API_ENABLED),
       plan,
       canManage: canUsePublicApi(plan),
       maxActiveKeys: MAX_ACTIVE_KEYS,
-      keys: keys.map(apiKeyDto),
+      keys: visibleKeys.map(apiKeyDto),
     }
   },
 })
@@ -204,10 +215,10 @@ export const authenticateApiKey = internalMutation({
     if (await sha256Base64Url(args.rawKey) !== key.secretHash) fail("INVALID_API_KEY", "Invalid API key")
     const workspace = await ctx.db.get(key.workspaceId)
     if (!workspace || workspace.deletionRequestedAt) fail("INVALID_API_KEY", "Invalid API key")
+    await checkPublicApiTransportLimits(ctx, { apiKeyId: key._id, workspaceId: workspace._id })
     const plan = await getWorkspacePlan(ctx as QueryCtx, workspace._id)
     if (!canUsePublicApi(plan)) fail("PLAN_UPGRADE_REQUIRED", "The Agency plan is required")
     if (!key.scopes.includes(args.requiredScope)) fail("INSUFFICIENT_SCOPE", "API key scope is missing")
-    await checkPublicApiTransportLimits(ctx, { apiKeyId: key._id, workspaceId: workspace._id })
     if (!key.lastUsedAt || key.lastUsedAt <= now - LAST_USED_WRITE_INTERVAL_MS) {
       await ctx.db.patch(key._id, { lastUsedAt: now, updatedAt: now })
     }

@@ -80,6 +80,7 @@ assert.deepEqual(tableNames, [
   "subscriptions",
   "usageEvents",
   "users",
+  "workspaceAuditCounters",
   "workspaceIntegrations",
   "workspaceMembers",
   "workspaces",
@@ -243,6 +244,15 @@ assert.ok(auditsIndexes.some(([name, fields]) => name === "by_workspaceId_and_id
 assert.ok(auditsIndexes.some(([name, fields]) => name === "by_campaignId_and_createdAt" && fields.join(",") === "campaignId,createdAt"))
 assert.ok(auditsIndexes.some(([name, fields]) => name === "by_campaignLeadId_and_createdAt" && fields.join(",") === "campaignLeadId,createdAt"))
 assert.ok(auditsIndexes.some(([name, fields]) => name === "by_externalApiId" && fields[0] === "externalApiId"))
+assert.ok(auditsIndexes.some(([name, fields]) =>
+  name === "by_workspaceId_and_countedAudit_and_createdAt" &&
+  fields.join(",") === "workspaceId,countedInWorkspaceAuditTotal,createdAt",
+))
+assert.ok(auditsIndexes.some(([name, fields]) =>
+  name === "by_workspaceId_and_countedAudit_and_status_and_createdAt" &&
+  fields.join(",") === "workspaceId,countedInWorkspaceAuditTotal,status,createdAt",
+))
+assert.ok(indexDescriptors("workspaceAuditCounters").includes("by_workspaceId"))
 
 for (const index of ["by_auditId", "by_auditId_and_versionNumber", "by_auditId_and_status"]) {
   assert.ok(indexDescriptors("auditOutputVersions").includes(index))

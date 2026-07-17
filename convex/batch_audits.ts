@@ -37,6 +37,8 @@ import {
   estimateBatchAuditCostUsd,
   PROVIDER_COST_RATE_VERSION,
 } from "./lib/provider_cost_rates"
+import { randomBase64Url } from "./lib/integration_crypto"
+import { incrementWorkspaceAuditTotal } from "./lib/workspace_audit_counter"
 
 type BatchSource = "campaign" | "csv"
 type AuditType = "standard" | "local" | "quick"
@@ -453,6 +455,9 @@ async function createAuditForItem(
     batchAuditJobId: job._id,
     batchAuditItemId: item._id,
     createdByUserId: job.createdByUserId,
+    externalApiId: `aud_${randomBase64Url(16)}`,
+    creationChannel: "batch",
+    countedInWorkspaceAuditTotal: true,
     url: item.url,
     normalizedUrl: item.normalizedUrl,
     domain: item.domain,
@@ -469,6 +474,7 @@ async function createAuditForItem(
     createdAt: current,
     updatedAt: current,
   })
+  await incrementWorkspaceAuditTotal(ctx, job.workspaceId)
   await ctx.db.insert("auditPipelineStates", {
     workspaceId: job.workspaceId,
     auditId,

@@ -9,6 +9,14 @@ describe("writeTextToClipboard", () => {
     expect(writeText).toHaveBeenCalledWith("hello")
   })
 
+  test("runs post-copy cleanup after a successful clipboard write", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    const onCopied = vi.fn()
+    await expect(copyTextThen("secret", onCopied, writeText)).resolves.toBeUndefined()
+    expect(writeText).toHaveBeenCalledWith("secret")
+    expect(onCopied).toHaveBeenCalledOnce()
+  })
+
   test("propagates clipboard rejection so callers cannot emit success events", async () => {
     const writeText = vi.fn().mockRejectedValue(new Error("denied"))
     const onCopied = vi.fn()

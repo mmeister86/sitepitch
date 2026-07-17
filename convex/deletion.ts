@@ -4,6 +4,7 @@ import { components, internal } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
 import { internalAction, internalMutation, internalQuery } from "./_generated/server"
 import type { MutationCtx, QueryCtx } from "./_generated/server"
+import { incrementWorkspaceAuditTotal } from "./lib/workspace_audit_counter"
 
 const BATCH_SIZE = 50
 
@@ -65,14 +66,22 @@ export async function enqueueAuditDeletion(
   if (existing) return existing._id
 
   const now = Date.now()
+  const audit = await ctx.db.get(auditId)
+  if (!audit || audit.workspaceId !== workspaceId) {
+    throw new ConvexError({ code: "NOT_FOUND", message: "Audit not found" })
+  }
   await ctx.db.patch(auditId, {
     isPublic: false,
     status: "cancelled",
     statusMessage: "Audit wird gelöscht",
     cancelledAt: now,
     deletionRequestedAt: now,
+    countedInWorkspaceAuditTotal: false,
     updatedAt: now,
   })
+  if (audit.countedInWorkspaceAuditTotal === true) {
+    await incrementWorkspaceAuditTotal(ctx, workspaceId, -1)
+  }
   const pipelineState = await ctx.db
     .query("auditPipelineStates")
     .withIndex("by_auditId", (q) => q.eq("auditId", auditId))
@@ -356,7 +365,7 @@ const workspacePhases = [
   "integrationRuns", "integrationEntityLinks", "gmailDraftIntents", "sheetImportSnapshots",
   "integrationEvents", "integrationOAuthStates", "integrationCredentials", "workspaceIntegrations",
   "usageEvents", "providerCosts", "adminActions", "creditLedger", "creditBalances",
-  "subscriptions", "retentionPreferenceEvents", "logoUploads", "workspaceMembers", "apiKeys",
+  "subscriptions", "retentionPreferenceEvents", "logoUploads", "workspaceMembers", "apiKeys", "workspaceAuditCounters",
   "billingEvents", "deletionJobs", "workspace",
 ] as const
 type WorkspaceDeletionPhase = (typeof workspacePhases)[number]
@@ -498,6 +507,7 @@ async function workspaceRows(ctx: MutationCtx, phase: Exclude<WorkspaceDeletionP
     case "retentionPreferenceEvents": return await ctx.db.query("retentionPreferenceEvents").withIndex("by_workspaceId_and_createdAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "workspaceMembers": return await ctx.db.query("workspaceMembers").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "apiKeys": return await ctx.db.query("apiKeys").withIndex("by_workspaceId_and_createdAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "workspaceAuditCounters": return await ctx.db.query("workspaceAuditCounters").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
   }
 }
 

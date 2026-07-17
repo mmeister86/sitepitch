@@ -81,6 +81,7 @@ import type * as lib_telemetry_safety from "../lib/telemetry_safety.js";
 import type * as lib_turnstile from "../lib/turnstile.js";
 import type * as lib_webhook_request from "../lib/webhook_request.js";
 import type * as lib_workspace from "../lib/workspace.js";
+import type * as lib_workspace_audit_counter from "../lib/workspace_audit_counter.js";
 import type * as migrations from "../migrations.js";
 import type * as notifications from "../notifications.js";
 import type * as outreach_templates from "../outreach_templates.js";
@@ -178,6 +179,7 @@ declare const fullApi: ApiFromModules<{
   "lib/turnstile": typeof lib_turnstile;
   "lib/webhook_request": typeof lib_webhook_request;
   "lib/workspace": typeof lib_workspace;
+  "lib/workspace_audit_counter": typeof lib_workspace_audit_counter;
   migrations: typeof migrations;
   notifications: typeof notifications;
   outreach_templates: typeof outreach_templates;

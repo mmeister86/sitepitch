@@ -3,7 +3,7 @@
 import { convexTest } from "convex-test"
 import { afterEach, describe, expect, test, vi } from "vitest"
 
-import { api } from "./_generated/api"
+import { api, internal } from "./_generated/api"
 import schema from "./schema"
 
 vi.mock("./auth.ts", () => ({
@@ -56,6 +56,17 @@ function owner(t: ReturnType<typeof testDb>) {
 afterEach(() => vi.unstubAllEnvs())
 
 describe("API key lifecycle", () => {
+  test("accepts all four public API scopes", async () => {
+    vi.stubEnv("PUBLIC_API_ENABLED", "true")
+    const t = testDb()
+    await seedApiWorkspace(t)
+    const created = await owner(t).mutation(api.api_keys.createApiKey, {
+      label: "Full access",
+      scopes: ["audits:create", "audits:read", "reports:read", "usage:read"],
+    })
+    expect(created.scopes).toEqual(["audits:create", "audits:read", "reports:read", "usage:read"])
+  })
+
   test("returns the raw key once and stores only its hash", async () => {
     vi.stubEnv("PUBLIC_API_ENABLED", "true")
     const t = testDb()
@@ -93,9 +104,17 @@ describe("API key lifecycle", () => {
     let listed = await owner(t).query(api.api_keys.listApiKeys, {})
     expect(listed.keys.map((key) => key.status).sort()).toEqual(["active", "grace"])
 
-    await owner(t).mutation(api.api_keys.revokeApiKey, { apiKeyId: rotated.apiKeyId })
+    await owner(t).mutation(api.api_keys.revokeApiKey, { apiKeyId: created.apiKeyId })
     listed = await owner(t).query(api.api_keys.listApiKeys, {})
-    expect(listed.keys.find((key) => key._id === rotated.apiKeyId)?.status).toBe("revoked")
+    expect(listed.keys.some((key) => key._id === created.apiKeyId)).toBe(false)
+    expect(listed.keys).toContainEqual(expect.objectContaining({ _id: rotated.apiKeyId, status: "active" }))
+    const revoked = await t.run(async (ctx) => await ctx.db.get(created.apiKeyId))
+    expect(revoked).toMatchObject({ status: "revoked" })
+    expect(revoked?.revokedAt).toEqual(expect.any(Number))
+    await expect(t.mutation(internal.api_keys.authenticateApiKey, {
+      rawKey: created.rawKey,
+      requiredScope: "audits:create",
+    })).rejects.toThrow(/Invalid API key/i)
   })
 
   test("includes Agency and rejects lower plans", async () => {

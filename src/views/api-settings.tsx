@@ -5,7 +5,6 @@ import { useMutation, useQuery } from "convex/react"
 import {
   AlertTriangle,
   Braces,
-  Check,
   Clock3,
   Copy,
   KeyRound,
@@ -35,11 +34,12 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/sonner"
+import { copyTextThen } from "@/lib/clipboard"
 import { useRouter } from "@/lib/router"
 import { api } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
 
-const API_SCOPES = ["audits:create", "audits:read", "reports:read"] as const
+const API_SCOPES = ["audits:create", "audits:read", "reports:read", "usage:read"] as const
 type ApiScope = (typeof API_SCOPES)[number]
 
 const SCOPE_COPY: Record<ApiScope, { label: string; description: string }> = {
@@ -54,6 +54,10 @@ const SCOPE_COPY: Record<ApiScope, { label: string; description: string }> = {
   "reports:read": {
     label: "Report-Metadaten lesen",
     description: "Scores, Version, Status und optionalen öffentlichen Link abrufen.",
+  },
+  "usage:read": {
+    label: "Nutzung lesen",
+    description: "Plan, Credits und Audit-Gesamtzahl des Workspace abrufen.",
   },
 }
 
@@ -95,12 +99,11 @@ export function ApiSettingsView() {
   const revokeApiKey = useMutation(api.api_keys.revokeApiKey)
   const { navigate } = useRouter()
   const [label, setLabel] = useState("")
-  const [scopes, setScopes] = useState<ApiScope[]>(["audits:create", "audits:read", "reports:read"])
+  const [scopes, setScopes] = useState<ApiScope[]>([...API_SCOPES])
   const [creating, setCreating] = useState(false)
   const [keyAction, setKeyAction] = useState<KeyAction>(null)
   const [acting, setActing] = useState(false)
   const [rawReveal, setRawReveal] = useState<RawKeyReveal | null>(null)
-  const [copied, setCopied] = useState(false)
 
   if (data === undefined) {
     return (
@@ -124,10 +127,8 @@ export function ApiSettingsView() {
   async function copyRawKey() {
     if (!rawReveal) return
     try {
-      await navigator.clipboard.writeText(rawReveal.rawKey)
-      setCopied(true)
-      toast.success("API-Key kopiert")
-      window.setTimeout(() => setCopied(false), 2_000)
+      await copyTextThen(rawReveal.rawKey, () => setRawReveal(null))
+      toast.success("API-Key kopiert und aus der Seite entfernt")
     } catch {
       toast.error("API-Key konnte nicht kopiert werden")
     }
@@ -135,7 +136,6 @@ export function ApiSettingsView() {
 
   function dismissRawKey() {
     setRawReveal(null)
-    setCopied(false)
   }
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
@@ -240,7 +240,7 @@ export function ApiSettingsView() {
                 {rawReveal.label}: Schlüssel jetzt sichern
               </h3>
               <p className="max-w-[64ch] text-sm leading-relaxed text-muted-foreground">
-                Nach dem Schließen wird der Rohwert vollständig aus dieser Seite entfernt und kann nicht wieder angezeigt werden.
+                Nach dem Kopieren oder Schließen wird der Rohwert vollständig aus dieser Seite entfernt und kann nicht wieder angezeigt werden.
               </p>
               {rawReveal.previousKeyGraceExpiresAt ? (
                 <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -260,8 +260,8 @@ export function ApiSettingsView() {
               onFocus={(event) => event.currentTarget.select()}
             />
             <Button type="button" className="shrink-0" onClick={() => void copyRawKey()}>
-              {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-              {copied ? "Kopiert" : "Key kopieren"}
+              <Copy className="size-4" />
+              Key kopieren
             </Button>
           </div>
         </section>
@@ -286,7 +286,7 @@ export function ApiSettingsView() {
           </div>
           <fieldset className="space-y-3">
             <legend className="text-sm font-medium">Scopes</legend>
-            <div className="grid gap-3 lg:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-2">
               {API_SCOPES.map((scope) => {
                 const checked = scopes.includes(scope)
                 return (
@@ -334,7 +334,8 @@ export function ApiSettingsView() {
           <div className="divide-y">
             {data.keys.map((key) => {
               const status = statusCopy(key.status, key.graceExpiresAt)
-              const active = key.status === "active"
+              const canRotate = key.status === "active"
+              const canRevoke = key.status === "active" || key.status === "grace"
               return (
                 <article key={key._id} className="flex flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0 space-y-2">
@@ -356,17 +357,19 @@ export function ApiSettingsView() {
                       </p>
                     ) : null}
                   </div>
-                  {active ? (
+                  {canRevoke ? (
                     <div className="flex shrink-0 flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={!data.featureEnabled || !data.canManage || acting}
-                        onClick={() => setKeyAction({ type: "rotate", apiKeyId: key._id, label: key.label })}
-                      >
-                        <RefreshCw className="size-4" />
-                        Rotieren
-                      </Button>
+                      {canRotate ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!data.featureEnabled || !data.canManage || acting}
+                          onClick={() => setKeyAction({ type: "rotate", apiKeyId: key._id, label: key.label })}
+                        >
+                          <RefreshCw className="size-4" />
+                          Rotieren
+                        </Button>
+                      ) : null}
                       <Button
                         size="sm"
                         variant="ghost"
