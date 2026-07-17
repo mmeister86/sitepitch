@@ -367,6 +367,37 @@ function AuditActions({
           </div>
         </div>
 
+        <div className="space-y-1">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Agent Runs ({trace.agentRuns.length})
+          </p>
+          <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border p-2">
+            {trace.agentRuns.length === 0 && (
+              <p className="text-xs text-muted-foreground">Keine Agent-Läufe.</p>
+            )}
+            {trace.agentRuns.map((run, index) => (
+              <div key={`${run.startedAt}-${index}`} className="space-y-1 rounded-md bg-muted/45 p-2 text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline">{run.executor}</Badge>
+                  <span className="font-medium">{run.model}</span>
+                  <Badge variant={run.status === "completed" ? "secondary" : "destructive"} className="ml-auto">
+                    {run.status}
+                  </Badge>
+                </div>
+                <p className="text-muted-foreground">
+                  Release {run.releaseVersion ?? "—"} · Prompt {run.promptVersion ?? "—"} · Schema {run.outputSchemaVersion ?? "—"}
+                </p>
+                <p className="text-muted-foreground">
+                  Validation: Schema {run.schemaPass === null ? "—" : run.schemaPass ? "Pass" : "Fail"} · Evidence {run.evidencePass === null ? "—" : run.evidencePass ? "Pass" : "Fail"} · Claims {run.claimSafetyPass === null ? "—" : run.claimSafetyPass ? "Pass" : "Fail"}
+                </p>
+                {run.eveVersion || run.buildSha ? (
+                  <p className="font-mono text-[11px] text-muted-foreground">Eve {run.eveVersion ?? "—"} · Build {run.buildSha ?? "—"}</p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+
         {trace.costs && trace.costs.items.length > 0 && (
           <div className="space-y-1">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

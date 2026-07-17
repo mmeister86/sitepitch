@@ -5,7 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "pnpm eve:build && next build",
+    "eve:build": "eve build",
+    "eve:eval": "eve eval --strict --junit .eve/junit.xml",
+    "eve:eval:list": "eve eval --list",
+    "eve:baseline:sync": "node --experimental-strip-types scripts/eve-sync-baseline.ts",
+    "eve:release:check": "node --experimental-strip-types scripts/eve-release-check.ts",
     "test": "vitest run",
     "test:schema": "node --experimental-strip-types --test convex/schema.contract.test.ts",
     "typecheck": "tsc --noEmit",
@@ -58,6 +63,7 @@
     "@types/react-dom": "^19.2.3",
     "convex-test": "^0.0.54",
     "microsandbox": "^0.6.4",
+    "shadcn": "^4.13.0",
     "typescript": "~5.9.3",
     "vitest": "^4.1.10"
   }

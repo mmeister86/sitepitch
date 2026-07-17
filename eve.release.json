@@ -1,0 +1,27 @@
+{
+  "releaseVersion": "2026.07.16.2",
+  "eveVersion": "0.20.0",
+  "promptVersion": "audit-prompt-v3",
+  "outputSchemaVersion": "audit-output-v3",
+  "suiteVersion": "audit-suite-v1",
+  "fixtureVersion": "sanitized-fixtures-v1",
+  "skills": {
+    "ai-discoverability-audit": "1.0.0",
+    "claim-safety": "1.0.0",
+    "conversion-audit": "1.0.0",
+    "critique": "1.0.0",
+    "local-seo-audit": "1.0.0",
+    "mobile-ux-audit": "1.0.0",
+    "persona-review": "1.0.0",
+    "respectful-outreach": "1.0.0",
+    "seo-basics-audit": "1.0.0",
+    "sitepitch-gtm-audit": "1.0.0",
+    "trust-audit": "1.0.0",
+    "website-copy-audit": "1.0.0"
+  },
+  "artifacts": {
+    "promptSha256": "6bff6dba8a781d2c1c73bc41b8abd7afc3f3004b6099e25560a4c197785ca5d8",
+    "skillsSha256": "2df90b201d8261e4962743135270c433ba814416ff1b9652dd8e3a4d9860a664",
+    "outputSchemaSha256": "1aacb7f83a00740270dfcae81bea64582a45c5b6fa841b0aa51ed87493235031"
+  }
+}

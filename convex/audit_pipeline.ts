@@ -45,6 +45,7 @@ type Claim = {
   batchAuditJobId?: Id<"batchAuditJobs">
   batchAuditItemId?: Id<"batchAuditItems">
   createdByUserId: Id<"users">
+  apiKeyId?: Id<"apiKeys">
   planSnapshot?: "free" | "starter" | "pro" | "agency" | "scale"
   leaseToken: string
   leaseExpiresAt: number
@@ -503,6 +504,7 @@ async function runProviderAttempt<T>(
         workspaceId: claim.workspaceId,
         userId: claim.createdByUserId,
         plan: claim.planSnapshot,
+        apiKeyId: claim.apiKeyId,
       })
     } catch (error) {
       if (options.optional) {

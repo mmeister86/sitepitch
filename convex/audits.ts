@@ -3,21 +3,18 @@ import { ConvexError, v } from "convex/values"
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server"
 import type { Id, Doc } from "./_generated/dataModel"
 import { api, internal } from "./_generated/api"
-import { checkAuditStartLimits } from "./lib/audit_rate_limit"
-import type { SubscriptionPlan } from "./lib/rate_limit_helpers"
 import {
   generatePublicSlug,
-  normalizeAuditUrl,
   toSafeDisplayUrl,
-  validatePublicAuditTarget,
-  type AuditUrlErrorCode,
 } from "./lib/audit_url"
 import { reserveWorkspaceCredit } from "./lib/credits"
-import type { CreditSnapshot } from "./lib/credits"
 import { findAppUser, getWorkspaceByOwner } from "./lib/workspace"
 import { enqueueAuditDeletion } from "./deletion"
 import { auditWorkpool } from "./workpools"
 import { LEGACY_VIEW_COUNT_CAP, resolveReportViewCount } from "./lib/report_view_stats"
+import { startAuditForPrincipal, type SharedAuditStartResult } from "./lib/audit_start"
+import { randomBase64Url } from "./lib/integration_crypto"
+import { recordIntegrationEvent } from "./integrations"
 
 type CanonicalLeadStatus = "new" | "audited" | "contacted" | "follow_up" | "interested" | "won" | "lost"
 
@@ -25,33 +22,17 @@ function toCanonicalLeadStatus(status: Doc<"leads">["status"]): CanonicalLeadSta
   return status === "not_interested" ? "lost" : status
 }
 
-type WorkspaceContext = {
-  userId: Id<"users">
-  workspaceId: Id<"workspaces">
-  plan?: SubscriptionPlan
-  credits: CreditSnapshot
-}
-
-type AuditStartResult = {
-  auditId: Id<"audits">
-  status: "queued"
-  normalizedUrl: string
-  domain: string
-  publicSlug: string
-}
+type AuditStartResult = SharedAuditStartResult
 
 function toAuditStartResult(audit: Doc<"audits">): AuditStartResult {
   return {
     auditId: audit._id,
+    externalAuditId: audit.externalApiId,
     status: "queued",
     normalizedUrl: toSafeDisplayUrl(audit.normalizedUrl),
     domain: audit.domain,
     publicSlug: audit.publicSlug,
   }
-}
-
-function throwUrlError(code: AuditUrlErrorCode, message: string): never {
-  throw new ConvexError({ code, message })
 }
 
 export const getById = internalQuery({
@@ -181,6 +162,10 @@ export const createQueuedAudit = internalMutation({
     leadId: v.optional(v.id("leads")),
     campaignId: v.optional(v.id("campaigns")),
     campaignLeadId: v.optional(v.id("campaignLeads")),
+    creationChannel: v.optional(v.union(v.literal("ui"), v.literal("api"), v.literal("batch"), v.literal("admin"))),
+    apiKeyId: v.optional(v.id("apiKeys")),
+    publishRequested: v.optional(v.boolean()),
+    apiPayloadHash: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const workspace = await ctx.db.get(args.workspaceId)
@@ -226,6 +211,9 @@ export const createQueuedAudit = internalMutation({
     const now = Date.now()
 
     if (existing) {
+      if (args.creationChannel === "api" && existing.apiPayloadHash !== args.apiPayloadHash) {
+        throw new ConvexError({ code: "IDEMPOTENCY_CONFLICT", message: "Idempotency key belongs to another payload" })
+      }
       if (
         args.campaignId !== undefined &&
         (existing.campaignId !== args.campaignId || existing.campaignLeadId !== args.campaignLeadId)
@@ -240,12 +228,18 @@ export const createQueuedAudit = internalMutation({
     }
 
     const publicSlug = generatePublicSlug()
+    const externalApiId = `aud_${randomBase64Url(16)}`
     const auditId = await ctx.db.insert("audits", {
       workspaceId: args.workspaceId,
       leadId: args.leadId,
       campaignId: args.campaignId,
       campaignLeadId: args.campaignLeadId,
       createdByUserId: args.userId,
+      externalApiId,
+      creationChannel: args.creationChannel ?? "ui",
+      apiKeyId: args.apiKeyId,
+      publishRequested: args.publishRequested ?? false,
+      apiPayloadHash: args.apiPayloadHash,
       url: args.url,
       normalizedUrl: args.normalizedUrl,
       domain: args.domain,
@@ -288,8 +282,18 @@ export const createQueuedAudit = internalMutation({
         domain: args.domain,
         auditType: args.auditType,
         reportLanguage: args.reportLanguage,
+        creationChannel: args.creationChannel ?? "ui",
       },
       createdAt: now,
+    })
+
+    await recordIntegrationEvent(ctx, {
+      workspaceId: args.workspaceId,
+      auditId,
+      event: "audit_started",
+      idempotencyKey: `webhook:audit_started:${auditId}`,
+      occurredAt: now,
+      domain: args.domain,
     })
 
     await auditWorkpool.enqueueAction(
@@ -301,6 +305,7 @@ export const createQueuedAudit = internalMutation({
 
     return {
       auditId,
+      externalAuditId: externalApiId,
       status: "queued" as const,
       normalizedUrl: args.normalizedUrl,
       domain: args.domain,
@@ -338,61 +343,13 @@ export const startAudit = action({
       throw new ConvexError({ code: "WORKSPACE_NOT_READY", message: "Workspace not ready" })
     }
 
-    const normalized = normalizeAuditUrl(args.url)
-    if ("code" in normalized) {
-      throwUrlError(normalized.code, normalized.message)
-    }
-
-    const existing: Doc<"audits"> | null = await ctx.runQuery(
-      internal.audits.findByWorkspaceAndIdempotencyKey,
-      {
-        workspaceId: workspaceContext.workspaceId,
-        idempotencyKey: args.idempotencyKey,
-      },
-    )
-    if (existing) {
-      if (
-        args.campaignId !== undefined &&
-        (existing.campaignId !== args.campaignId || existing.campaignLeadId !== args.campaignLeadId)
-      ) {
-        throw new ConvexError({ code: "AUDIT_CONTEXT_MISMATCH", message: "Idempotency key belongs to another campaign context" })
-      }
-      return toAuditStartResult(existing)
-    }
-
-    await checkAuditStartLimits(ctx, {
+    return await startAuditForPrincipal(ctx, {
+      kind: "user",
       workspaceId: workspaceContext.workspaceId,
       userId: workspaceContext.userId,
       plan: workspaceContext.plan ?? "free",
-    })
-
-    if (workspaceContext.credits.remaining < 1) {
-      await ctx.runMutation(internal.audits.logCreditsExhausted, {
-        workspaceId: workspaceContext.workspaceId,
-        userId: workspaceContext.userId,
-        idempotencyKey: args.idempotencyKey,
-      })
-      throw new ConvexError({ code: "INSUFFICIENT_CREDITS", message: "No credits available" })
-    }
-
-    const target = await validatePublicAuditTarget(normalized.hostname)
-    if ("code" in target) {
-      throwUrlError(target.code, target.message)
-    }
-
-    return await ctx.runMutation(internal.audits.createQueuedAudit, {
-      workspaceId: workspaceContext.workspaceId,
-      userId: workspaceContext.userId,
-      url: args.url.trim(),
-      normalizedUrl: normalized.normalizedUrl,
-      domain: normalized.hostname,
-      auditType: args.auditType,
-      reportLanguage: args.reportLanguage,
-      idempotencyKey: args.idempotencyKey,
-      leadId: args.leadId,
-      campaignId: args.campaignId,
-      campaignLeadId: args.campaignLeadId,
-    })
+      creditsRemaining: workspaceContext.credits.remaining,
+    }, args)
   },
 })
 

@@ -4,11 +4,11 @@ title: Verbessere Layout des Credit-Hinweises
 status: Done
 assignee: []
 created_date: '2026-07-15 19:32'
-updated_date: '2026-07-16 07:51'
+updated_date: '2026-07-16 20:20'
 labels: []
 dependencies: []
 priority: high
-ordinal: 54000
+ordinal: 56000
 ---
 
 ## Description

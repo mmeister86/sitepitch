@@ -8,7 +8,7 @@ import type { Id } from "./_generated/dataModel"
 import type { AuditAgentContext, AuditAgentContextCheck } from "./audit_agent"
 import type { AuditAgentOutput } from "./lib/audit_agent_schemas"
 import { auditAgentGenerationSchema, generationToStorage, safeParseAgentOutput } from "./lib/audit_agent_schemas"
-import { buildEvidenceRefs, validateFindingEvidence } from "./lib/audit_agent_evidence"
+import { buildEvidenceRefs, validateOutputEvidence } from "./lib/audit_agent_evidence"
 import { reviewClaimSafety, reviewTextsClaimSafety } from "./lib/audit_agent_claim_safety"
 import {
   generateDeterministicAgentOutput,
@@ -46,6 +46,14 @@ import { generateDeterministicDesignCritique } from "./lib/audit_design_critique
 import type { CheckInput, CategoryScores } from "./lib/audit_scoring"
 import { checkProviderLimit } from "./lib/audit_rate_limit"
 import { sanitizeError } from "./lib/telemetry_safety"
+import {
+  runEveAudit,
+  runEveStructuredTask,
+  type EveAuditRuntimeResult,
+  type EveStructuredTaskResult,
+} from "../src/lib/eve/audit-runtime"
+import type { EveAuditContext } from "../src/lib/eve/audit-contract"
+import { eveReleaseManifest } from "../src/lib/eve/release-manifest"
 
 const SKILL_VERSIONS = {
   "conversion-audit": "2026.07.1",
@@ -63,7 +71,12 @@ const SKILL_VERSIONS = {
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 const DEFAULT_MODEL = "openai/gpt-4.1-mini"
-const MAX_RETRIES = 1
+const EVE_MAX_ATTEMPTS = 2
+
+function eveRuntimeEnabled(): boolean {
+  const value = process.env.EVE_RUNTIME_ENABLED ?? env.EVE_RUNTIME_ENABLED
+  return value === "1" || value?.trim().toLowerCase() === "true"
+}
 
 function describeError(error: unknown): string {
   const safe = sanitizeError(error)
@@ -81,6 +94,108 @@ interface LlmRunResult {
   tokensIn?: number
   tokensOut?: number
   usedFallback: boolean
+  executor: "eve" | "ai_sdk" | "deterministic"
+  auditAgentRunId?: Id<"auditAgentRuns">
+  releaseVersion: string
+  promptVersion: string
+  outputSchemaVersion: string
+  skillVersions: Record<string, string>
+  eveVersion?: string
+  eveSessionId?: string
+  buildSha?: string
+}
+
+function buildEveContext(
+  agentContext: AuditAgentContext,
+  reportLink: string | undefined,
+): EveAuditContext {
+  return {
+    auditId: agentContext.auditId,
+    domain: agentContext.domain,
+    reportLanguage: agentContext.reportLanguage,
+    overallScore: agentContext.overallScore,
+    categoryScores: agentContext.categoryScores,
+    checks: agentContext.checks.map((check) => ({
+      ref: `${check.category}:${check.key}`,
+      category: check.category,
+      key: check.key,
+      status: check.status,
+      label: check.label,
+      evidence: check.evidence,
+      source: check.source,
+      weight: check.weight,
+    })),
+    signals: {
+      title: agentContext.signals.title?.slice(0, 300),
+      metaDescription: agentContext.signals.metaDescription?.slice(0, 600),
+      openGraphText: [
+        agentContext.signals.openGraphTitle,
+        agentContext.signals.openGraphDescription,
+      ].filter(Boolean).join(" — ").slice(0, 600) || undefined,
+      headings: [
+        ...(agentContext.signals.h1Texts ?? []),
+        ...(agentContext.signals.h2Texts ?? []),
+      ].slice(0, 40),
+      ctaCandidates: agentContext.signals.ctaCandidates?.slice(0, 20).map((value) => value.slice(0, 200)),
+      contactLinks: agentContext.signals.contactLinks?.slice(0, 20).map((value) => value.slice(0, 500)),
+      schemaTypes: agentContext.signals.schemaTypes?.slice(0, 30).map((value) => value.slice(0, 120)),
+      copyExcerpt: agentContext.signals.copySample?.slice(0, 6_000),
+    },
+    performance: {
+      mobileScore: agentContext.performance.mobile?.performanceScore,
+      desktopScore: agentContext.performance.desktop?.performanceScore,
+      lcpMs: agentContext.performance.mobile?.lcp,
+      cls: agentContext.performance.mobile?.cls,
+      fcpMs: agentContext.performance.mobile?.fcp,
+    },
+    business: {
+      name: agentContext.business?.name,
+      city: agentContext.business?.city,
+      rating: agentContext.business?.rating,
+    },
+    workspaceBranding: {
+      name: agentContext.workspace.name,
+      ctaText: agentContext.workspace.ctaText,
+    },
+    reportUrl: reportLink,
+  }
+}
+
+async function runEveGeneration(
+  agentContext: AuditAgentContext,
+  reportLink: string | undefined,
+  requestId: string,
+): Promise<{ result: EveAuditRuntimeResult; output: AuditAgentOutput }> {
+  const result = await runEveAudit({
+    context: buildEveContext(agentContext, reportLink),
+    requestId,
+    host: process.env.EVE_RUNTIME_URL ?? env.EVE_AGENT_URL,
+  })
+  return { result, output: result.output }
+}
+
+async function runEveSpecializedGeneration<T>(args: {
+  purpose: string
+  requestId: string
+  message: string
+  outputSchema: Parameters<typeof runEveStructuredTask<T>>[0]["outputSchema"]
+}): Promise<EveStructuredTaskResult<T>> {
+  return await runEveStructuredTask({
+    purpose: args.purpose,
+    requestId: args.requestId,
+    message: args.message,
+    outputSchema: args.outputSchema,
+    host: process.env.EVE_RUNTIME_URL ?? env.EVE_AGENT_URL,
+  })
+}
+
+function specializedTaskMessage(system: string, prompt: string): string {
+  return [
+    system,
+    "Arbeite ausschließlich mit dem folgenden begrenzten Audit-Kontext und gib nur das per-turn outputSchema zurück.",
+    "Lade den fachlich passenden Skill sowie claim-safety. Erfinde keine Fakten oder Evidence-Referenzen.",
+    prompt,
+  ].join("\n\n")
 }
 
 function buildFallbackContext(agentContext: AuditAgentContext, reportLink: string | undefined) {
@@ -118,11 +233,11 @@ function validateOutputSafety(
   output: AuditAgentOutput,
   evidenceRefs: ReturnType<typeof buildEvidenceRefs>,
 ): { ok: true } | { ok: false; reason: string } {
-  const evidenceIssues = validateFindingEvidence(output.findings, evidenceRefs)
+  const evidenceIssues = validateOutputEvidence(output, evidenceRefs)
   if (evidenceIssues.length > 0) {
     return {
       ok: false,
-      reason: `evidence reference missing: ${evidenceIssues[0].title} (${evidenceIssues[0].reason})`,
+      reason: `evidence reference invalid at ${evidenceIssues[0].path}: ${evidenceIssues[0].reason}`,
     }
   }
 
@@ -177,6 +292,12 @@ async function runLlmGeneration(
     tokensIn: result.usage.inputTokens,
     tokensOut: result.usage.outputTokens,
     usedFallback: false,
+    executor: "ai_sdk",
+    releaseVersion: eveReleaseManifest.releaseVersion,
+    promptVersion: eveReleaseManifest.promptVersion,
+    outputSchemaVersion: eveReleaseManifest.outputSchemaVersion,
+    skillVersions: SKILL_VERSIONS,
+    buildSha: process.env.VERCEL_GIT_COMMIT_SHA,
   }
 }
 
@@ -265,15 +386,6 @@ async function runPersonaPanel(
     statusMessage: "Persona-Reviews werden erstellt",
   })
 
-  const runId = await ctx.runMutation(internal.audit_agent.startAuditAgentRun, {
-    workspaceId: agentContext.workspaceId as Id<"workspaces">,
-    auditId,
-    provider: "other",
-    model: env.OPENROUTER_MODEL ?? DEFAULT_MODEL,
-    purpose: "qa",
-    skillVersions: { "persona-review": SKILL_VERSIONS["persona-review"] },
-  })
-
   const evidenceRefs = buildEvidenceRefs(
     agentContext.checks.map((check) => ({
       category: check.category,
@@ -300,16 +412,101 @@ async function runPersonaPanel(
         model: FALLBACK_MODEL,
         purpose: "qa",
         skillVersions: { "persona-review": SKILL_VERSIONS["persona-review"] },
+        executor: "deterministic",
+        releaseVersion: eveReleaseManifest.releaseVersion,
+        promptVersion: eveReleaseManifest.promptVersion,
+        outputSchemaVersion: eveReleaseManifest.outputSchemaVersion,
       })
       await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
         auditAgentRunId: fallbackRunId,
         status: "completed",
+        schemaPass: true,
+        evidencePass: true,
+        claimSafetyPass: true,
       })
     }
   }
 
+  if (eveRuntimeEnabled()) {
+    const message = specializedTaskMessage(
+      buildPersonaSystemPrompt(agentContext.reportLanguage),
+      buildPersonaUserPrompt(agentContext),
+    )
+    for (let attempt = 1; attempt <= EVE_MAX_ATTEMPTS; attempt++) {
+      const eveRunId = await ctx.runMutation(internal.audit_agent.startAuditAgentRun, {
+        workspaceId: agentContext.workspaceId as Id<"workspaces">,
+        auditId,
+        provider: "other",
+        model: "eve/runtime",
+        purpose: "qa",
+        skillVersions: { "persona-review": SKILL_VERSIONS["persona-review"] },
+        executor: "eve",
+        releaseVersion: eveReleaseManifest.releaseVersion,
+        promptVersion: eveReleaseManifest.promptVersion,
+        outputSchemaVersion: eveReleaseManifest.outputSchemaVersion,
+        eveVersion: eveReleaseManifest.eveVersion,
+      })
+      try {
+        await checkProviderLimit(ctx, {
+          kind: "llm", provider: "eve",
+          workspaceId: agentContext.workspaceId, apiKeyId: agentContext.apiKeyId,
+        })
+        const result = await runEveSpecializedGeneration({
+          purpose: "sitepitch_persona_review",
+          requestId: `audit:${auditId}:persona:${attempt}`,
+          message,
+          outputSchema: personaPanelOutputSchema,
+        })
+        const parsed = safeParsePersonaPanel(result.output)
+        if (!parsed.ok) throw new Error(parsed.error)
+        const safety = validatePersonaSafety(parsed.data, evidenceRefs)
+        if (!safety.ok) throw new Error(safety.reason)
+        await ctx.runMutation(internal.audit_agent.saveAuditPersonaReviews, { auditId, reviews: parsed.data.reviews })
+        await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+          auditAgentRunId: eveRunId,
+          status: "completed",
+          tokensIn: result.usage.inputTokens,
+          tokensOut: result.usage.outputTokens,
+          actualCostUsd: result.usage.costUsd,
+          model: result.runtime.modelId,
+          eveSessionId: result.sessionId,
+          eveVersion: result.runtime.eveVersion ?? result.versions.eve,
+          buildSha: result.runtime.buildSha,
+          loadedSkillVersions: Object.fromEntries(result.loadedSkills.map((skill) => [skill.id, skill.version])),
+          schemaPass: true,
+          evidencePass: true,
+          claimSafetyPass: true,
+        })
+        console.log("[audit_agent] persona panel completed (eve)", { auditId, attempt })
+        return
+      } catch (error) {
+        await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+          auditAgentRunId: eveRunId,
+          status: "failed",
+          errorMessage: describeError(error).slice(0, 500),
+        })
+      }
+    }
+  }
+
+  const runId = await ctx.runMutation(internal.audit_agent.startAuditAgentRun, {
+    workspaceId: agentContext.workspaceId as Id<"workspaces">,
+    auditId,
+    provider: "other",
+    model: env.OPENROUTER_MODEL ?? DEFAULT_MODEL,
+    purpose: "qa",
+    skillVersions: { "persona-review": SKILL_VERSIONS["persona-review"] },
+    executor: "ai_sdk",
+    releaseVersion: eveReleaseManifest.releaseVersion,
+    promptVersion: eveReleaseManifest.promptVersion,
+    outputSchemaVersion: eveReleaseManifest.outputSchemaVersion,
+  })
+
   try {
-    await checkProviderLimit(ctx, { kind: "llm", provider: "openrouter" })
+    await checkProviderLimit(ctx, {
+      kind: "llm", provider: "openrouter",
+      workspaceId: agentContext.workspaceId, apiKeyId: agentContext.apiKeyId,
+    })
 
     const { output, tokensIn, tokensOut } = await runPersonaPanelGeneration(agentContext)
 
@@ -363,6 +560,9 @@ async function runPersonaPanel(
       status: "completed",
       tokensIn,
       tokensOut,
+      schemaPass: true,
+      evidencePass: true,
+      claimSafetyPass: true,
     })
 
     console.log("[audit_agent] persona panel completed", {
@@ -476,6 +676,80 @@ async function runCopyReview(
     statusMessage: "Website-Copy wird analysiert",
   })
 
+  const evidenceRefs = buildEvidenceRefs(
+    agentContext.checks.map((check) => ({
+      category: check.category,
+      key: check.key,
+      label: check.label,
+      status: check.status,
+      evidence: check.evidence,
+      source: check.source,
+      weight: check.weight,
+    })),
+  )
+
+  if (eveRuntimeEnabled()) {
+    const message = specializedTaskMessage(
+      buildCopyReviewSystemPrompt(agentContext.reportLanguage),
+      buildCopyReviewUserPrompt(agentContext),
+    )
+    for (let attempt = 1; attempt <= EVE_MAX_ATTEMPTS; attempt++) {
+      const eveRunId = await ctx.runMutation(internal.audit_agent.startAuditAgentRun, {
+        workspaceId: agentContext.workspaceId as Id<"workspaces">,
+        auditId,
+        provider: "other",
+        model: "eve/runtime",
+        purpose: "qa",
+        skillVersions: { "copy-review": SKILL_VERSIONS["copy-review"] },
+        executor: "eve",
+        releaseVersion: eveReleaseManifest.releaseVersion,
+        promptVersion: eveReleaseManifest.promptVersion,
+        outputSchemaVersion: eveReleaseManifest.outputSchemaVersion,
+        eveVersion: eveReleaseManifest.eveVersion,
+      })
+      try {
+        await checkProviderLimit(ctx, {
+          kind: "llm", provider: "eve",
+          workspaceId: agentContext.workspaceId, apiKeyId: agentContext.apiKeyId,
+        })
+        const result = await runEveSpecializedGeneration({
+          purpose: "sitepitch_copy_review",
+          requestId: `audit:${auditId}:copy:${attempt}`,
+          message,
+          outputSchema: copyReviewOutputSchema,
+        })
+        const parsed = safeParseCopyReview(result.output)
+        if (!parsed.ok) throw new Error(parsed.error)
+        const safety = validateCopyReviewSafety(parsed.data, evidenceRefs)
+        if (!safety.ok) throw new Error(safety.reason)
+        await ctx.runMutation(internal.audit_agent.saveAuditCopyReview, { auditId, review: parsed.data })
+        await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+          auditAgentRunId: eveRunId,
+          status: "completed",
+          tokensIn: result.usage.inputTokens,
+          tokensOut: result.usage.outputTokens,
+          actualCostUsd: result.usage.costUsd,
+          model: result.runtime.modelId,
+          eveSessionId: result.sessionId,
+          eveVersion: result.runtime.eveVersion ?? result.versions.eve,
+          buildSha: result.runtime.buildSha,
+          loadedSkillVersions: Object.fromEntries(result.loadedSkills.map((skill) => [skill.id, skill.version])),
+          schemaPass: true,
+          evidencePass: true,
+          claimSafetyPass: true,
+        })
+        console.log("[audit_agent] copy review completed (eve)", { auditId, attempt })
+        return
+      } catch (error) {
+        await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+          auditAgentRunId: eveRunId,
+          status: "failed",
+          errorMessage: describeError(error).slice(0, 500),
+        })
+      }
+    }
+  }
+
   const runId = await ctx.runMutation(internal.audit_agent.startAuditAgentRun, {
     workspaceId: agentContext.workspaceId as Id<"workspaces">,
     auditId,
@@ -483,10 +757,17 @@ async function runCopyReview(
     model: env.OPENROUTER_MODEL ?? DEFAULT_MODEL,
     purpose: "qa",
     skillVersions: { "copy-review": SKILL_VERSIONS["copy-review"] },
+    executor: "ai_sdk",
+    releaseVersion: eveReleaseManifest.releaseVersion,
+    promptVersion: eveReleaseManifest.promptVersion,
+    outputSchemaVersion: eveReleaseManifest.outputSchemaVersion,
   })
 
   try {
-    await checkProviderLimit(ctx, { kind: "llm", provider: "openrouter" })
+    await checkProviderLimit(ctx, {
+      kind: "llm", provider: "openrouter",
+      workspaceId: agentContext.workspaceId, apiKeyId: agentContext.apiKeyId,
+    })
 
     const { output, tokensIn, tokensOut } = await runCopyReviewGeneration(agentContext)
 
@@ -499,18 +780,6 @@ async function runCopyReview(
       })
       return
     }
-
-    const evidenceRefs = buildEvidenceRefs(
-      agentContext.checks.map((check) => ({
-        category: check.category,
-        key: check.key,
-        label: check.label,
-        status: check.status,
-        evidence: check.evidence,
-        source: check.source,
-        weight: check.weight,
-      })),
-    )
 
     const safety = validateCopyReviewSafety(parsed.data, evidenceRefs)
     if (!safety.ok) {
@@ -532,6 +801,9 @@ async function runCopyReview(
       status: "completed",
       tokensIn,
       tokensOut,
+      schemaPass: true,
+      evidencePass: true,
+      claimSafetyPass: true,
     })
 
     console.log("[audit_agent] copy review completed", { auditId })
@@ -673,6 +945,9 @@ async function runDesignCritique(
       status: "completed",
       tokensIn,
       tokensOut,
+      schemaPass: true,
+      evidencePass: true,
+      claimSafetyPass: true,
     })
     return { saved: true }
   }
@@ -685,6 +960,10 @@ async function runDesignCritique(
       model: env.OPENROUTER_MODEL ?? DEFAULT_MODEL,
       purpose: "critique",
       skillVersions: { "design-critique": SKILL_VERSIONS["design-critique"] },
+      executor: "ai_sdk",
+      releaseVersion: eveReleaseManifest.releaseVersion,
+      promptVersion: eveReleaseManifest.promptVersion,
+      outputSchemaVersion: eveReleaseManifest.outputSchemaVersion,
     })
 
   const finishFailed = (runId: Id<"auditAgentRuns">, reason?: string) =>
@@ -694,10 +973,72 @@ async function runDesignCritique(
       errorMessage: reason ? reason.slice(0, 500) : "design critique failed",
     })
 
-  // Attempt 1: LLM with screenshots.
+  if (eveRuntimeEnabled()) {
+    const textContext = buildEveContext(agentContext, undefined)
+    const message = specializedTaskMessage(
+      buildDesignCritiqueSystemPrompt(agentContext.reportLanguage),
+      `Erzeuge eine strukturierte Design-Kritik aus diesem begrenzten Textkontext.\n\n${JSON.stringify(textContext)}`,
+    )
+    for (let attempt = 1; attempt <= EVE_MAX_ATTEMPTS; attempt++) {
+      const eveRunId = await ctx.runMutation(internal.audit_agent.startAuditAgentRun, {
+        workspaceId: agentContext.workspaceId as Id<"workspaces">,
+        auditId,
+        provider: "other",
+        model: "eve/runtime",
+        purpose: "critique",
+        skillVersions: { "design-critique": SKILL_VERSIONS["design-critique"] },
+        executor: "eve",
+        releaseVersion: eveReleaseManifest.releaseVersion,
+        promptVersion: eveReleaseManifest.promptVersion,
+        outputSchemaVersion: eveReleaseManifest.outputSchemaVersion,
+        eveVersion: eveReleaseManifest.eveVersion,
+      })
+      try {
+        await checkProviderLimit(ctx, {
+          kind: "llm", provider: "eve",
+          workspaceId: agentContext.workspaceId, apiKeyId: agentContext.apiKeyId,
+        })
+        const result = await runEveSpecializedGeneration({
+          purpose: "sitepitch_design_critique",
+          requestId: `audit:${auditId}:design:${attempt}`,
+          message,
+          outputSchema: designCritiqueOutputSchema,
+        })
+        const parsed = safeParseDesignCritique(result.output)
+        if (!parsed.ok) throw new Error(parsed.error)
+        const safety = validateDesignCritiqueSafety(parsed.data, evidenceRefs)
+        if (!safety.ok) throw new Error(safety.reason)
+        await ctx.runMutation(internal.audit_agent.saveAuditDesignCritique, { auditId, critique: parsed.data })
+        await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+          auditAgentRunId: eveRunId,
+          status: "completed",
+          tokensIn: result.usage.inputTokens,
+          tokensOut: result.usage.outputTokens,
+          actualCostUsd: result.usage.costUsd,
+          model: result.runtime.modelId,
+          eveSessionId: result.sessionId,
+          eveVersion: result.runtime.eveVersion ?? result.versions.eve,
+          buildSha: result.runtime.buildSha,
+          loadedSkillVersions: Object.fromEntries(result.loadedSkills.map((skill) => [skill.id, skill.version])),
+          schemaPass: true,
+          evidencePass: true,
+          claimSafetyPass: true,
+        })
+        console.log("[audit_agent] design critique completed (eve)", { auditId, attempt })
+        return { saved: true, usedFallback: false }
+      } catch (error) {
+        await finishFailed(eveRunId, describeError(error))
+      }
+    }
+  }
+
+  // Recovery: one direct AI SDK attempt with screenshots.
   const runId = await startLlmRun()
   try {
-    await checkProviderLimit(ctx, { kind: "llm", provider: "openrouter" })
+    await checkProviderLimit(ctx, {
+      kind: "llm", provider: "openrouter",
+      workspaceId: agentContext.workspaceId, apiKeyId: agentContext.apiKeyId,
+    })
     const { output, tokensIn, tokensOut } = await runDesignCritiqueGeneration(agentContext)
     const result = await saveIfValid(runId, output, tokensIn, tokensOut)
     if (result.saved) {
@@ -712,26 +1053,7 @@ async function runDesignCritique(
     await finishFailed(runId, detail)
   }
 
-  // Attempt 2: LLM without screenshots (vision may be the culprit).
-  const textRunId = await startLlmRun()
-  try {
-    await checkProviderLimit(ctx, { kind: "llm", provider: "openrouter" })
-    const textOnlyContext = { ...agentContext, screenshots: {} }
-    const { output, tokensIn, tokensOut } = await runDesignCritiqueGeneration(textOnlyContext)
-    const result = await saveIfValid(textRunId, output, tokensIn, tokensOut)
-    if (result.saved) {
-      console.log("[audit_agent] design critique completed (llm text-only)", { auditId })
-      return { saved: true, usedFallback: false }
-    }
-    console.warn("[audit_agent] design critique text-only attempt failed", { auditId, reason: result.reason })
-    await finishFailed(textRunId, result.reason)
-  } catch (error) {
-    const detail = describeError(error)
-    console.warn("[audit_agent] design critique text-only llm call failed", { auditId, detail })
-    await finishFailed(textRunId, detail)
-  }
-
-  // Attempt 3: deterministic fallback — always saves so the Design tab is never empty.
+  // Deterministic fallback — always saves so the Design tab is never empty.
   const fallbackRunId = await ctx.runMutation(internal.audit_agent.startAuditAgentRun, {
     workspaceId: agentContext.workspaceId as Id<"workspaces">,
     auditId,
@@ -739,6 +1061,10 @@ async function runDesignCritique(
     model: FALLBACK_MODEL,
     purpose: "critique",
     skillVersions: { "design-critique": SKILL_VERSIONS["design-critique"] },
+    executor: "deterministic",
+    releaseVersion: eveReleaseManifest.releaseVersion,
+    promptVersion: eveReleaseManifest.promptVersion,
+    outputSchemaVersion: eveReleaseManifest.outputSchemaVersion,
   })
 
   const fallbackOutput = generateDeterministicDesignCritique({
@@ -772,6 +1098,9 @@ async function runDesignCritique(
   await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
     auditAgentRunId: fallbackRunId,
     status: "completed",
+    schemaPass: true,
+    evidencePass: true,
+    claimSafetyPass: true,
   })
 
   console.log("[audit_agent] design critique completed (deterministic fallback)", { auditId })
@@ -813,10 +1142,16 @@ export const processAuditAgentOutputs = internalAction({
   args: {
     auditId: v.id("audits"),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{
+    auditId: Id<"audits">
+    usedFallback: boolean
+    provider: "openai" | "anthropic" | "other"
+    model: string
+    rejected?: boolean
+  } | null> => {
     console.log("[audit_agent] processAuditAgentOutputs started", { auditId: args.auditId })
 
-    const agentContext = await ctx.runQuery(internal.audit_agent.getAuditAgentContext, {
+    const agentContext: AuditAgentContext | null = await ctx.runQuery(internal.audit_agent.getAuditAgentContext, {
       auditId: args.auditId,
     })
 
@@ -856,21 +1191,37 @@ export const processAuditAgentOutputs = internalAction({
     let chosen: LlmRunResult | null = null
     let lastError: string | undefined
 
-    for (let attempt = 0; attempt <= MAX_RETRIES && !chosen; attempt++) {
-      const runId = await ctx.runMutation(internal.audit_agent.startAuditAgentRun, {
+    const eveEnabled = env.EVE_RUNTIME_ENABLED === "true" || env.EVE_RUNTIME_ENABLED === "1"
+    for (let attempt = 0; attempt < (eveEnabled ? EVE_MAX_ATTEMPTS : 0) && !chosen; attempt++) {
+      const runId: Id<"auditAgentRuns"> = await ctx.runMutation(internal.audit_agent.startAuditAgentRun, {
         workspaceId: agentContext.workspaceId as Id<"workspaces">,
         auditId: args.auditId,
         provider: "other",
-        model: env.OPENROUTER_MODEL ?? DEFAULT_MODEL,
+        model: env.EVE_AGENT_MODEL ?? "eve/runtime",
         purpose: "findings",
-        skillVersions: SKILL_VERSIONS,
+        skillVersions: eveReleaseManifest.skills,
+        executor: "eve",
+        releaseVersion: eveReleaseManifest.releaseVersion,
+        promptVersion: eveReleaseManifest.promptVersion,
+        outputSchemaVersion: eveReleaseManifest.outputSchemaVersion,
+        eveVersion: eveReleaseManifest.eveVersion,
+        buildSha: process.env.VERCEL_GIT_COMMIT_SHA,
       })
 
       try {
-        await checkProviderLimit(ctx, { kind: "llm", provider: "openrouter" })
-        const llmResult = await runLlmGeneration(agentContext, reportLink)
+        await checkProviderLimit(ctx, {
+          kind: "llm",
+          provider: "eve",
+          workspaceId: agentContext.workspaceId,
+          apiKeyId: agentContext.apiKeyId,
+        })
+        const eve = await runEveGeneration(
+          agentContext,
+          reportLink,
+          `audit:${args.auditId}:eve:${attempt + 1}`,
+        )
 
-        const parsed = safeParseAgentOutput(llmResult.output)
+        const parsed = safeParseAgentOutput(eve.output)
         if (!parsed.ok) {
           await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
             auditAgentRunId: runId,
@@ -878,6 +1229,24 @@ export const processAuditAgentOutputs = internalAction({
             errorMessage: parsed.error,
           })
           lastError = parsed.error
+          continue
+        }
+
+        if (
+          !eve.result.validation.schemaPassed ||
+          !eve.result.validation.evidencePassed ||
+          !eve.result.validation.claimSafetyPassed
+        ) {
+          const validationError = `Eve candidate validation failed: ${[
+            ...eve.result.validation.invalidEvidenceRefs,
+            ...eve.result.validation.unsafeClaimCodes,
+          ].join(", ") || "unknown"}`
+          await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+            auditAgentRunId: runId,
+            status: "failed",
+            errorMessage: validationError.slice(0, 500),
+          })
+          lastError = validationError
           continue
         }
 
@@ -892,17 +1261,92 @@ export const processAuditAgentOutputs = internalAction({
           continue
         }
 
+        const loadedSkills = Object.fromEntries(
+          eve.result.loadedSkills.map((skill) => [skill.id, skill.version]),
+        )
+        const runtimeModel = eve.result.runtime.modelId ?? env.EVE_AGENT_MODEL ?? "eve/runtime"
+        const runtimeEveVersion = eve.result.runtime.eveVersion ?? eve.result.versions.eve
+        const runtimeBuildSha = eve.result.runtime.buildSha ?? process.env.VERCEL_GIT_COMMIT_SHA
+        await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+          auditAgentRunId: runId,
+          status: "completed",
+          tokensIn: eve.result.usage.inputTokens,
+          tokensOut: eve.result.usage.outputTokens,
+          model: runtimeModel,
+          actualCostUsd: eve.result.usage.costUsd,
+          eveSessionId: eve.result.sessionId,
+          eveVersion: runtimeEveVersion,
+          buildSha: runtimeBuildSha,
+          loadedSkillVersions: loadedSkills,
+          schemaPass: true,
+          evidencePass: true,
+          claimSafetyPass: true,
+        })
+
+        chosen = {
+          output: parsed.data,
+          provider: "other",
+          model: runtimeModel,
+          usedFallback: false,
+          executor: "eve",
+          auditAgentRunId: runId,
+          releaseVersion: eve.result.versions.release,
+          promptVersion: eve.result.versions.prompt,
+          outputSchemaVersion: eve.result.versions.outputSchema,
+          skillVersions: loadedSkills,
+          eveVersion: runtimeEveVersion,
+          eveSessionId: eve.result.sessionId,
+          buildSha: runtimeBuildSha,
+        }
+      } catch (error) {
+        const detail = describeError(error)
+        console.warn("[audit_agent] Eve call failed", { auditId: args.auditId, attempt, detail })
+        await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
+          auditAgentRunId: runId,
+          status: "failed",
+          errorMessage: detail.slice(0, 500),
+        })
+        lastError = detail
+      }
+    }
+
+    if (!chosen) {
+      const runId: Id<"auditAgentRuns"> = await ctx.runMutation(internal.audit_agent.startAuditAgentRun, {
+        workspaceId: agentContext.workspaceId as Id<"workspaces">,
+        auditId: args.auditId,
+        provider: "other",
+        model: env.OPENROUTER_MODEL ?? DEFAULT_MODEL,
+        purpose: "findings",
+        skillVersions: SKILL_VERSIONS,
+        executor: "ai_sdk",
+        releaseVersion: eveReleaseManifest.releaseVersion,
+        promptVersion: eveReleaseManifest.promptVersion,
+        outputSchemaVersion: eveReleaseManifest.outputSchemaVersion,
+        buildSha: process.env.VERCEL_GIT_COMMIT_SHA,
+      })
+
+      try {
+        await checkProviderLimit(ctx, {
+          kind: "llm",
+          provider: "openrouter",
+          workspaceId: agentContext.workspaceId,
+          apiKeyId: agentContext.apiKeyId,
+        })
+        const llmResult = await runLlmGeneration(agentContext, reportLink)
+        const parsed = safeParseAgentOutput(llmResult.output)
+        if (!parsed.ok) throw new Error(parsed.error)
+        const safety = validateOutputSafety(parsed.data, evidenceRefs)
+        if (!safety.ok) throw new Error(safety.reason)
         await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
           auditAgentRunId: runId,
           status: "completed",
           tokensIn: llmResult.tokensIn,
           tokensOut: llmResult.tokensOut,
         })
-
-        chosen = { ...llmResult, output: parsed.data }
+        chosen = { ...llmResult, output: parsed.data, auditAgentRunId: runId }
       } catch (error) {
         const detail = describeError(error)
-        console.error("[audit_agent] LLM call failed", { auditId: args.auditId, attempt, detail })
+        console.warn("[audit_agent] AI SDK recovery failed", { auditId: args.auditId, detail })
         await ctx.runMutation(internal.audit_agent.finishAuditAgentRun, {
           auditAgentRunId: runId,
           status: "failed",
@@ -914,13 +1358,18 @@ export const processAuditAgentOutputs = internalAction({
 
     if (!chosen) {
       console.warn("[audit_agent] using deterministic fallback", { auditId: args.auditId, lastError })
-      const fallbackRunId = await ctx.runMutation(internal.audit_agent.startAuditAgentRun, {
+      const fallbackRunId: Id<"auditAgentRuns"> = await ctx.runMutation(internal.audit_agent.startAuditAgentRun, {
         workspaceId: agentContext.workspaceId as Id<"workspaces">,
         auditId: args.auditId,
         provider: FALLBACK_PROVIDER,
         model: FALLBACK_MODEL,
         purpose: "findings",
         skillVersions: SKILL_VERSIONS,
+        executor: "deterministic",
+        releaseVersion: eveReleaseManifest.releaseVersion,
+        promptVersion: eveReleaseManifest.promptVersion,
+        outputSchemaVersion: eveReleaseManifest.outputSchemaVersion,
+        buildSha: process.env.VERCEL_GIT_COMMIT_SHA,
       })
 
       const fallbackOutput = generateDeterministicAgentOutput(
@@ -937,6 +1386,13 @@ export const processAuditAgentOutputs = internalAction({
         provider: FALLBACK_PROVIDER,
         model: FALLBACK_MODEL,
         usedFallback: true,
+        executor: "deterministic",
+        auditAgentRunId: fallbackRunId,
+        releaseVersion: eveReleaseManifest.releaseVersion,
+        promptVersion: eveReleaseManifest.promptVersion,
+        outputSchemaVersion: eveReleaseManifest.outputSchemaVersion,
+        skillVersions: SKILL_VERSIONS,
+        buildSha: process.env.VERCEL_GIT_COMMIT_SHA,
       }
     }
 
@@ -946,11 +1402,38 @@ export const processAuditAgentOutputs = internalAction({
       statusMessage: "Outreach-Texte werden erstellt",
     })
 
-    await ctx.runMutation(internal.audit_agent.saveAuditAgentOutput, {
+    const saveResult = await ctx.runMutation(internal.audit_agent.saveAuditAgentOutput, {
       auditId: args.auditId,
+      auditAgentRunId: chosen.auditAgentRunId,
       output: chosen.output,
       reportLink,
+      metadata: {
+        executor: chosen.executor,
+        provider: chosen.provider,
+        model: chosen.model,
+        releaseVersion: chosen.releaseVersion,
+        promptVersion: chosen.promptVersion,
+        outputSchemaVersion: chosen.outputSchemaVersion,
+        skillVersions: chosen.skillVersions,
+        eveVersion: chosen.eveVersion,
+        eveSessionId: chosen.eveSessionId,
+        buildSha: chosen.buildSha,
+      },
     })
+    if (!saveResult.activated) {
+      await ctx.runMutation(internal.audit_agent.markAuditAgentFailed, {
+        auditId: args.auditId,
+        errorCode: "AGENT_CANDIDATE_REJECTED",
+        errorMessage: `Agent candidate was rejected: ${saveResult.rejectionCode}`,
+      })
+      return {
+        auditId: args.auditId,
+        usedFallback: chosen.usedFallback,
+        provider: chosen.provider,
+        model: chosen.model,
+        rejected: true,
+      }
+    }
 
     await runPersonaPanel(ctx, agentContext, args.auditId)
 

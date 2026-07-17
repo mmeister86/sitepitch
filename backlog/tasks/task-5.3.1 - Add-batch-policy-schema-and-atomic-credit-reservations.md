@@ -4,12 +4,12 @@ title: Add batch policy schema and atomic credit reservations
 status: Done
 assignee: []
 created_date: '2026-07-13 20:00'
-updated_date: '2026-07-14 21:33'
+updated_date: '2026-07-16 20:20'
 labels: []
 dependencies: []
 parent_task_id: TASK-5.3
 priority: high
-ordinal: 41000
+ordinal: 42000
 ---
 
 ## Description

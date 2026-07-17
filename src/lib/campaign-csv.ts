@@ -14,6 +14,17 @@ export type CampaignImportRow = {
   businessEmail?: string
 }
 
+export type CampaignImportClassification =
+  | "valid_new"
+  | "duplicate_existing"
+  | "duplicate_in_file"
+  | "invalid"
+
+export type CampaignImportPreviewItem = CampaignImportRow & {
+  classification: CampaignImportClassification
+  error?: string
+}
+
 export type CampaignCsvExportRow = {
   businessName: string
   websiteUrl?: string
@@ -208,12 +219,12 @@ export function parseCampaignCsv(input: string): ParsedCampaignCsv {
   return { delimiter, rows }
 }
 
-function spreadsheetSafe(value: string): string {
+export function spreadsheetSafeText(value: string): string {
   return /^[\t\r]*[=+\-@]/.test(value) ? `'${value}` : value
 }
 
 function csvCell(value: unknown): string {
-  const text = spreadsheetSafe(value === undefined || value === null ? "" : String(value))
+  const text = spreadsheetSafeText(value === undefined || value === null ? "" : String(value))
   return /[;"\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
 }
 

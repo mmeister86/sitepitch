@@ -5,6 +5,8 @@ import { useMutation, useQuery } from "convex/react"
 import {
   AlertTriangle,
   ArrowRight,
+  Blocks,
+  Braces,
   Database,
   ImageIcon,
   Loader2,
@@ -149,7 +151,7 @@ export function SettingsView() {
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">Einstellungen</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Workspace-Branding, Credits und Team auf einen Blick.
+          Workspace-Branding, API, Integrationen, Credits und Team auf einen Blick.
         </p>
       </div>
 
@@ -209,6 +211,58 @@ export function SettingsView() {
             </p>
           )}
         </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <Braces className="size-4" />
+              </div>
+              <div>
+                <CardTitle>Public API</CardTitle>
+                <CardDescription>
+                  API-Keys mit passenden Scopes für eigene Audit-Workflows verwalten.
+                </CardDescription>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              className="gap-2 self-start"
+              onClick={() => navigate({ name: "api-settings" })}
+            >
+              API-Keys verwalten
+              <ArrowRight className="size-4" />
+            </Button>
+          </div>
+        </CardHeader>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <Blocks className="size-4" />
+              </div>
+              <div>
+                <CardTitle>Integrationen</CardTitle>
+                <CardDescription>
+                  CRM, Gmail, Google Sheets und Webhooks bewusst verbinden.
+                </CardDescription>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              className="gap-2 self-start"
+              onClick={() => navigate({ name: "integration-settings" })}
+            >
+              Integrationen verwalten
+              <ArrowRight className="size-4" />
+            </Button>
+          </div>
+        </CardHeader>
       </Card>
 
       <Card>

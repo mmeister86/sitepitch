@@ -4,7 +4,7 @@ title: Complete campaign worklist activity and metrics
 status: Done
 assignee: []
 created_date: '2026-07-13 13:45'
-updated_date: '2026-07-13 17:31'
+updated_date: '2026-07-16 20:20'
 labels: []
 dependencies: []
 modified_files:
@@ -15,7 +15,7 @@ modified_files:
   - src/views/campaigns.tsx
 parent_task_id: TASK-5.2
 priority: medium
-ordinal: 39000
+ordinal: 40000
 ---
 
 ## Description

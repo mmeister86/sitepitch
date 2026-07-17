@@ -8,6 +8,7 @@ import { resolveReportCtaSnapshotValues } from "./lib/report_cta.js"
 import { hasAccurateViewAggregate } from "./lib/report_view_stats.js"
 import { normalizeLeadDomain } from "./lib/lead_search.js"
 import { normalizeReportReferrer } from "./lib/report_privacy.js"
+import { randomBase64Url } from "./lib/integration_crypto.js"
 
 const migrations = new Migrations<DataModel, typeof schema>(components.migrations, {
   internalMutation,
@@ -24,6 +25,120 @@ const FEED_ACTIVITY_EVENT_TYPES = new Set([
   "pdf_exported",
   "audit_completed",
 ])
+
+/** Deploy-1 widening backfill for stable IDs used only at the public API boundary. */
+export const backfillAuditExternalApiIds = migrations.define({
+  table: "audits",
+  migrateOne: (_ctx, audit) => {
+    if (audit.externalApiId !== undefined) return
+    return {
+      externalApiId: `aud_${randomBase64Url(16)}`,
+      creationChannel: audit.creationChannel ?? "ui" as const,
+    }
+  },
+})
+
+/**
+ * Snapshots the currently visible legacy rows into one immutable active output.
+ * Legacy evidence refs are grounded to exact checks of the same category when possible;
+ * a later recovery revalidation remains mandatory before reactivating such a version.
+ */
+export const backfillLegacyAuditOutputVersions = migrations.define({
+  table: "audits",
+  migrateOne: async (ctx, audit) => {
+    if (audit.activeOutputVersionId !== undefined) return
+    const [findings, summary, outreach, checks] = await Promise.all([
+      ctx.db.query("auditFindings").withIndex("by_auditId", (q) => q.eq("auditId", audit._id)).collect(),
+      ctx.db.query("auditSummaries").withIndex("by_auditId", (q) => q.eq("auditId", audit._id)).unique(),
+      ctx.db.query("outreachDrafts").withIndex("by_auditId", (q) => q.eq("auditId", audit._id)).collect(),
+      ctx.db.query("auditChecks").withIndex("by_auditId", (q) => q.eq("auditId", audit._id)).collect(),
+    ])
+    if (!summary || findings.length === 0 || outreach.length === 0) return
+    const refs = checks.map((check) => `${check.category}:${check.key}`)
+    const refsByCategory = new Map(checks.map((check) => [check.category, `${check.category}:${check.key}`]))
+    const fallbackRefs = refs.slice(0, 8)
+    const output = {
+      findings: findings.sort((a, b) => a.sortOrder - b.sortOrder).map((finding) => ({
+        category: finding.category,
+        severity: finding.severity,
+        title: finding.title,
+        evidence: finding.evidence,
+        evidenceRefs: finding.evidenceRefs ?? [refsByCategory.get(finding.category)].filter((value): value is string => Boolean(value)),
+        explanation: finding.explanation,
+        recommendation: finding.recommendation,
+        salesAngle: finding.salesAngle,
+      })),
+      summary: {
+        shortSummary: summary.shortSummary,
+        strengths: summary.strengths,
+        weaknesses: summary.weaknesses,
+        topOpportunities: summary.topOpportunities,
+        nextSteps: summary.nextSteps,
+        evidenceRefs: summary.evidenceRefs ?? fallbackRefs,
+      },
+      outreach: outreach.map((draft) => ({
+        type: draft.type,
+        subject: draft.subject,
+        body: draft.body,
+        evidenceRefs: draft.evidenceRefs ?? fallbackRefs,
+      })),
+      subjectLines: outreach.find((draft) => draft.type === "email")?.subjectLines ?? [
+        audit.reportLanguage === "en" ? `Website audit for ${audit.domain}` : `Website-Audit für ${audit.domain}`,
+      ],
+    }
+    const current = Date.now()
+    const evidencePass = fallbackRefs.length > 0 && output.findings.every((finding) => finding.evidenceRefs.length > 0)
+    const versionId = await ctx.db.insert("auditOutputVersions", {
+      workspaceId: audit.workspaceId,
+      auditId: audit._id,
+      versionNumber: 1,
+      status: "active",
+      executor: "legacy",
+      releaseVersion: audit.reportVersion,
+      promptVersion: "legacy",
+      outputSchemaVersion: "legacy-v1",
+      skillVersions: {},
+      output,
+      schemaPass: true,
+      evidencePass,
+      claimSafetyPass: false,
+      createdAt: current,
+      activatedAt: current,
+    })
+    for (const finding of findings) {
+      await ctx.db.patch(finding._id, {
+        outputVersionId: versionId,
+        evidenceRefs: finding.evidenceRefs ?? [refsByCategory.get(finding.category)].filter((value): value is string => Boolean(value)),
+      })
+    }
+    await ctx.db.patch(summary._id, { outputVersionId: versionId, evidenceRefs: summary.evidenceRefs ?? fallbackRefs })
+    for (const draft of outreach) {
+      await ctx.db.patch(draft._id, { outputVersionId: versionId, evidenceRefs: draft.evidenceRefs ?? fallbackRefs })
+    }
+    return { activeOutputVersionId: versionId }
+  },
+})
+
+export const verifyAuditApiAndOutputBackfill = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const sample = await ctx.db.query("audits").take(100)
+    const missingApiId = sample.find((audit) => audit.externalApiId === undefined)
+    const completedMissingOutput = sample.find((audit) => audit.status === "completed" && audit.activeOutputVersionId === undefined)
+    let duplicateApiId: string | null = null
+    for (const audit of sample) {
+      if (!audit.externalApiId) continue
+      const matches = await ctx.db.query("audits").withIndex("by_externalApiId", (q) => q.eq("externalApiId", audit.externalApiId)).take(2)
+      if (matches.length > 1) { duplicateApiId = audit.externalApiId; break }
+    }
+    return {
+      complete: !missingApiId && !completedMissingOutput && !duplicateApiId,
+      sampleMissingApiAuditId: missingApiId?._id ?? null,
+      sampleMissingOutputAuditId: completedMissingOutput?._id ?? null,
+      duplicateApiId,
+    }
+  },
+})
 
 /** Marks legacy dashboard-visible events for the indexed activity feed. */
 export const backfillFeedActivityDiscriminator = migrations.define({

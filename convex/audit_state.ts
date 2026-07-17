@@ -3,8 +3,7 @@ import { v } from "convex/values"
 import type { Doc, Id } from "./_generated/dataModel"
 import { internalMutation } from "./_generated/server"
 import type { MutationCtx } from "./_generated/server"
-import { releaseWorkspaceCreditReservation } from "./lib/credits"
-import { settleBatchAuditItem } from "./batch_audits"
+import { settleAuditFailureSideEffects } from "./lib/audit_failure"
 
 function now() {
   return Date.now()
@@ -113,6 +112,7 @@ export const claimAuditPipelineWork = internalMutation({
       batchAuditJobId: audit.batchAuditJobId,
       batchAuditItemId: audit.batchAuditItemId,
       createdByUserId: audit.createdByUserId,
+      apiKeyId: audit.apiKeyId,
       planSnapshot: batch?.planSnapshot,
       leaseToken,
       leaseExpiresAt,
@@ -254,34 +254,11 @@ export const failAuditPipeline = internalMutation({
       updatedAt: current,
     })
 
-    await releaseWorkspaceCreditReservation(ctx, audit.workspaceId, audit._id, audit.idempotencyKey, args.errorCode ?? "audit_failed")
-
-    const existingFailedEvent = await ctx.db
-      .query("usageEvents")
-      .withIndex("by_auditId_and_event", (q) =>
-        q.eq("auditId", args.auditId).eq("event", "audit_failed"),
-      )
-      .first()
-
-    if (!existingFailedEvent) {
-      await ctx.db.insert("usageEvents", {
-        workspaceId: audit.workspaceId,
-        auditId: args.auditId,
-        event: "audit_failed",
-        idempotencyKey: `audit_failed:${args.auditId}`,
-        metadata: { code: args.errorCode ?? "AUDIT_FAILED" },
-        createdAt: current,
-      })
-    }
-
-    if (audit.batchAuditItemId) {
-      await settleBatchAuditItem(ctx, {
-        auditId: audit._id,
-        outcome: "failed",
-        errorCode: args.errorCode,
-        errorMessage: args.errorMessage,
-      })
-    }
+    await settleAuditFailureSideEffects(ctx, audit, {
+      errorCode: args.errorCode ?? "AUDIT_FAILED",
+      errorMessage: args.errorMessage ?? "Audit fehlgeschlagen.",
+      occurredAt: current,
+    })
 
     return state._id
   },

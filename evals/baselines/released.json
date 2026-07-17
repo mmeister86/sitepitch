@@ -1,0 +1,11 @@
+{
+  "releaseVersion": "2026.07.16.1",
+  "suiteVersion": "audit-suite-v1",
+  "dimensions": {
+    "summary": 0.8,
+    "findings": 0.8,
+    "outreach": 0.8,
+    "evidence": 1,
+    "claimSafety": 1
+  }
+}

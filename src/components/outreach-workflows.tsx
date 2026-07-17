@@ -10,11 +10,14 @@ import {
   ShieldAlert,
   ChevronRight,
   Loader2,
+  MailPlus,
   Save,
+  ShieldCheck,
   Trash2,
 } from "lucide-react"
-import { useConvex, useMutation, useQuery } from "convex/react"
+import { useAction, useConvex, useMutation, useQuery } from "convex/react"
 
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Card,
   CardContent,
@@ -86,6 +89,23 @@ interface DraftState {
   body: string
 }
 
+type IntegrationConnection = {
+  _id: Id<"workspaceIntegrations">
+  provider: "hubspot" | "pipedrive" | "gmail" | "google_sheets" | "webhook"
+  status: "connecting" | "connected" | "error" | "revoked"
+  accountLabel?: string | null
+}
+
+type GmailDraftIntent = {
+  intentId: Id<"gmailDraftIntents">
+  accountLabel?: string | null
+  recipient: string
+  subject: string
+  body: string
+  includedReportLink: boolean
+  expiresAt: number
+}
+
 function buildInitialSubject(draft: OutreachDraft): string {
   return draft.subject ?? draft.subjectLines?.[0] ?? ""
 }
@@ -100,6 +120,12 @@ export function OutreachWorkflows({
 }: OutreachWorkflowsProps) {
   const recordCopy = useMutation(api.reports.recordReportCopyEvent)
   const templates = useQuery(api.outreach_templates.listMyTemplates)
+  const connectionsResult = useQuery(api.integrations.listConnections, {}) as unknown as
+    | { connections: IntegrationConnection[] }
+    | undefined
+  const gmailConnection = connectionsResult?.connections.find(
+    (connection) => connection.provider === "gmail" && connection.status === "connected",
+  )
 
   const recordPublicLinkCopy = async () => {
     try {
@@ -121,6 +147,7 @@ export function OutreachWorkflows({
             isPublic={isPublic}
             language={language}
             templates={templates}
+            gmailConnection={gmailConnection}
             onEnablePublic={onEnablePublic}
             recordCopy={recordCopy}
           />
@@ -172,6 +199,7 @@ function OutreachDraftCard({
   isPublic,
   language,
   templates,
+  gmailConnection,
   onEnablePublic,
   recordCopy,
 }: {
@@ -188,6 +216,7 @@ function OutreachDraftCard({
     subject?: string
     body: string
   }> | undefined
+  gmailConnection?: IntegrationConnection
   onEnablePublic?: () => void | Promise<void>
   recordCopy: ReturnType<typeof useMutation<typeof api.reports.recordReportCopyEvent>>
 }) {
@@ -210,9 +239,16 @@ function OutreachDraftCard({
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false)
   const [isUpdatingTemplate, setIsUpdatingTemplate] = useState(false)
   const [isDeletingTemplate, setIsDeletingTemplate] = useState(false)
+  const [gmailDialogOpen, setGmailDialogOpen] = useState(false)
+  const [gmailRecipient, setGmailRecipient] = useState("")
+  const [gmailIntent, setGmailIntent] = useState<GmailDraftIntent | null>(null)
+  const [isPreparingGmail, setIsPreparingGmail] = useState(false)
+  const [isConfirmingGmail, setIsConfirmingGmail] = useState(false)
   const createTemplate = useMutation(api.outreach_templates.create)
   const updateTemplate = useMutation(api.outreach_templates.update)
   const deleteTemplate = useMutation(api.outreach_templates.deleteTemplate)
+  const prepareGmailDraft = useMutation(api.integrations.prepareGmailDraft)
+  const confirmGmailDraft = useAction(api.integration_actions.confirmGmailDraft)
   const convex = useConvex()
 
   const dirty = subject !== original.subject || body !== original.body
@@ -332,12 +368,51 @@ function OutreachDraftCard({
     }
   }
 
+  const handlePrepareGmailDraft = async () => {
+    if (!gmailConnection || !gmailRecipient.trim() || isPreparingGmail) return
+    setIsPreparingGmail(true)
+    try {
+      const result = await prepareGmailDraft({
+        auditId,
+        recipient: gmailRecipient.trim(),
+        subject,
+        body,
+        includedReportLink: isPublic && linkInserted,
+      })
+      setGmailIntent(result as GmailDraftIntent)
+    } catch (error) {
+      toast.error((error as Error)?.message ?? "Gmail-Vorschau konnte nicht vorbereitet werden")
+    } finally {
+      setIsPreparingGmail(false)
+    }
+  }
+
+  const handleConfirmGmailDraft = async () => {
+    if (!gmailIntent || isConfirmingGmail) return
+    setIsConfirmingGmail(true)
+    try {
+      const result = await confirmGmailDraft({ intentId: gmailIntent.intentId })
+      if (result.status === "unknown") {
+        toast.error("Gmail konnte die Erstellung nicht eindeutig bestätigen. Es wird nicht automatisch erneut versucht.")
+        return
+      }
+      toast.success("Gmail-Entwurf erstellt — es wurde nichts gesendet")
+      setGmailDialogOpen(false)
+      setGmailIntent(null)
+      setGmailRecipient("")
+    } catch (error) {
+      toast.error((error as Error)?.message ?? "Gmail-Entwurf konnte nicht erstellt werden")
+    } finally {
+      setIsConfirmingGmail(false)
+    }
+  }
+
   return (
     <Card>
       <CardHeader className="space-y-3 pb-3">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-base">{label}</CardTitle>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {dirty && (
               <Button
                 variant="ghost"
@@ -357,6 +432,23 @@ function OutreachDraftCard({
               )}
               {copied ? "Kopiert" : "Kopieren"}
             </Button>
+            {isEmail && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => {
+                  if (!gmailConnection) {
+                    toast.error("Verbinde zuerst Gmail in den Integrations-Einstellungen")
+                    return
+                  }
+                  setGmailDialogOpen(true)
+                }}
+              >
+                <MailPlus className="size-4" />
+                Gmail-Entwurf
+              </Button>
+            )}
           </div>
         </div>
 
@@ -522,6 +614,112 @@ function OutreachDraftCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {isEmail && (
+        <Dialog
+          open={gmailDialogOpen}
+          onOpenChange={(open) => {
+            setGmailDialogOpen(open)
+            if (!open) setGmailIntent(null)
+          }}
+        >
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Gmail-Entwurf erstellen</DialogTitle>
+              <DialogDescription>
+                Prüfe Empfänger und Inhalt. SitePitch erstellt ausschließlich einen Entwurf und sendet keine E-Mail.
+              </DialogDescription>
+            </DialogHeader>
+
+            <Alert className="bg-score-strong/5 text-score-strong">
+              <ShieldCheck aria-hidden="true" />
+              <AlertDescription className="text-foreground">
+                <span className="font-medium">Wird nicht gesendet.</span> Du öffnest und versendest den Entwurf später selbst in Gmail.
+              </AlertDescription>
+            </Alert>
+
+            {gmailIntent ? (
+              <div className="space-y-4">
+                <dl className="grid gap-3 rounded-lg border bg-muted/20 p-4 text-sm sm:grid-cols-[7rem_1fr]">
+                  <dt className="text-muted-foreground">Gmail-Konto</dt>
+                  <dd className="min-w-0 truncate font-medium">{gmailIntent.accountLabel ?? gmailConnection?.accountLabel ?? "Verbundenes Konto"}</dd>
+                  <dt className="text-muted-foreground">Empfänger</dt>
+                  <dd className="min-w-0 break-all font-medium">{gmailIntent.recipient}</dd>
+                  <dt className="text-muted-foreground">Betreff</dt>
+                  <dd className="min-w-0 break-words font-medium">{gmailIntent.subject || "Ohne Betreff"}</dd>
+                  <dt className="text-muted-foreground">Report-Link</dt>
+                  <dd>{gmailIntent.includedReportLink ? "Enthalten" : "Nicht enthalten"}</dd>
+                </dl>
+                <div className="space-y-1.5">
+                  <Label>Entwurfstext</Label>
+                  <div className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-muted/20 p-4 text-sm leading-relaxed">
+                    {gmailIntent.body}
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Diese bestätigte Vorschau läuft um {new Date(gmailIntent.expiresAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr ab.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor={`gmail-recipient-${auditId}`}>Empfänger</Label>
+                  <Input
+                    id={`gmail-recipient-${auditId}`}
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    value={gmailRecipient}
+                    placeholder="kontakt@unternehmen.de"
+                    onChange={(event) => setGmailRecipient(event.target.value)}
+                  />
+                </div>
+                <dl className="grid gap-3 rounded-lg border bg-muted/20 p-4 text-sm sm:grid-cols-[7rem_1fr]">
+                  <dt className="text-muted-foreground">Gmail-Konto</dt>
+                  <dd className="min-w-0 truncate font-medium">{gmailConnection?.accountLabel ?? "Verbundenes Konto"}</dd>
+                  <dt className="text-muted-foreground">Betreff</dt>
+                  <dd className="min-w-0 break-words font-medium">{subject || "Ohne Betreff"}</dd>
+                  <dt className="text-muted-foreground">Report-Link</dt>
+                  <dd>{isPublic && linkInserted ? "Enthalten" : "Nicht enthalten"}</dd>
+                </dl>
+                <div className="space-y-1.5">
+                  <Label>Aktueller Text</Label>
+                  <div className="max-h-52 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-muted/20 p-4 text-sm leading-relaxed">
+                    {body}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                disabled={isPreparingGmail || isConfirmingGmail}
+                onClick={() => {
+                  if (gmailIntent) setGmailIntent(null)
+                  else setGmailDialogOpen(false)
+                }}
+              >
+                {gmailIntent ? "Zurück" : "Abbrechen"}
+              </Button>
+              {gmailIntent ? (
+                <Button disabled={isConfirmingGmail} onClick={() => void handleConfirmGmailDraft()}>
+                  {isConfirmingGmail ? <Loader2 className="size-4 animate-spin" /> : <MailPlus className="size-4" />}
+                  In Gmail als Entwurf erstellen
+                </Button>
+              ) : (
+                <Button
+                  disabled={!gmailRecipient.trim() || isPreparingGmail}
+                  onClick={() => void handlePrepareGmailDraft()}
+                >
+                  {isPreparingGmail ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+                  Bestätigung vorbereiten
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </Card>
   )
 }

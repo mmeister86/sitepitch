@@ -4,12 +4,12 @@ title: Build campaign and CSV batch audit workflows
 status: Done
 assignee: []
 created_date: '2026-07-13 20:00'
-updated_date: '2026-07-14 21:34'
+updated_date: '2026-07-16 20:20'
 labels: []
 dependencies: []
 parent_task_id: TASK-5.3
 priority: medium
-ordinal: 44000
+ordinal: 45000
 ---
 
 ## Description

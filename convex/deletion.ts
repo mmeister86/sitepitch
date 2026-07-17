@@ -17,6 +17,10 @@ const phases = [
   "auditPages",
   "auditBusinessData",
   "outreachDrafts",
+  "auditOutputVersions",
+  "integrationRuns",
+  "gmailDraftIntents",
+  "integrationEvents",
   "reportViews",
   "reportViewStats",
   "reportAccessGrants",
@@ -111,6 +115,10 @@ async function deleteSimplePhase(
     case "auditPages": return await ctx.db.query("auditPages").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
     case "auditBusinessData": return await ctx.db.query("auditBusinessData").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
     case "outreachDrafts": return await ctx.db.query("outreachDrafts").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
+    case "auditOutputVersions": return await ctx.db.query("auditOutputVersions").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
+    case "integrationRuns": return await ctx.db.query("integrationRuns").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
+    case "gmailDraftIntents": return await ctx.db.query("gmailDraftIntents").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
+    case "integrationEvents": return await ctx.db.query("integrationEvents").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
     case "reportViews": return await ctx.db.query("reportViews").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
     case "reportViewStats": return await ctx.db.query("reportViewStats").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
     case "reportAccessGrants": return await ctx.db.query("reportAccessGrants").withIndex("by_auditId_and_accessVersion", (q) => q.eq("auditId", auditId)).take(BATCH_SIZE)
@@ -338,15 +346,17 @@ export const recoverPreparedWorkspaceDeletions = internalAction({
 const workspacePhases = [
   "audits",
   "auditRawData", "auditAssets", "auditPerformance", "auditChecks", "auditScores",
-  "auditFindings", "auditSummaries", "outreachDrafts", "reportViews", "reportViewStats",
+  "auditFindings", "auditSummaries", "outreachDrafts", "auditOutputVersions", "reportViews", "reportViewStats",
   "reportAccessGrants", "reportPdfArtifacts", "reportSettings", "reportDomains",
   "notifications", "outreachTemplates",
   "auditPipelineStates", "providerCalls", "auditPages", "auditBusinessData", "auditAgentRuns",
   "auditPersonaReviews", "auditCopyReviews", "auditDesignCritiques",
   "batchAuditQaResults", "batchAuditItems", "batchAuditJobs", "auditCacheEntries",
   "leadActivities", "campaignLeads", "campaigns", "leads", "leadSearchSnapshots",
+  "integrationRuns", "integrationEntityLinks", "gmailDraftIntents", "sheetImportSnapshots",
+  "integrationEvents", "integrationOAuthStates", "integrationCredentials", "workspaceIntegrations",
   "usageEvents", "providerCosts", "adminActions", "creditLedger", "creditBalances",
-  "subscriptions", "retentionPreferenceEvents", "logoUploads", "workspaceMembers",
+  "subscriptions", "retentionPreferenceEvents", "logoUploads", "workspaceMembers", "apiKeys",
   "billingEvents", "deletionJobs", "workspace",
 ] as const
 type WorkspaceDeletionPhase = (typeof workspacePhases)[number]
@@ -447,6 +457,7 @@ async function workspaceRows(ctx: MutationCtx, phase: Exclude<WorkspaceDeletionP
     case "auditFindings": return await ctx.db.query("auditFindings").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "auditSummaries": return await ctx.db.query("auditSummaries").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "outreachDrafts": return await ctx.db.query("outreachDrafts").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "auditOutputVersions": return await ctx.db.query("auditOutputVersions").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "reportViews": return await ctx.db.query("reportViews").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "reportViewStats": return await ctx.db.query("reportViewStats").withIndex("by_workspaceId_and_auditId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "reportAccessGrants": return await ctx.db.query("reportAccessGrants").withIndex("by_workspaceId_and_auditId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
@@ -470,6 +481,14 @@ async function workspaceRows(ctx: MutationCtx, phase: Exclude<WorkspaceDeletionP
     case "campaigns": return await ctx.db.query("campaigns").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "leads": return await ctx.db.query("leads").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "leadSearchSnapshots": return await ctx.db.query("leadSearchSnapshots").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "integrationRuns": return await ctx.db.query("integrationRuns").withIndex("by_workspaceId_and_createdAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "integrationEntityLinks": return await ctx.db.query("integrationEntityLinks").withIndex("by_workspaceId_and_leadId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "gmailDraftIntents": return await ctx.db.query("gmailDraftIntents").withIndex("by_workspaceId_and_createdAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "sheetImportSnapshots": return await ctx.db.query("sheetImportSnapshots").withIndex("by_workspaceId_and_createdAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "integrationEvents": return await ctx.db.query("integrationEvents").withIndex("by_workspaceId_and_createdAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "integrationOAuthStates": return await ctx.db.query("integrationOAuthStates").withIndex("by_workspaceId_and_createdAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "integrationCredentials": return await ctx.db.query("integrationCredentials").withIndex("by_workspaceId_and_integrationId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "workspaceIntegrations": return await ctx.db.query("workspaceIntegrations").withIndex("by_workspaceId_and_provider", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "usageEvents": return await ctx.db.query("usageEvents").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "providerCosts": return await ctx.db.query("providerCosts").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "adminActions": return await ctx.db.query("adminActions").withIndex("by_workspaceId_and_createdAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
@@ -478,6 +497,7 @@ async function workspaceRows(ctx: MutationCtx, phase: Exclude<WorkspaceDeletionP
     case "subscriptions": return await ctx.db.query("subscriptions").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "retentionPreferenceEvents": return await ctx.db.query("retentionPreferenceEvents").withIndex("by_workspaceId_and_createdAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
     case "workspaceMembers": return await ctx.db.query("workspaceMembers").withIndex("by_workspaceId", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
+    case "apiKeys": return await ctx.db.query("apiKeys").withIndex("by_workspaceId_and_createdAt", q => q.eq("workspaceId", workspaceId)).take(BATCH_SIZE)
   }
 }
 

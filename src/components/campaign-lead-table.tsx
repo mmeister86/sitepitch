@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useRef, useState } from "react"
-import { useAction, useMutation } from "convex/react"
+import { useAction, useMutation, useQuery } from "convex/react"
 import { useRouter } from "@/lib/router"
 import {
   Building2,
@@ -11,15 +11,20 @@ import {
   Copy,
   Download,
   Eye,
+  FileSpreadsheet,
   FileText,
   Globe,
   Loader2,
   MoreHorizontal,
+  RefreshCw,
   RotateCcw,
+  Send,
   Trash2,
+  TriangleAlert,
   X,
 } from "lucide-react"
 
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -120,6 +125,90 @@ type CampaignLeadRow = CampaignLeadListItem & {
   outcomeReason?: string
 }
 
+type CrmProvider = "hubspot" | "pipedrive"
+
+type IntegrationConnection = {
+  _id: Id<"workspaceIntegrations">
+  provider: "hubspot" | "pipedrive" | "gmail" | "google_sheets" | "webhook"
+  status: "connecting" | "connected" | "error" | "revoked"
+  accountLabel?: string | null
+}
+
+type IntegrationRun = {
+  _id: Id<"integrationRuns">
+  provider: IntegrationConnection["provider"]
+  operation: string
+  status:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "retryable_failed"
+    | "permanent_failed"
+    | "unknown"
+    | "cancelled"
+  campaignLeadId?: Id<"campaignLeads"> | null
+  safeError?: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+type LeadPushPreview = {
+  integrationId: Id<"workspaceIntegrations">
+  provider: CrmProvider
+  accountLabel?: string | null
+  existingRemoteEntity: boolean
+  fields: {
+    businessName: string
+    domain?: string | null
+    city?: string | null
+    country?: string | null
+    score?: number | null
+    reportUrl?: string | null
+    outcome?: "interested" | "won" | "lost" | null
+  }
+}
+
+type SheetExportResult = {
+  tabName: string
+  rowCount: number
+  spreadsheetUrl?: string
+}
+
+function integrationRunLabel(run: IntegrationRun): string {
+  switch (run.status) {
+    case "queued":
+      return "CRM vorgemerkt"
+    case "running":
+      return "CRM wird aktualisiert"
+    case "succeeded":
+      return run.provider === "hubspot" ? "In HubSpot" : "In Pipedrive"
+    case "retryable_failed":
+      return "CRM fehlgeschlagen"
+    case "permanent_failed":
+      return "CRM abgelehnt"
+    case "unknown":
+      return "CRM unklar"
+    case "cancelled":
+      return "CRM abgebrochen"
+  }
+}
+
+function integrationRunClasses(run: IntegrationRun): string {
+  switch (run.status) {
+    case "queued":
+    case "running":
+      return "bg-primary/10 text-primary"
+    case "succeeded":
+      return "bg-score-strong/10 text-score-strong"
+    case "retryable_failed":
+    case "permanent_failed":
+    case "unknown":
+      return "bg-destructive/10 text-destructive"
+    case "cancelled":
+      return "bg-muted text-muted-foreground"
+  }
+}
+
 function LeadAuditBadge({ lead }: { lead: CampaignLeadRow }) {
   if (!lead.auditReady) {
     return (
@@ -138,7 +227,15 @@ function LeadAuditBadge({ lead }: { lead: CampaignLeadRow }) {
   )
 }
 
-function CampaignLeadSummary({ lead, now }: { lead: CampaignLeadRow; now: number }) {
+function CampaignLeadSummary({
+  lead,
+  now,
+  crmRun,
+}: {
+  lead: CampaignLeadRow
+  now: number
+  crmRun?: IntegrationRun
+}) {
   const viewCount = lead.audit?.viewCount ?? 0
   const outreachCopied = lead.audit?.outreachCopied ?? 0
   const due = isFollowUpDue(lead, now)
@@ -154,6 +251,17 @@ function CampaignLeadSummary({ lead, now }: { lead: CampaignLeadRow; now: number
         <div className="flex flex-wrap items-center gap-2">
           <LeadAuditBadge lead={lead} />
           <CampaignLeadStatusBadge status={lead.status} />
+          {crmRun && (
+            <span
+              className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${integrationRunClasses(crmRun)}`}
+              title={crmRun.safeError ?? undefined}
+            >
+              {(crmRun.status === "queued" || crmRun.status === "running") && (
+                <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+              )}
+              {integrationRunLabel(crmRun)}
+            </span>
+          )}
           {due && (
             <span className="inline-flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
               <Clock3 className="size-3" aria-hidden="true" />
@@ -253,6 +361,15 @@ export function CampaignLeadTable({
   const setFollowUp = useMutation(api.campaigns.setFollowUp)
   const removeLead = useMutation(api.campaigns.removeLead)
   const startAudit = useAction(api.campaigns.startAuditFromCampaign)
+  const connectionsResult = useQuery(api.integrations.listConnections, {}) as unknown as
+    | { connections: IntegrationConnection[] }
+    | undefined
+  const runsResult = useQuery(api.integrations.listRuns, { campaignId, limit: 100 }) as unknown as
+    | { items: IntegrationRun[] }
+    | undefined
+  const enqueueLeadPush = useMutation(api.integrations.enqueueLeadPush)
+  const retryRun = useMutation(api.integrations.retryRun)
+  const exportCampaignLeadsToSheet = useAction(api.integration_actions.exportCampaignLeads)
 
   const [filters, setFilters] = useState<CampaignLeadFilterState>(defaultCampaignLeadFilters)
   const [sortBy, setSortBy] = useState<CampaignLeadSort>("priority")
@@ -282,8 +399,49 @@ export function CampaignLeadTable({
     status: "won" | "lost"
   } | null>(null)
   const [outcomeReason, setOutcomeReason] = useState("")
+  const [crmTarget, setCrmTarget] = useState<CampaignLeadRow | null>(null)
+  const [crmProvider, setCrmProvider] = useState<CrmProvider | null>(null)
+  const [crmBusy, setCrmBusy] = useState(false)
+  const [retryingRunId, setRetryingRunId] = useState<Id<"integrationRuns"> | null>(null)
+  const [sheetExportOpen, setSheetExportOpen] = useState(false)
+  const [sheetSpreadsheetUrl, setSheetSpreadsheetUrl] = useState("")
+  const [sheetName, setSheetName] = useState("SitePitch Leads")
+  const [sheetExportBusy, setSheetExportBusy] = useState(false)
+  const [sheetExportResult, setSheetExportResult] = useState<SheetExportResult | null>(null)
 
   const isReadOnly = campaignStatus === "archived" || campaignStatus === "paused"
+  const connectedCrms = useMemo(
+    () =>
+      (connectionsResult?.connections ?? []).filter(
+        (connection): connection is IntegrationConnection & { provider: CrmProvider } =>
+          (connection.provider === "hubspot" || connection.provider === "pipedrive") &&
+          connection.status === "connected",
+      ),
+    [connectionsResult?.connections],
+  )
+  const sheetsConnection = connectionsResult?.connections.find(
+    (connection) => connection.provider === "google_sheets" && connection.status === "connected",
+  )
+  const latestCrmRunByLead = useMemo(() => {
+    const result = new Map<Id<"campaignLeads">, IntegrationRun>()
+    for (const run of runsResult?.items ?? []) {
+      if (
+        !run.campaignLeadId ||
+        (run.provider !== "hubspot" && run.provider !== "pipedrive") ||
+        (run.operation !== "crm_push" && run.operation !== "crm_lead_push" && run.operation !== "lead_push")
+      ) continue
+      const existing = result.get(run.campaignLeadId)
+      if (!existing || run.updatedAt > existing.updatedAt) result.set(run.campaignLeadId, run)
+    }
+    return result
+  }, [runsResult?.items])
+
+  const crmPreview = useQuery(
+    api.integrations.previewLeadPush,
+    crmTarget && crmProvider
+      ? { campaignLeadId: crmTarget.campaignLeadId, provider: crmProvider }
+      : "skip",
+  ) as unknown as LeadPushPreview | undefined
 
   const filtered = useMemo(() => {
     return sortCampaignLeads(
@@ -463,6 +621,66 @@ export function CampaignLeadTable({
     toast.success(`${filtered.length} ${filtered.length === 1 ? "Lead" : "Leads"} exportiert`)
   }
 
+  function openCrmPush(lead: CampaignLeadRow) {
+    const provider = connectedCrms[0]?.provider
+    if (!provider) {
+      toast.error("Verbinde zuerst HubSpot oder Pipedrive in den Integrations-Einstellungen")
+      return
+    }
+    setCrmProvider(provider)
+    setCrmTarget(lead)
+  }
+
+  async function handleEnqueueLeadPush() {
+    if (!crmTarget || !crmPreview || crmBusy) return
+    setCrmBusy(true)
+    try {
+      await enqueueLeadPush({
+        campaignLeadId: crmTarget.campaignLeadId,
+        integrationId: crmPreview.integrationId,
+      })
+      toast.success(`${crmPreview.provider === "hubspot" ? "HubSpot" : "Pipedrive"}-Abgleich vorgemerkt`)
+      setCrmTarget(null)
+    } catch (error) {
+      toast.error((error as Error)?.message ?? "CRM-Abgleich konnte nicht gestartet werden")
+    } finally {
+      setCrmBusy(false)
+    }
+  }
+
+  async function handleRetryRun(runId: Id<"integrationRuns">) {
+    if (retryingRunId) return
+    setRetryingRunId(runId)
+    try {
+      await retryRun({ runId })
+      toast.success("CRM-Abgleich erneut vorgemerkt")
+    } catch (error) {
+      toast.error((error as Error)?.message ?? "CRM-Abgleich konnte nicht erneut gestartet werden")
+    } finally {
+      setRetryingRunId(null)
+    }
+  }
+
+  async function handleSheetExport() {
+    if (!sheetSpreadsheetUrl.trim() || !sheetName.trim() || sheetExportBusy) return
+    setSheetExportBusy(true)
+    setSheetExportResult(null)
+    try {
+      const result = await exportCampaignLeadsToSheet({
+        campaignId,
+        spreadsheetUrl: sheetSpreadsheetUrl.trim(),
+        sheetName: sheetName.trim(),
+        campaignLeadIds: filtered.map((lead) => lead.campaignLeadId),
+      })
+      setSheetExportResult(result as SheetExportResult)
+      toast.success(`${result.rowCount} ${result.rowCount === 1 ? "Lead" : "Leads"} in neuen Tabellen-Tab exportiert`)
+    } catch (error) {
+      toast.error((error as Error)?.message ?? "Google-Sheets-Export konnte nicht abgeschlossen werden")
+    } finally {
+      setSheetExportBusy(false)
+    }
+  }
+
   if (leads.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
@@ -625,17 +843,37 @@ export function CampaignLeadTable({
         <span className="text-xs text-muted-foreground" aria-live="polite">
           {filtered.length} {filtered.length === 1 ? "Lead" : "Leads"}
         </span>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          disabled={filtered.length === 0}
-          onClick={handleExport}
-        >
-          <Download className="size-3.5" aria-hidden="true" />
-          CSV exportieren
-        </Button>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            disabled={filtered.length === 0}
+            onClick={handleExport}
+          >
+            <Download className="size-3.5" aria-hidden="true" />
+            CSV
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            disabled={filtered.length === 0}
+            onClick={() => {
+              if (!sheetsConnection) {
+                toast.error("Verbinde zuerst Google Sheets in den Integrations-Einstellungen")
+                return
+              }
+              setSheetExportResult(null)
+              setSheetExportOpen(true)
+            }}
+          >
+            <FileSpreadsheet className="size-3.5" aria-hidden="true" />
+            Google Sheets
+          </Button>
+        </div>
       </div>
 
       {filtered.length === 0 ? (
@@ -675,7 +913,11 @@ export function CampaignLeadTable({
                 </div>
               }
             >
-              <CampaignLeadSummary lead={lead} now={filterReferenceTime} />
+              <CampaignLeadSummary
+                lead={lead}
+                now={filterReferenceTime}
+                crmRun={latestCrmRunByLead.get(lead.campaignLeadId)}
+              />
             </ExpandableTrigger>
 
             <ExpandableContent>
@@ -744,6 +986,27 @@ export function CampaignLeadTable({
                     <LeadEditButton lead={lead} onClick={() => openEditLead(lead)} />
 
                     <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={
+                        isReadOnly ||
+                        !lead.audit
+                      }
+                      title={
+                        connectedCrms.length === 0
+                          ? "HubSpot oder Pipedrive unter Integrationen verbinden"
+                          : !lead.audit
+                            ? "Lead zuerst auditieren"
+                            : undefined
+                      }
+                      onClick={() => openCrmPush(lead)}
+                    >
+                      <Send className="size-3.5" aria-hidden="true" />
+                      An CRM senden
+                    </Button>
+
+                    <Button
                       variant="ghost"
                       size="sm"
                       className="text-destructive hover:text-destructive"
@@ -756,6 +1019,50 @@ export function CampaignLeadTable({
                   </div>
                 }
               />
+
+              {lead.status === "won" && connectedCrms.length > 0 && !latestCrmRunByLead.get(lead.campaignLeadId) && (
+                <div className="mt-4 flex flex-col gap-3 rounded-lg border bg-score-strong/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">Gewonnenen Lead ins CRM übernehmen</p>
+                    <p className="text-xs text-muted-foreground">
+                      Übertrage nur Unternehmensdaten, Score, öffentlichen Report-Link und Ergebnis.
+                    </p>
+                  </div>
+                  <Button size="sm" className="shrink-0 gap-1.5" onClick={() => openCrmPush(lead)}>
+                    <Send className="size-3.5" aria-hidden="true" />
+                    Vorschau prüfen
+                  </Button>
+                </div>
+              )}
+
+              {(() => {
+                const run = latestCrmRunByLead.get(lead.campaignLeadId)
+                if (!run || !["retryable_failed", "permanent_failed", "unknown"].includes(run.status)) return null
+                return (
+                  <Alert variant="destructive" className="mt-4">
+                    <TriangleAlert aria-hidden="true" />
+                    <AlertDescription>
+                      <p>{run.safeError ?? "Der CRM-Abgleich konnte nicht abgeschlossen werden."}</p>
+                      {run.status === "retryable_failed" && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={retryingRunId !== null}
+                          onClick={() => void handleRetryRun(run._id)}
+                        >
+                          {retryingRunId === run._id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <RefreshCw className="size-3.5" />
+                          )}
+                          Erneut versuchen
+                        </Button>
+                      )}
+                    </AlertDescription>
+                  </Alert>
+                )
+              })()}
 
               <div className="grid gap-4 pt-4 md:grid-cols-2">
                 {isTerminalStatus(lead.status) && (
@@ -916,6 +1223,163 @@ export function CampaignLeadTable({
           <DialogFooter>
             <Button variant="outline" onClick={() => setPendingOutcome(null)}>Abbrechen</Button>
             <Button onClick={() => void confirmOutcome()}>Status speichern</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!crmTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCrmTarget(null)
+            setCrmProvider(null)
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Lead an CRM senden</DialogTitle>
+            <DialogDescription>
+              Ein manueller, einmaliger Upsert. SitePitch synchronisiert keine späteren Änderungen automatisch.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {connectedCrms.length > 1 && (
+              <div className="space-y-1.5">
+                <Label htmlFor="campaign-crm-provider">Ziel</Label>
+                <Select value={crmProvider ?? ""} onValueChange={(value) => setCrmProvider(value as CrmProvider)}>
+                  <SelectTrigger id="campaign-crm-provider">
+                    <SelectValue placeholder="CRM auswählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {connectedCrms.map((connection) => (
+                      <SelectItem key={connection._id} value={connection.provider}>
+                        {connection.provider === "hubspot" ? "HubSpot" : "Pipedrive"}
+                        {connection.accountLabel ? ` · ${connection.accountLabel}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {crmPreview === undefined ? (
+              <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Sichere Vorschau wird erstellt …
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3 text-sm">
+                  <div className="min-w-0">
+                    <p className="font-medium">
+                      {crmPreview.provider === "hubspot" ? "HubSpot Company" : "Pipedrive Organization"}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {crmPreview.accountLabel ?? "Verbundenes Konto"}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {crmPreview.existingRemoteEntity ? "Bestehenden Eintrag aktualisieren" : "Eintrag anlegen"}
+                  </span>
+                </div>
+
+                <dl className="grid gap-x-5 gap-y-2 rounded-lg border p-4 text-sm sm:grid-cols-[8rem_1fr]">
+                  <dt className="text-muted-foreground">Unternehmen</dt>
+                  <dd className="font-medium">{crmPreview.fields.businessName}</dd>
+                  <dt className="text-muted-foreground">Domain</dt>
+                  <dd>{crmPreview.fields.domain ?? "Nicht vorhanden"}</dd>
+                  <dt className="text-muted-foreground">Ort</dt>
+                  <dd>{[crmPreview.fields.city, crmPreview.fields.country].filter(Boolean).join(", ") || "Nicht vorhanden"}</dd>
+                  <dt className="text-muted-foreground">Audit-Score</dt>
+                  <dd>{crmPreview.fields.score ?? "Nicht vorhanden"}</dd>
+                  <dt className="text-muted-foreground">Report-Link</dt>
+                  <dd className="min-w-0 break-all">{crmPreview.fields.reportUrl ?? "Report nicht öffentlich"}</dd>
+                  <dt className="text-muted-foreground">Ergebnis</dt>
+                  <dd>{crmPreview.fields.outcome ? campaignLeadStatusLabel(crmPreview.fields.outcome) : "Nicht ausgewählt"}</dd>
+                </dl>
+                <p className="text-xs text-muted-foreground">
+                  Notizen, Ergebnisgrund, Outreach-Texte, Rohdaten und Findings werden nicht übertragen.
+                </p>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" disabled={crmBusy} onClick={() => setCrmTarget(null)}>
+              Abbrechen
+            </Button>
+            <Button disabled={!crmPreview || crmBusy} onClick={() => void handleEnqueueLeadPush()}>
+              {crmBusy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+              {crmPreview?.provider === "pipedrive" ? "An Pipedrive senden" : "An HubSpot senden"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={sheetExportOpen}
+        onOpenChange={(open) => {
+          setSheetExportOpen(open)
+          if (!open) setSheetExportResult(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Nach Google Sheets exportieren</DialogTitle>
+            <DialogDescription>
+              Exportiert die aktuell gefilterten Leads als RAW-Werte in einen neuen Tab. Bestehende Tabs werden nie überschrieben.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="campaign-sheet-export-url">Google-Sheets-URL</Label>
+              <Input
+                id="campaign-sheet-export-url"
+                type="url"
+                inputMode="url"
+                value={sheetSpreadsheetUrl}
+                placeholder="https://docs.google.com/spreadsheets/d/…"
+                onChange={(event) => setSheetSpreadsheetUrl(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="campaign-sheet-export-name">Name des neuen Tabs</Label>
+              <Input
+                id="campaign-sheet-export-name"
+                value={sheetName}
+                maxLength={80}
+                onChange={(event) => setSheetName(event.target.value)}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {filtered.length} {filtered.length === 1 ? "gefilterter Lead wird" : "gefilterte Leads werden"} exportiert.
+            </p>
+            {sheetExportResult && (
+              <Alert className="bg-score-strong/5 text-score-strong">
+                <Check aria-hidden="true" />
+                <AlertDescription className="text-foreground">
+                  {sheetExportResult.rowCount} {sheetExportResult.rowCount === 1 ? "Lead wurde" : "Leads wurden"} in „{sheetExportResult.tabName}“ exportiert.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" disabled={sheetExportBusy} onClick={() => setSheetExportOpen(false)}>
+              {sheetExportResult ? "Schließen" : "Abbrechen"}
+            </Button>
+            {!sheetExportResult && (
+              <Button
+                disabled={!sheetSpreadsheetUrl.trim() || !sheetName.trim() || sheetExportBusy}
+                onClick={() => void handleSheetExport()}
+              >
+                {sheetExportBusy ? <Loader2 className="size-4 animate-spin" /> : <FileSpreadsheet className="size-4" />}
+                In neuen Tab exportieren
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

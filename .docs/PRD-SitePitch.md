@@ -933,7 +933,7 @@ Viele Grüße
 | Free | 0 € | 3 Audits einmalig, SitePitch Branding |
 | Starter | 19 €/Monat | 25 Audits/Monat |
 | Pro | 49 €/Monat | 100 Audits/Monat, Branding, PDF |
-| Agency | 99 €/Monat | 300 Audits/Monat, White-Label Light |
+| Agency | 99 €/Monat | 300 Audits/Monat, Batch Audits bis 100 URLs, White-Label Light, Custom Domain, API, Webhooks |
 | Extra Credits | 10 € | 25 zusätzliche Audits |
 
 ### Credit-Regeln

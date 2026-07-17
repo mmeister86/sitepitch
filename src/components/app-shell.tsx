@@ -168,6 +168,14 @@ function useTitle() {
       return "Report-Branding"
     case "billing-settings":
       return "Plan & Credits"
+    case "integration-settings":
+      return "Integrationen"
+    case "api-settings":
+      return "Public API"
+    case "admin-operations":
+      return "Operations"
+    case "admin-evals":
+      return "Eve Evals"
   }
 }
 

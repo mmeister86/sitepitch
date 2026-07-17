@@ -2,6 +2,10 @@
 import type { InferChannelMetadata } from "eve/channels";
 
 declare module "eve/channels" {
-  interface ChannelMetadataMap {}
-  interface ChannelReferenceMap {}
+  interface ChannelMetadataMap {
+    readonly "channel:eve": InferChannelMetadata<typeof import("../../agent/channels/eve.js").default>;
+  }
+  interface ChannelReferenceMap {
+    readonly "channel:eve": typeof import("../../agent/channels/eve.js").default;
+  }
 }

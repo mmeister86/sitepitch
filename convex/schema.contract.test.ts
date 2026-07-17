@@ -24,6 +24,7 @@ const tableNames = Object.keys(schema.tables).sort()
 
 assert.deepEqual(tableNames, [
   "adminActions",
+  "apiKeys",
   "auditAgentRuns",
   "auditAssets",
   "auditBusinessData",
@@ -32,6 +33,7 @@ assert.deepEqual(tableNames, [
   "auditCopyReviews",
   "auditDesignCritiques",
   "auditFindings",
+  "auditOutputVersions",
   "auditPages",
   "auditPerformance",
   "auditPersonaReviews",
@@ -49,6 +51,14 @@ assert.deepEqual(tableNames, [
   "creditBalances",
   "creditLedger",
   "deletionJobs",
+  "eveEvalCaseResults",
+  "eveEvalRuns",
+  "gmailDraftIntents",
+  "integrationCredentials",
+  "integrationEntityLinks",
+  "integrationEvents",
+  "integrationOAuthStates",
+  "integrationRuns",
   "leadActivities",
   "leadSearchSnapshots",
   "leads",
@@ -66,9 +76,11 @@ assert.deepEqual(tableNames, [
   "reportViewStats",
   "reportViews",
   "retentionPreferenceEvents",
+  "sheetImportSnapshots",
   "subscriptions",
   "usageEvents",
   "users",
+  "workspaceIntegrations",
   "workspaceMembers",
   "workspaces",
 ])
@@ -230,6 +242,15 @@ assert.ok(auditsIndexes.some(([name, fields]) => name === "by_workspaceId_and_cr
 assert.ok(auditsIndexes.some(([name, fields]) => name === "by_workspaceId_and_idempotencyKey" && fields.join(",") === "workspaceId,idempotencyKey"))
 assert.ok(auditsIndexes.some(([name, fields]) => name === "by_campaignId_and_createdAt" && fields.join(",") === "campaignId,createdAt"))
 assert.ok(auditsIndexes.some(([name, fields]) => name === "by_campaignLeadId_and_createdAt" && fields.join(",") === "campaignLeadId,createdAt"))
+assert.ok(auditsIndexes.some(([name, fields]) => name === "by_externalApiId" && fields[0] === "externalApiId"))
+
+for (const index of ["by_auditId", "by_auditId_and_versionNumber", "by_auditId_and_status"]) {
+  assert.ok(indexDescriptors("auditOutputVersions").includes(index))
+}
+for (const index of ["by_publicRunId", "by_candidateReleaseVersion_and_createdAt", "by_retentionExpiresAt"]) {
+  assert.ok(indexDescriptors("eveEvalRuns").includes(index))
+}
+assert.ok(indexDescriptors("eveEvalCaseResults").includes("by_evalRunId_and_caseId"))
 
 const creditLedgerIndexes = (schema.tables.creditLedger as any).indexes.map(
   (index: { indexDescriptor: string }) => index.indexDescriptor,
@@ -376,6 +397,7 @@ assert.ok(leadsIndexes.includes("by_workspaceId_and_status"))
 assert.ok(leadsIndexes.includes("by_workspaceId_and_sourceProvider_and_sourceId"))
 assert.ok(leadsIndexes.includes("by_workspaceId_and_normalizedDomain"))
 assert.ok(getValidatorValues(leadSourceProviderValidator).some((value: any) => value.value === "csv"))
+assert.ok(getValidatorValues(leadSourceProviderValidator).some((value: any) => value.value === "google_sheets"))
 
 const leadSearchSnapshotIndexes = (schema.tables.leadSearchSnapshots as any).indexes.map(
   (index: { indexDescriptor: string }) => index.indexDescriptor,

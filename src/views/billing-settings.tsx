@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useAction, useQuery } from "convex/react"
-import { AlertCircle, CreditCard, ExternalLink, Loader2, Sparkles } from "lucide-react"
+import { AlertCircle, Check, CreditCard, ExternalLink, Loader2, Sparkles } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -10,13 +10,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Spinner } from "@/components/ui/spinner"
+import { PRICING_CATALOG } from "@/lib/launch-content"
 import { api } from "../../convex/_generated/api"
 
-const PLANS = [
-  { id: "starter" as const, name: "Starter", price: "19 €", credits: 25 },
-  { id: "pro" as const, name: "Pro", price: "49 €", credits: 100 },
-  { id: "agency" as const, name: "Agency", price: "99 €", credits: 300 },
-]
+const PLANS = PRICING_CATALOG.plans
 
 export function BillingSettingsView() {
   const data = useQuery(api.workspaces.getMyWorkspace)
@@ -76,7 +73,25 @@ export function BillingSettingsView() {
       </Card>
 
       <div className="grid gap-4 md:grid-cols-3">
-        {PLANS.map((item) => <Card key={item.id} className={plan === item.id ? "border-primary" : undefined}><CardHeader><CardTitle>{item.name}</CardTitle><CardDescription>{item.price}/Monat · {item.credits} Audits</CardDescription></CardHeader><CardContent><Button className="w-full" variant={plan === item.id ? "outline" : "default"} disabled={pending !== null || plan === item.id} onClick={() => void checkout(item.id)}>{pending === item.id ? <Loader2 className="size-4 animate-spin" /> : null}{plan === item.id ? "Aktueller Plan" : `${item.name} wählen`}</Button></CardContent></Card>)}
+        {PLANS.map((item) => (
+          <Card key={item.id} className={plan === item.id ? "border-primary" : undefined}>
+            <CardHeader>
+              <CardTitle>{item.name}</CardTitle>
+              <CardDescription>{item.monthlyPriceEuro} €/Monat · {item.credits} Audits</CardDescription>
+            </CardHeader>
+            <CardContent className="flex h-full flex-col gap-5">
+              <ul className="grid gap-2 text-sm">
+                {item.features.map((feature) => (
+                  <li key={feature} className="flex gap-2">
+                    <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <Button className="mt-auto w-full" variant={plan === item.id ? "outline" : "default"} disabled={pending !== null || plan === item.id} onClick={() => void checkout(item.id)}>{pending === item.id ? <Loader2 className="size-4 animate-spin" /> : null}{plan === item.id ? "Aktueller Plan" : `${item.name} wählen`}</Button>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <Card><CardHeader><CardTitle>25 Extra-Credits</CardTitle><CardDescription>Einmalig 10 €. Extra-Credits verfallen nicht am Monatsende.</CardDescription></CardHeader><CardContent><Button disabled={pending !== null} onClick={() => void checkout("credit_pack")}>{pending === "credit_pack" ? <Loader2 className="size-4 animate-spin" /> : null}25 Credits kaufen</Button></CardContent></Card>

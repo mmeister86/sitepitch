@@ -8,7 +8,7 @@ import {
   type AuditAgentOutput,
 } from "./lib/audit_agent_schemas"
 import { reviewClaimSafety, reviewTextsClaimSafety } from "./lib/audit_agent_claim_safety"
-import { buildEvidenceRefs, validateFindingEvidence } from "./lib/audit_agent_evidence"
+import { buildEvidenceRefs, validateFindingEvidence, validateOutputEvidence } from "./lib/audit_agent_evidence"
 import type { CheckInput } from "./lib/audit_scoring"
 
 function baseOutput(): AuditAgentOutput {
@@ -19,6 +19,7 @@ function baseOutput(): AuditAgentOutput {
         severity: "medium",
         title: "Kontaktbereich optimieren",
         evidence: "Kontakt: clear_cta",
+        evidenceRefs: ["conversion:clear_cta"],
         explanation: "Der Kontaktbereich lässt sich verbessern.",
         recommendation: "Klareren CTA setzen.",
         salesAngle: "Mehr Anfragen aus bestehendem Traffic.",
@@ -30,11 +31,12 @@ function baseOutput(): AuditAgentOutput {
       weaknesses: ["Kontakt lässt sich verbessern."],
       topOpportunities: ["Kontaktbereich optimieren."],
       nextSteps: ["CTA prüfen."],
+      evidenceRefs: ["conversion:clear_cta"],
     },
     outreach: [
-      { type: "email", subject: "Kurzer Audit", body: "Hallo Team, kurzer Audit." },
-      { type: "linkedin", body: "Hallo, kurzer Audit." },
-      { type: "phone_note", body: "Anruf-Notiz: Audit erstellt." },
+      { type: "email", subject: "Kurzer Audit", body: "Hallo Team, kurzer Audit.", evidenceRefs: ["conversion:clear_cta"] },
+      { type: "linkedin", body: "Hallo, kurzer Audit.", evidenceRefs: ["conversion:clear_cta"] },
+      { type: "phone_note", body: "Anruf-Notiz: Audit erstellt.", evidenceRefs: ["conversion:clear_cta"] },
     ],
     subjectLines: ["Kurzer Website-Audit"],
   }
@@ -48,7 +50,7 @@ describe("audit agent schema", () => {
 
   test("rejects output without required email/phone outreach", () => {
     const output = baseOutput()
-    output.outreach = [{ type: "linkedin", body: "x" }]
+    output.outreach = [{ type: "linkedin", body: "x", evidenceRefs: ["conversion:clear_cta"] }]
     const result = auditAgentOutputSchema.safeParse(output)
     assert.ok(!result.success)
   })
@@ -156,11 +158,11 @@ describe("evidence validation", () => {
     { category: "seo", key: "meta_description", label: "Meta Description", status: "warning", evidence: "Meta Description fehlt" },
   ]
 
-  test("accepts findings referencing stored label or evidence", () => {
+  test("accepts findings referencing exact stored check refs", () => {
     const refs = buildEvidenceRefs(checks)
     const findings = [
-      { title: "CTA", evidence: "Klarer CTA fehlt", category: "conversion" },
-      { title: "Meta", evidence: "Meta Description", category: "seo" },
+      { title: "CTA", evidenceRefs: ["conversion:clear_cta"] },
+      { title: "Meta", evidenceRefs: ["seo:meta_description"] },
     ]
     const issues = validateFindingEvidence(findings, refs)
     assert.equal(issues.length, 0)
@@ -169,10 +171,31 @@ describe("evidence validation", () => {
   test("rejects findings with no stored evidence reference", () => {
     const refs = buildEvidenceRefs(checks)
     const findings = [
-      { title: "Erfunden", evidence: "Irgendein erfundener Wert 42%", category: "conversion" },
+      { title: "Erfunden", evidenceRefs: ["conversion:invented"] },
     ]
     const issues = validateFindingEvidence(findings, refs)
     assert.equal(issues.length, 1)
-    assert.equal(issues[0].findingIndex, 0)
+    assert.equal(issues[0].path, "findings[0].evidenceRefs")
+  })
+
+  test("rejects labels and category-only refs instead of exact check refs", () => {
+    const refs = buildEvidenceRefs(checks)
+    const issues = validateFindingEvidence(
+      [{ title: "CTA", evidenceRefs: ["conversion:Klarer CTA"] }],
+      refs,
+    )
+    assert.equal(issues.length, 1)
+  })
+
+  test("validates summary and every outreach draft", () => {
+    const refs = buildEvidenceRefs(checks)
+    const output = baseOutput()
+    output.summary.evidenceRefs = ["seo:invented"]
+    output.outreach[1].evidenceRefs = ["conversion:invented"]
+    const issues = validateOutputEvidence(output, refs)
+    assert.deepEqual(
+      issues.map((issue) => issue.path),
+      ["summary.evidenceRefs", "outreach[1].evidenceRefs"],
+    )
   })
 })

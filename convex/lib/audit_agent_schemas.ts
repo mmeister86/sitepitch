@@ -1,6 +1,11 @@
 import { z } from "zod"
 
-export const AUDIT_AGENT_SCHEMA_VERSION = "2026.07.1"
+export const AUDIT_AGENT_SCHEMA_VERSION = "2026.07.2"
+
+const evidenceRefsSchema = z
+  .array(z.string().regex(/^[a-z_]+:[a-z0-9_:-]+$/i).max(160))
+  .min(1)
+  .max(20)
 
 export const findingCategorySchema = z.enum([
   "conversion",
@@ -19,6 +24,7 @@ export const auditFindingOutputSchema = z.object({
   severity: findingSeveritySchema,
   title: z.string().min(1).max(120),
   evidence: z.string().min(1).max(400),
+  evidenceRefs: evidenceRefsSchema,
   explanation: z.string().min(1).max(600),
   recommendation: z.string().min(1).max(600),
   salesAngle: z.string().min(1).max(600),
@@ -30,6 +36,7 @@ export const auditSummaryOutputSchema = z.object({
   weaknesses: z.array(z.string().min(1).max(200)).min(1).max(8),
   topOpportunities: z.array(z.string().min(1).max(200)).min(1).max(5),
   nextSteps: z.array(z.string().min(1).max(200)).min(1).max(6),
+  evidenceRefs: evidenceRefsSchema,
 })
 
 export const outreachDraftOutputSchema = z.object({
@@ -37,6 +44,7 @@ export const outreachDraftOutputSchema = z.object({
   subject: z.string().min(1).max(160).optional(),
   subjectLines: z.array(z.string().min(1).max(160)).max(5).optional(),
   body: z.string().min(1).max(2000),
+  evidenceRefs: evidenceRefsSchema,
 })
 
 export const outreachDraftsOutputSchema = z
@@ -76,6 +84,7 @@ export const outreachDraftGenerationSchema = z.object({
   subject: z.string().min(1).max(160).nullable(),
   subjectLines: z.array(z.string().min(1).max(160)).max(5).nullable(),
   body: z.string().min(1).max(2000),
+  evidenceRefs: evidenceRefsSchema,
 })
 
 export const auditAgentGenerationSchema = z.object({
@@ -96,8 +105,8 @@ export function generationToStorage(generation: AuditAgentGenerationOutput): Aud
       subject: draft.subject ?? undefined,
       subjectLines: draft.subjectLines ?? undefined,
       body: draft.body,
+      evidenceRefs: draft.evidenceRefs,
     })),
     subjectLines: generation.subjectLines,
   }
 }
-

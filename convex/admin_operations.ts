@@ -188,6 +188,17 @@ export const getAuditTrace = query({
         model: ar.model,
         purpose: ar.purpose,
         status: ar.status,
+        executor: ar.executor ?? "legacy",
+        releaseVersion: ar.releaseVersion ?? null,
+        promptVersion: ar.promptVersion ?? null,
+        outputSchemaVersion: ar.outputSchemaVersion ?? null,
+        eveVersion: ar.eveVersion ?? null,
+        eveSessionId: ar.eveSessionId ?? null,
+        buildSha: ar.buildSha ?? null,
+        skillVersions: ar.loadedSkillVersions ?? ar.skillVersions ?? {},
+        schemaPass: ar.schemaPass ?? null,
+        evidencePass: ar.evidencePass ?? null,
+        claimSafetyPass: ar.claimSafetyPass ?? null,
         tokensIn: ar.tokensIn ?? null,
         tokensOut: ar.tokensOut ?? null,
         errorMessage: ar.errorMessage ? redactSensitiveText(ar.errorMessage) : null,
@@ -318,6 +329,28 @@ export const getOperationsMetrics = query({
       providerFailureRates[provider] = entry.total > 0 ? entry.failed / entry.total : null
     }
 
+    const recentIntegrationRuns = await ctx.db
+      .query("integrationRuns")
+      .withIndex("by_createdAt", (q) => q.gte("createdAt", cutoff))
+      .take(500)
+    const integrationGroups = new Map<string, { total: number; failed: number }>()
+    let failedIntegrationRuns = 0
+    for (const run of recentIntegrationRuns) {
+      const integration = await ctx.db.get(run.integrationId)
+      if (!integration) continue
+      const entry = integrationGroups.get(integration.provider) ?? { total: 0, failed: 0 }
+      entry.total++
+      if (["retryable_failed", "permanent_failed", "unknown"].includes(run.status)) {
+        entry.failed++
+        failedIntegrationRuns++
+      }
+      integrationGroups.set(integration.provider, entry)
+    }
+    const integrationFailureRates: Record<string, number | null> = {}
+    for (const [provider, entry] of integrationGroups) {
+      integrationFailureRates[provider] = entry.total > 0 ? entry.failed / entry.total : null
+    }
+
     const recentCosts = await ctx.db
       .query("providerCosts")
       .withIndex("by_createdAt", (q) => q.gte("createdAt", cutoff))
@@ -375,6 +408,8 @@ export const getOperationsMetrics = query({
       completionRate,
       failureRate,
       providerFailureRates,
+      integrationFailureRates,
+      failedIntegrationRuns,
       totalEstimatedCostUsd,
       totalActualCostUsd,
       avgCostPerAudit,

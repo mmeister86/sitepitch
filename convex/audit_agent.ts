@@ -1,15 +1,24 @@
 import { ConvexError, v } from "convex/values"
 
 import type { Doc, Id } from "./_generated/dataModel"
-import { internalMutation, internalQuery } from "./_generated/server"
+import { env, internalMutation, internalQuery } from "./_generated/server"
 import type { CheckCategory, CheckInput } from "./lib/audit_scoring"
-import { consumeWorkspaceCreditReservation, releaseWorkspaceCreditReservation } from "./lib/credits"
+import { consumeWorkspaceCreditReservation } from "./lib/credits"
 import { estimateLlmCostUsd, PROVIDER_COST_RATE_VERSION } from "./lib/provider_cost_rates"
-import { auditAgentOutputSchema, type AuditAgentOutput } from "./lib/audit_agent_schemas"
+import {
+  AUDIT_AGENT_SCHEMA_VERSION,
+  auditAgentOutputSchema,
+  type AuditAgentOutput,
+} from "./lib/audit_agent_schemas"
+import { buildEvidenceRefs, validateOutputEvidence } from "./lib/audit_agent_evidence"
+import { reviewClaimSafety } from "./lib/audit_agent_claim_safety"
 import { personaPanelOutputSchema } from "./lib/audit_persona_schemas"
 import { copyReviewOutputSchema } from "./lib/audit_copy_review_schemas"
 import { designCritiqueOutputSchema } from "./lib/audit_design_critique_schemas"
 import { settleBatchAuditItem } from "./batch_audits"
+import { optionalIntegrationReportUrl, recordIntegrationEvent } from "./integrations"
+import { settleAuditFailureSideEffects } from "./lib/audit_failure"
+import { setPublicReportVisibility } from "./reports"
 
 export interface AuditAgentContextCheck {
   category: CheckCategory
@@ -24,6 +33,7 @@ export interface AuditAgentContextCheck {
 export interface AuditAgentContext {
   auditId: string
   workspaceId: string
+  apiKeyId?: string
   domain: string
   normalizedUrl: string
   reportLanguage: "de" | "en"
@@ -165,6 +175,7 @@ export const getAuditAgentContext = internalQuery({
     return {
       auditId: audit._id,
       workspaceId: audit.workspaceId,
+      apiKeyId: audit.apiKeyId,
       domain: audit.domain,
       normalizedUrl: audit.normalizedUrl,
       reportLanguage: audit.reportLanguage,
@@ -261,6 +272,12 @@ export const startAuditAgentRun = internalMutation({
     model: v.string(),
     purpose: v.union(v.literal("findings"), v.literal("summary"), v.literal("outreach"), v.literal("qa"), v.literal("critique")),
     skillVersions: v.optional(v.record(v.string(), v.string())),
+    executor: v.optional(v.union(v.literal("eve"), v.literal("ai_sdk"), v.literal("deterministic"), v.literal("legacy"))),
+    releaseVersion: v.optional(v.string()),
+    promptVersion: v.optional(v.string()),
+    outputSchemaVersion: v.optional(v.string()),
+    eveVersion: v.optional(v.string()),
+    buildSha: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const audit = await ctx.db.get(args.auditId)
@@ -275,6 +292,12 @@ export const startAuditAgentRun = internalMutation({
       purpose: args.purpose,
       status: "started",
       skillVersions: args.skillVersions,
+      executor: args.executor,
+      releaseVersion: args.releaseVersion,
+      promptVersion: args.promptVersion,
+      outputSchemaVersion: args.outputSchemaVersion,
+      eveVersion: args.eveVersion,
+      buildSha: args.buildSha,
       startedAt: now(),
       createdAt: now(),
     })
@@ -287,6 +310,15 @@ export const finishAuditAgentRun = internalMutation({
     status: v.union(v.literal("completed"), v.literal("failed")),
     tokensIn: v.optional(v.number()),
     tokensOut: v.optional(v.number()),
+    model: v.optional(v.string()),
+    actualCostUsd: v.optional(v.number()),
+    eveSessionId: v.optional(v.string()),
+    eveVersion: v.optional(v.string()),
+    buildSha: v.optional(v.string()),
+    loadedSkillVersions: v.optional(v.record(v.string(), v.string())),
+    schemaPass: v.optional(v.boolean()),
+    evidencePass: v.optional(v.boolean()),
+    claimSafetyPass: v.optional(v.boolean()),
     errorMessage: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -301,6 +333,14 @@ export const finishAuditAgentRun = internalMutation({
       status: args.status,
       tokensIn: args.tokensIn,
       tokensOut: args.tokensOut,
+      model: args.model ?? run.model,
+      eveSessionId: args.eveSessionId,
+      eveVersion: args.eveVersion,
+      buildSha: args.buildSha,
+      loadedSkillVersions: args.loadedSkillVersions,
+      schemaPass: args.schemaPass,
+      evidencePass: args.evidencePass,
+      claimSafetyPass: args.claimSafetyPass,
       errorMessage: args.errorMessage,
       completedAt: now(),
     })
@@ -313,7 +353,10 @@ export const finishAuditAgentRun = internalMutation({
         .first()
       if (existing) return
 
-      const estimatedCostUsd = estimateLlmCostUsd(run.model, args.tokensIn, args.tokensOut)
+      const model = args.model ?? run.model
+      const estimatedCostUsd = args.actualCostUsd === undefined
+        ? estimateLlmCostUsd(model, args.tokensIn, args.tokensOut)
+        : undefined
 
       await ctx.db.insert("providerCosts", {
         workspaceId: run.workspaceId,
@@ -323,10 +366,11 @@ export const finishAuditAgentRun = internalMutation({
         costKey,
         provider: run.provider,
         operation: `llm:${run.purpose}`,
-        model: run.model,
-        source: "estimated",
+        model,
+        source: args.actualCostUsd === undefined ? "estimated" : "provider_response",
         pricingVersion: PROVIDER_COST_RATE_VERSION,
         estimatedCostUsd,
+        actualCostUsd: args.actualCostUsd,
         tokensIn: args.tokensIn,
         tokensOut: args.tokensOut,
         requestCount: 1,
@@ -339,8 +383,23 @@ export const finishAuditAgentRun = internalMutation({
 export const saveAuditAgentOutput = internalMutation({
   args: {
     auditId: v.id("audits"),
+    auditAgentRunId: v.optional(v.id("auditAgentRuns")),
     output: v.any(),
     reportLink: v.optional(v.string()),
+    metadata: v.optional(v.object({
+      executor: v.union(v.literal("eve"), v.literal("ai_sdk"), v.literal("deterministic"), v.literal("legacy")),
+      provider: v.optional(v.string()),
+      model: v.optional(v.string()),
+      releaseVersion: v.string(),
+      promptVersion: v.string(),
+      outputSchemaVersion: v.string(),
+      skillVersions: v.record(v.string(), v.string()),
+      eveVersion: v.optional(v.string()),
+      eveSessionId: v.optional(v.string()),
+      buildSha: v.optional(v.string()),
+      activationReason: v.optional(v.string()),
+      activatedByUserId: v.optional(v.id("users")),
+    })),
   },
   handler: async (ctx, args) => {
     const audit = await ctx.db.get(args.auditId)
@@ -351,17 +410,114 @@ export const saveAuditAgentOutput = internalMutation({
       throw new ConvexError({ code: "AUDIT_DELETION_PENDING", message: "Audit deletion is pending" })
     }
 
+    const workspaceId = audit.workspaceId
+    const current = now()
+    const latestVersion = await ctx.db
+      .query("auditOutputVersions")
+      .withIndex("by_auditId_and_versionNumber", (q) => q.eq("auditId", args.auditId))
+      .order("desc")
+      .first()
+    const versionNumber = (latestVersion?.versionNumber ?? 0) + 1
+    const metadata = args.metadata ?? {
+      executor: "legacy" as const,
+      releaseVersion: audit.reportVersion,
+      promptVersion: "legacy",
+      outputSchemaVersion: AUDIT_AGENT_SCHEMA_VERSION,
+      skillVersions: {},
+    }
     const parseResult = auditAgentOutputSchema.safeParse(args.output)
-    if (!parseResult.success) {
-      throw new ConvexError({
-        code: "INVALID_AGENT_OUTPUT",
-        message: "Agent output failed schema validation",
+    const checks = await ctx.db
+      .query("auditChecks")
+      .withIndex("by_auditId", (q) => q.eq("auditId", args.auditId))
+      .collect()
+    const refs = buildEvidenceRefs(checks.map((check) => ({
+      category: check.category,
+      key: check.key,
+      label: check.label,
+      status: check.status,
+      evidence: check.evidence,
+      source: check.source,
+      weight: check.weight,
+    })))
+    const evidenceIssues = parseResult.success ? validateOutputEvidence(parseResult.data, refs) : []
+    const claimSafety = parseResult.success ? reviewClaimSafety(parseResult.data) : null
+    const schemaPass = parseResult.success
+    const evidencePass = parseResult.success && evidenceIssues.length === 0
+    const claimSafetyPass = parseResult.success && Boolean(claimSafety?.ok)
+    const rejectionCode = !schemaPass
+      ? "schema_invalid"
+      : !evidencePass
+        ? "evidence_invalid"
+        : !claimSafetyPass
+          ? "claim_safety_invalid"
+          : undefined
+
+    const outputVersionId = await ctx.db.insert("auditOutputVersions", {
+      workspaceId,
+      auditId: args.auditId,
+      auditAgentRunId: args.auditAgentRunId,
+      versionNumber,
+      status: rejectionCode ? "rejected" : "candidate",
+      executor: metadata.executor,
+      provider: metadata.provider,
+      model: metadata.model,
+      releaseVersion: metadata.releaseVersion,
+      promptVersion: metadata.promptVersion,
+      outputSchemaVersion: metadata.outputSchemaVersion,
+      skillVersions: metadata.skillVersions,
+      eveVersion: metadata.eveVersion,
+      eveSessionId: metadata.eveSessionId,
+      buildSha: metadata.buildSha,
+      output: args.output,
+      schemaPass,
+      evidencePass,
+      claimSafetyPass,
+      rejectionCode,
+      activationReason: metadata.activationReason,
+      activatedByUserId: metadata.activatedByUserId,
+      createdAt: current,
+      rejectedAt: rejectionCode ? current : undefined,
+    })
+
+    if (args.auditAgentRunId) {
+      await ctx.db.patch(args.auditAgentRunId, {
+        executor: metadata.executor,
+        releaseVersion: metadata.releaseVersion,
+        promptVersion: metadata.promptVersion,
+        outputSchemaVersion: metadata.outputSchemaVersion,
+        eveVersion: metadata.eveVersion,
+        eveSessionId: metadata.eveSessionId,
+        buildSha: metadata.buildSha,
+        loadedSkillVersions: metadata.skillVersions,
+        outputVersionId,
+        schemaPass,
+        evidencePass,
+        claimSafetyPass,
       })
+    }
+
+    if (!parseResult.success || rejectionCode) {
+      return {
+        activated: false,
+        outputVersionId,
+        versionNumber,
+        rejectionCode: rejectionCode ?? "schema_invalid",
+        findingsCount: 0,
+        outreachCount: 0,
+        reportLink: args.reportLink,
+      }
     }
     const output = parseResult.data
 
-    const workspaceId = audit.workspaceId
-    const current = now()
+    const previousActive = audit.activeOutputVersionId
+      ? await ctx.db.get(audit.activeOutputVersionId)
+      : await ctx.db
+          .query("auditOutputVersions")
+          .withIndex("by_auditId_and_status", (q) => q.eq("auditId", args.auditId).eq("status", "active"))
+          .first()
+    if (previousActive && previousActive._id !== outputVersionId) {
+      await ctx.db.patch(previousActive._id, { status: "superseded", supersededAt: current })
+    }
 
     const existingFindings = await ctx.db
       .query("auditFindings")
@@ -376,10 +532,13 @@ export const saveAuditAgentOutput = internalMutation({
       await ctx.db.insert("auditFindings", {
         workspaceId,
         auditId: args.auditId,
+        outputVersionId,
+        auditAgentRunId: args.auditAgentRunId,
         category: finding.category,
         severity: finding.severity,
         title: finding.title,
         evidence: finding.evidence,
+        evidenceRefs: finding.evidenceRefs,
         explanation: finding.explanation,
         recommendation: finding.recommendation,
         salesAngle: finding.salesAngle,
@@ -395,11 +554,14 @@ export const saveAuditAgentOutput = internalMutation({
     const summaryPayload = {
       workspaceId,
       auditId: args.auditId,
+      outputVersionId,
+      auditAgentRunId: args.auditAgentRunId,
       shortSummary: output.summary.shortSummary,
       strengths: output.summary.strengths,
       weaknesses: output.summary.weaknesses,
       topOpportunities: output.summary.topOpportunities,
       nextSteps: output.summary.nextSteps,
+      evidenceRefs: output.summary.evidenceRefs,
       createdAt: current,
     }
     if (existingSummary) {
@@ -420,15 +582,32 @@ export const saveAuditAgentOutput = internalMutation({
       await ctx.db.insert("outreachDrafts", {
         workspaceId,
         auditId: args.auditId,
+        outputVersionId,
+        auditAgentRunId: args.auditAgentRunId,
         type: draft.type,
         subject: draft.subject,
         subjectLines: draft.type === "email" ? output.subjectLines : undefined,
         body: draft.body,
+        evidenceRefs: draft.evidenceRefs,
         createdAt: current,
       })
     }
 
+    await ctx.db.patch(outputVersionId, {
+      status: "active",
+      activatedAt: current,
+    })
+    await ctx.db.patch(args.auditId, {
+      activeOutputVersionId: outputVersionId,
+      reportVersion: metadata.releaseVersion,
+      updatedAt: current,
+    })
+
     return {
+      activated: true,
+      outputVersionId,
+      versionNumber,
+      rejectionCode: null,
       findingsCount: output.findings.length,
       outreachCount: output.outreach.length,
       reportLink: args.reportLink,
@@ -632,6 +811,18 @@ export const completeAuditFromAgent = internalMutation({
       updatedAt: current,
     })
 
+    if (audit.publishRequested && audit.activeOutputVersionId) {
+      const activeVersion = await ctx.db.get(audit.activeOutputVersionId)
+      if (
+        activeVersion?.status === "active" &&
+        activeVersion.schemaPass &&
+        activeVersion.evidencePass &&
+        activeVersion.claimSafetyPass
+      ) {
+        await setPublicReportVisibility(ctx, { ...audit, status: "completed", completedAt: current }, true)
+      }
+    }
+
     if (audit.leadId) {
       const lead = await ctx.db.get(audit.leadId)
       if (lead?.workspaceId === audit.workspaceId && lead.status === "new") {
@@ -690,6 +881,18 @@ export const completeAuditFromAgent = internalMutation({
         createdAt: current,
       })
     }
+
+    const completedAudit = await ctx.db.get(args.auditId) ?? audit
+    await recordIntegrationEvent(ctx, {
+      workspaceId: audit.workspaceId,
+      auditId: audit._id,
+      event: "audit_completed",
+      idempotencyKey: `audit_completed:${audit._id}`,
+      occurredAt: current,
+      domain: audit.domain,
+      score: completedAudit.overallScore,
+      reportUrl: completedAudit.isPublic ? optionalIntegrationReportUrl(env.SITE_URL, completedAudit.publicSlug) : undefined,
+    })
 
     if (audit.batchAuditItemId) {
       await settleBatchAuditItem(ctx, {
@@ -757,34 +960,11 @@ export const markAuditAgentFailed = internalMutation({
     })
 
     if (!alreadyFailed) {
-      await releaseWorkspaceCreditReservation(ctx, audit.workspaceId, audit._id, audit.idempotencyKey, args.errorCode)
-
-      const existingFailedEvent = await ctx.db
-        .query("usageEvents")
-        .withIndex("by_auditId_and_event", (q) =>
-          q.eq("auditId", args.auditId).eq("event", "audit_failed"),
-        )
-        .first()
-
-      if (!existingFailedEvent) {
-        await ctx.db.insert("usageEvents", {
-          workspaceId: audit.workspaceId,
-          auditId: args.auditId,
-          event: "audit_failed",
-          idempotencyKey: `audit_failed:${args.auditId}`,
-          metadata: { code: args.errorCode },
-          createdAt: current,
-        })
-      }
-
-      if (audit.batchAuditItemId) {
-        await settleBatchAuditItem(ctx, {
-          auditId: audit._id,
-          outcome: "failed",
-          errorCode: args.errorCode,
-          errorMessage: args.errorMessage,
-        })
-      }
+      await settleAuditFailureSideEffects(ctx, audit, {
+        errorCode: args.errorCode,
+        errorMessage: args.errorMessage,
+        occurredAt: current,
+      })
     }
 
     return { auditId: args.auditId }

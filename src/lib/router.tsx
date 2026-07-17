@@ -19,6 +19,10 @@ export type View =
   | { name: "settings" }
   | { name: "branding-settings" }
   | { name: "billing-settings" }
+  | { name: "integration-settings" }
+  | { name: "api-settings" }
+  | { name: "admin-operations" }
+  | { name: "admin-evals" }
 
 function parsePath(pathname: string): View {
   const parts = pathname.split("/").filter(Boolean)
@@ -48,7 +52,11 @@ function parsePath(pathname: string): View {
   if (parts[0] === "campaigns") return { name: "campaigns" }
   if (parts[0] === "settings" && parts[1] === "branding") return { name: "branding-settings" }
   if (parts[0] === "settings" && parts[1] === "billing") return { name: "billing-settings" }
+  if (parts[0] === "settings" && parts[1] === "integrations") return { name: "integration-settings" }
+  if (parts[0] === "settings" && parts[1] === "api") return { name: "api-settings" }
   if (parts[0] === "settings") return { name: "settings" }
+  if (parts[0] === "admin" && parts[1] === "operations") return { name: "admin-operations" }
+  if (parts[0] === "admin" && parts[1] === "evals") return { name: "admin-evals" }
   return { name: "dashboard" }
 }
 
@@ -74,6 +82,14 @@ function viewToPath(view: View): string {
       return "/app/settings/branding"
     case "billing-settings":
       return "/app/settings/billing"
+    case "integration-settings":
+      return "/app/settings/integrations"
+    case "api-settings":
+      return "/app/settings/api"
+    case "admin-operations":
+      return "/app/admin/operations"
+    case "admin-evals":
+      return "/app/admin/evals"
     default:
       return `/app/${view.name}`
   }

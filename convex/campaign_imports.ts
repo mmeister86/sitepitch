@@ -214,7 +214,7 @@ async function insertLead(
     workspaceId: Id<"workspaces">
     userId: Id<"users">
     row: ValidatedImportRow
-    sourceProvider: "manual" | "csv"
+    sourceProvider: "manual" | "csv" | "google_sheets"
     sourceId?: string
   },
 ): Promise<Id<"leads">> {
@@ -304,6 +304,7 @@ export const importLeadBatch = mutation({
   args: {
     campaignId: v.id("campaigns"),
     importId: v.string(),
+    sourceProvider: v.optional(v.union(v.literal("csv"), v.literal("google_sheets"))),
     rows: v.array(importRowValidator),
   },
   handler: async (
@@ -371,13 +372,14 @@ export const importLeadBatch = mutation({
       }
       if (row.normalizedDomain) seenDomains.add(row.normalizedDomain)
 
+      const sourceProvider = args.sourceProvider ?? "csv"
       const sourceId = `${importId}:${row.rowNumber}`
       let lead = await findLeadByDomain(ctx, workspaceId, row.normalizedDomain)
       if (!lead) {
         lead = await ctx.db
           .query("leads")
           .withIndex("by_workspaceId_and_sourceProvider_and_sourceId", (q) =>
-            q.eq("workspaceId", workspaceId).eq("sourceProvider", "csv").eq("sourceId", sourceId),
+            q.eq("workspaceId", workspaceId).eq("sourceProvider", sourceProvider).eq("sourceId", sourceId),
           )
           .unique()
       }
@@ -394,7 +396,7 @@ export const importLeadBatch = mutation({
           workspaceId,
           userId,
           row,
-          sourceProvider: "csv",
+          sourceProvider,
           sourceId,
         })
         created++

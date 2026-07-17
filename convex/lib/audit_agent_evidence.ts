@@ -23,41 +23,58 @@ export function buildEvidenceRefs(checks: CheckInput[]): EvidenceRef[] {
 }
 
 export interface EvidenceValidationIssue {
-  findingIndex: number
-  title: string
+  path: string
+  title?: string
   reason: string
 }
 
 export function validateFindingEvidence(
-  findings: { title: string; evidence: string; category: string }[],
+  findings: { title: string; evidenceRefs: string[] }[],
   evidenceRefs: EvidenceRef[],
 ): EvidenceValidationIssue[] {
   const issues: EvidenceValidationIssue[] = []
-  const labels = new Set(evidenceRefs.map((ref) => ref.label.toLowerCase()))
-  const evidenceTexts = new Set(
-    evidenceRefs
-      .map((ref) => ref.evidence?.toLowerCase())
-      .filter((value): value is string => Boolean(value)),
-  )
   const refs = new Set(evidenceRefs.map((ref) => ref.ref.toLowerCase()))
 
   findings.forEach((finding, index) => {
-    const text = finding.evidence.toLowerCase()
-    const touchesStored =
-      labels.has(finding.evidence.toLowerCase()) ||
-      refs.has(finding.evidence.toLowerCase()) ||
-      [...labels].some((label) => label.length > 4 && text.includes(label)) ||
-      [...evidenceTexts].some((stored) => stored.length > 4 && text.includes(stored)) ||
-      text.includes(finding.category.toLowerCase())
-
-    if (!touchesStored) {
+    const invalid = finding.evidenceRefs.find((ref) => !refs.has(ref.toLowerCase()))
+    if (invalid || finding.evidenceRefs.length === 0) {
       issues.push({
-        findingIndex: index,
+        path: `findings[${index}].evidenceRefs`,
         title: finding.title,
-        reason: "Finding evidence does not reference any stored audit check evidence.",
+        reason: invalid
+          ? `Unknown audit check reference: ${invalid}`
+          : "Finding must reference at least one stored audit check.",
       })
     }
   })
 
+  return issues
+}
+
+export function validateOutputEvidence(
+  output: {
+    findings: { title: string; evidenceRefs: string[] }[]
+    summary: { evidenceRefs: string[] }
+    outreach: { evidenceRefs: string[] }[]
+  },
+  evidenceRefs: EvidenceRef[],
+): EvidenceValidationIssue[] {
+  const issues = validateFindingEvidence(output.findings, evidenceRefs)
+  const refs = new Set(evidenceRefs.map((ref) => ref.ref.toLowerCase()))
+  const validateRefs = (path: string, values: string[]) => {
+    const invalid = values.find((ref) => !refs.has(ref.toLowerCase()))
+    if (invalid || values.length === 0) {
+      issues.push({
+        path,
+        reason: invalid
+          ? `Unknown audit check reference: ${invalid}`
+          : "Output section must reference at least one stored audit check.",
+      })
+    }
+  }
+  validateRefs("summary.evidenceRefs", output.summary.evidenceRefs)
+  output.outreach.forEach((draft, index) => {
+    validateRefs(`outreach[${index}].evidenceRefs`, draft.evidenceRefs)
+  })
   return issues
 }

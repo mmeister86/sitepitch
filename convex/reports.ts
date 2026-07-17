@@ -20,6 +20,7 @@ import { resolveReportPublicUrl } from "./lib/report_domain"
 import { reportFeaturePolicy } from "./lib/report_policy"
 import { normalizeReportReferrer } from "./lib/report_privacy"
 import { queueReportPdfArtifact } from "./lib/report_pdf_queue"
+import { optionalIntegrationReportUrl, recordIntegrationEvent } from "./integrations"
 import {
   buildReportSettingsSnapshotValues,
   ensureReportSettingsSnapshot,
@@ -764,6 +765,51 @@ export const getPdfReportModel = internalQuery({
 // Authenticated: setPublicReportEnabled
 // ---------------------------------------------------------------------------
 
+export async function setPublicReportVisibility(
+  ctx: MutationCtx,
+  audit: Doc<"audits">,
+  enabled: boolean,
+) {
+  const workspace = await ctx.db.get(audit.workspaceId)
+  if (!workspace || workspace.deletionRequestedAt) {
+    throw new ConvexError({ code: "WORKSPACE_DELETION_PENDING", message: "Workspace deletion is pending" })
+  }
+  if (enabled && audit.status !== "completed") {
+    throw new ConvexError({ code: "REPORT_NOT_READY", message: "Report can only be published for completed audits" })
+  }
+
+  const now = Date.now()
+  const firstShare = enabled && !audit.isPublic
+  const settings = enabled
+    ? await ensureReportSettingsSnapshot(ctx, audit)
+    : await ctx.db
+        .query("reportSettings")
+        .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
+        .unique()
+  const shouldSnapshotCta = firstShare && audit.reportCtaSnapshottedAt === undefined
+  await ctx.db.patch(audit._id, {
+    isPublic: enabled,
+    reportCtaText: shouldSnapshotCta ? settings?.ctaText : audit.reportCtaText,
+    reportCtaUrl: shouldSnapshotCta ? settings?.ctaUrl : audit.reportCtaUrl,
+    reportCtaSnapshottedAt: shouldSnapshotCta ? now : audit.reportCtaSnapshottedAt,
+    updatedAt: now,
+  })
+  if (!enabled && settings) {
+    await ctx.db.patch(settings._id, { accessVersion: settings.accessVersion + 1, updatedAt: now })
+  }
+  if (enabled && settings) {
+    const policy = reportFeaturePolicy(await getWorkspacePlan(ctx, workspace._id))
+    if (policy.pdfExport) {
+      await queueReportPdfArtifact(ctx, {
+        workspaceId: workspace._id,
+        auditId: audit._id,
+        settingsVersion: settings.settingsVersion,
+      })
+    }
+  }
+  return { auditId: audit._id, isPublic: enabled }
+}
+
 export const setPublicReportEnabled = mutation({
   args: {
     auditId: v.id("audits"),
@@ -789,51 +835,7 @@ export const setPublicReportEnabled = mutation({
     if (!workspace || audit.workspaceId !== workspace._id) {
       throw new ConvexError({ code: "FORBIDDEN", message: "Workspace access denied" })
     }
-    if (workspace.deletionRequestedAt) {
-      throw new ConvexError({ code: "WORKSPACE_DELETION_PENDING", message: "Workspace deletion is pending" })
-    }
-
-    if (args.enabled && audit.status !== "completed") {
-      throw new ConvexError({
-        code: "REPORT_NOT_READY",
-        message: "Report can only be published for completed audits",
-      })
-    }
-
-    const now = Date.now()
-    const firstShare = args.enabled && !audit.isPublic
-    const settings = args.enabled
-      ? await ensureReportSettingsSnapshot(ctx, audit)
-      : await ctx.db
-          .query("reportSettings")
-          .withIndex("by_auditId", (q) => q.eq("auditId", audit._id))
-          .unique()
-    const shouldSnapshotCta = firstShare && audit.reportCtaSnapshottedAt === undefined
-    await ctx.db.patch(args.auditId, {
-      isPublic: args.enabled,
-      reportCtaText: shouldSnapshotCta ? settings?.ctaText : audit.reportCtaText,
-      reportCtaUrl: shouldSnapshotCta ? settings?.ctaUrl : audit.reportCtaUrl,
-      reportCtaSnapshottedAt: shouldSnapshotCta ? now : audit.reportCtaSnapshottedAt,
-      updatedAt: now,
-    })
-    if (!args.enabled && settings) {
-      await ctx.db.patch(settings._id, {
-        accessVersion: settings.accessVersion + 1,
-        updatedAt: now,
-      })
-    }
-    if (args.enabled && settings) {
-      const policy = reportFeaturePolicy(await getWorkspacePlan(ctx, workspace._id))
-      if (policy.pdfExport) {
-        await queueReportPdfArtifact(ctx, {
-          workspaceId: workspace._id,
-          auditId: audit._id,
-          settingsVersion: settings.settingsVersion,
-        })
-      }
-    }
-
-    return { auditId: args.auditId, isPublic: args.enabled }
+    return await setPublicReportVisibility(ctx, audit, args.enabled)
   },
 })
 
@@ -999,6 +1001,18 @@ export const recordPublicReportView = mutation({
       createdAt: now,
     })
 
+    if (isFirstView) {
+      await recordIntegrationEvent(ctx, {
+        workspaceId: audit.workspaceId,
+        auditId: audit._id,
+        event: "report_viewed",
+        idempotencyKey: `report_viewed:${audit._id}`,
+        occurredAt: now,
+        domain: audit.domain,
+        reportUrl: optionalIntegrationReportUrl(env.SITE_URL, audit.publicSlug),
+      })
+    }
+
     const notificationType = isFirstView ? "first_open" : "first_reopen"
     const idempotencyKey = `${notificationType}:${audit._id}`
     const existingNotification = await ctx.db
@@ -1077,6 +1091,17 @@ export const recordReportCopyEvent = mutation({
           includedReportLink: args.includedReportLink ?? false,
         },
         createdAt: now,
+      })
+
+      await recordIntegrationEvent(ctx, {
+        workspaceId: workspace._id,
+        auditId: audit._id,
+        event: "outreach_copied",
+        idempotencyKey: `outreach_copied:${audit._id}:${args.draftType}:${now}`,
+        occurredAt: now,
+        domain: audit.domain,
+        draftType: args.draftType,
+        includedReportLink: args.includedReportLink ?? false,
       })
 
     } else {

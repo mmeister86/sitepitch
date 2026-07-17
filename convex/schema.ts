@@ -27,6 +27,11 @@ import {
   leadActivityTypeValidator,
   leadSourceProviderValidator,
   leadStatusValidator,
+  integrationConnectionStatusValidator,
+  integrationEventTypeValidator,
+  integrationProviderValidator,
+  integrationRunKindValidator,
+  integrationRunStatusValidator,
   personaConfidenceValidator,
   personaIdValidator,
   providerCallProviderValidator,
@@ -38,6 +43,7 @@ import {
   subscriptionStatusValidator,
   usageEventTypeValidator,
   workspaceMemberRoleValidator,
+  webhookPresetValidator,
 } from "../src/lib/convex-schema-values.ts"
 
 const primitiveMetadataValidator = v.record(
@@ -93,6 +99,218 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_ownerUserId", ["ownerUserId"]),
+
+  apiKeys: defineTable({
+    workspaceId: v.id("workspaces"),
+    createdByUserId: v.id("users"),
+    label: v.string(),
+    publicId: v.string(),
+    prefix: v.string(),
+    secretHash: v.string(),
+    scopes: v.array(v.union(
+      v.literal("audits:create"),
+      v.literal("audits:read"),
+      v.literal("reports:read"),
+    )),
+    status: v.union(v.literal("active"), v.literal("grace"), v.literal("revoked")),
+    rotatedFromApiKeyId: v.optional(v.id("apiKeys")),
+    rotatedToApiKeyId: v.optional(v.id("apiKeys")),
+    graceExpiresAt: v.optional(v.number()),
+    lastUsedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_publicId", ["publicId"])
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
+    .index("by_workspaceId_and_status", ["workspaceId", "status"]),
+
+  workspaceIntegrations: defineTable({
+    workspaceId: v.id("workspaces"),
+    provider: integrationProviderValidator,
+    status: integrationConnectionStatusValidator,
+    connectionGeneration: v.number(),
+    accountLabel: v.optional(v.string()),
+    providerAccountId: v.optional(v.string()),
+    scopes: v.optional(v.array(v.string())),
+    configured: v.boolean(),
+    crmFieldMapping: v.optional(v.record(v.string(), v.string())),
+    webhookLabel: v.optional(v.string()),
+    webhookPreset: v.optional(webhookPresetValidator),
+    webhookEndpointUrl: v.optional(v.string()),
+    webhookEvents: v.optional(v.array(integrationEventTypeValidator)),
+    connectedByUserId: v.id("users"),
+    connectedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+    lastSuccessAt: v.optional(v.number()),
+    lastErrorCode: v.optional(v.string()),
+    lastErrorMessage: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspaceId_and_provider", ["workspaceId", "provider"])
+    .index("by_workspaceId_and_status", ["workspaceId", "status"])
+    .index("by_status_and_updatedAt", ["status", "updatedAt"]),
+
+  integrationCredentials: defineTable({
+    workspaceId: v.id("workspaces"),
+    integrationId: v.id("workspaceIntegrations"),
+    keyVersion: v.string(),
+    ciphertext: v.string(),
+    nonce: v.string(),
+    expiresAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_integrationId", ["integrationId"])
+    .index("by_workspaceId_and_integrationId", ["workspaceId", "integrationId"]),
+
+  integrationOAuthStates: defineTable({
+    workspaceId: v.id("workspaces"),
+    integrationId: v.id("workspaceIntegrations"),
+    userId: v.id("users"),
+    provider: integrationProviderValidator,
+    stateHash: v.string(),
+    encryptedVerifier: v.optional(v.string()),
+    verifierNonce: v.optional(v.string()),
+    keyVersion: v.optional(v.string()),
+    expiresAt: v.number(),
+    claimedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_stateHash", ["stateHash"])
+    .index("by_expiresAt", ["expiresAt"])
+    .index("by_integrationId", ["integrationId"])
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"]),
+
+  integrationRuns: defineTable({
+    workspaceId: v.id("workspaces"),
+    integrationId: v.id("workspaceIntegrations"),
+    kind: integrationRunKindValidator,
+    status: integrationRunStatusValidator,
+    idempotencyKey: v.string(),
+    publicRunId: v.string(),
+    leadId: v.optional(v.id("leads")),
+    campaignId: v.optional(v.id("campaigns")),
+    campaignLeadId: v.optional(v.id("campaignLeads")),
+    auditId: v.optional(v.id("audits")),
+    integrationEventId: v.optional(v.id("integrationEvents")),
+    redeliveryOfRunId: v.optional(v.id("integrationRuns")),
+    redeliveryReason: v.optional(v.string()),
+    payloadHash: v.optional(v.string()),
+    attemptCount: v.number(),
+    maxAttempts: v.number(),
+    nextAttemptAt: v.optional(v.number()),
+    leaseToken: v.optional(v.string()),
+    leaseExpiresAt: v.optional(v.number()),
+    remoteObjectType: v.optional(v.string()),
+    remoteObjectId: v.optional(v.string()),
+    responseStatus: v.optional(v.number()),
+    errorCode: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
+    .index("by_workspaceId_and_idempotencyKey", ["workspaceId", "idempotencyKey"])
+    .index("by_integrationId_and_createdAt", ["integrationId", "createdAt"])
+    .index("by_integrationId_and_status_and_nextAttemptAt", ["integrationId", "status", "nextAttemptAt"])
+    .index("by_status_and_nextAttemptAt", ["status", "nextAttemptAt"])
+    .index("by_campaignLeadId_and_createdAt", ["campaignLeadId", "createdAt"])
+    .index("by_integrationEventId", ["integrationEventId"])
+    .index("by_redeliveryOfRunId", ["redeliveryOfRunId"])
+    .index("by_auditId", ["auditId"])
+    .index("by_createdAt", ["createdAt"])
+    .index("by_status_and_leaseExpiresAt", ["status", "leaseExpiresAt"]),
+
+  integrationEntityLinks: defineTable({
+    workspaceId: v.id("workspaces"),
+    integrationId: v.id("workspaceIntegrations"),
+    connectionGeneration: v.number(),
+    leadId: v.id("leads"),
+    remoteObjectType: v.string(),
+    remoteObjectId: v.string(),
+    normalizedDomain: v.string(),
+    lastSyncedAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_integrationId_and_leadId", ["integrationId", "leadId"])
+    .index("by_workspaceId_and_leadId", ["workspaceId", "leadId"]),
+
+  gmailDraftIntents: defineTable({
+    workspaceId: v.id("workspaces"),
+    integrationId: v.id("workspaceIntegrations"),
+    auditId: v.id("audits"),
+    userId: v.id("users"),
+    recipient: v.string(),
+    subject: v.string(),
+    body: v.string(),
+    includedReportLink: v.boolean(),
+    messageId: v.string(),
+    expiresAt: v.number(),
+    confirmedAt: v.optional(v.number()),
+    consumedAt: v.optional(v.number()),
+    runId: v.optional(v.id("integrationRuns")),
+    createdAt: v.number(),
+  })
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
+    .index("by_expiresAt", ["expiresAt"])
+    .index("by_runId", ["runId"])
+    .index("by_auditId", ["auditId"]),
+
+  sheetImportSnapshots: defineTable({
+    workspaceId: v.id("workspaces"),
+    integrationId: v.id("workspaceIntegrations"),
+    campaignId: v.id("campaigns"),
+    userId: v.id("users"),
+    spreadsheetId: v.string(),
+    sheetName: v.string(),
+    digest: v.string(),
+    rows: v.array(v.object({
+      rowNumber: v.number(),
+      businessName: v.string(),
+      websiteUrl: v.optional(v.string()),
+      category: v.optional(v.string()),
+      city: v.optional(v.string()),
+      country: v.optional(v.string()),
+      address: v.optional(v.string()),
+      phone: v.optional(v.string()),
+      businessEmail: v.optional(v.string()),
+    })),
+    expiresAt: v.number(),
+    consumedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
+    .index("by_expiresAt", ["expiresAt"]),
+
+  integrationEvents: defineTable({
+    workspaceId: v.id("workspaces"),
+    auditId: v.optional(v.id("audits")),
+    publicEventId: v.string(),
+    event: integrationEventTypeValidator,
+    idempotencyKey: v.string(),
+    occurredAt: v.number(),
+    externalAuditId: v.optional(v.string()),
+    auditStatus: v.optional(auditStatusValidator),
+    domain: v.optional(v.string()),
+    score: v.optional(v.number()),
+    apiReportUrl: v.optional(v.string()),
+    reportUrl: v.optional(v.string()),
+    reportStatus: v.optional(v.union(v.literal("pending"), v.literal("private"), v.literal("published"), v.literal("failed"))),
+    draftType: v.optional(outreachDraftTypeValidator),
+    includedReportLink: v.optional(v.boolean()),
+    dispatchedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_workspaceId_and_idempotencyKey", ["workspaceId", "idempotencyKey"])
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
+    .index("by_dispatchedAt", ["dispatchedAt"])
+    .index("by_createdAt", ["createdAt"])
+    .index("by_auditId", ["auditId"]),
 
   retentionPreferenceEvents: defineTable({
     workspaceId: v.id("workspaces"),
@@ -324,6 +542,12 @@ export default defineSchema({
     campaignId: v.optional(v.id("campaigns")),
     campaignLeadId: v.optional(v.id("campaignLeads")),
     createdByUserId: v.id("users"),
+    externalApiId: v.optional(v.string()),
+    creationChannel: v.optional(v.union(v.literal("ui"), v.literal("api"), v.literal("batch"), v.literal("admin"))),
+    apiKeyId: v.optional(v.id("apiKeys")),
+    publishRequested: v.optional(v.boolean()),
+    apiPayloadHash: v.optional(v.string()),
+    activeOutputVersionId: v.optional(v.id("auditOutputVersions")),
     url: v.string(),
     normalizedUrl: v.string(),
     domain: v.string(),
@@ -356,6 +580,8 @@ export default defineSchema({
     .index("by_workspaceId_and_createdByUserId", ["workspaceId", "createdByUserId"])
     .index("by_workspaceId_and_idempotencyKey", ["workspaceId", "idempotencyKey"])
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
+    .index("by_externalApiId", ["externalApiId"])
+    .index("by_workspaceId_and_externalApiId", ["workspaceId", "externalApiId"])
     .index("by_batchAuditJobId_and_createdAt", ["batchAuditJobId", "createdAt"])
     .index("by_batchAuditItemId", ["batchAuditItemId"])
     .index("by_leadId", ["leadId"])
@@ -484,10 +710,13 @@ export default defineSchema({
   auditFindings: defineTable({
     workspaceId: v.id("workspaces"),
     auditId: v.id("audits"),
+    outputVersionId: v.optional(v.id("auditOutputVersions")),
+    auditAgentRunId: v.optional(v.id("auditAgentRuns")),
     category: auditFindingCategoryValidator,
     severity: auditFindingSeverityValidator,
     title: v.string(),
     evidence: v.string(),
+    evidenceRefs: v.optional(v.array(v.string())),
     explanation: v.string(),
     recommendation: v.string(),
     salesAngle: v.string(),
@@ -503,11 +732,14 @@ export default defineSchema({
   auditSummaries: defineTable({
     workspaceId: v.id("workspaces"),
     auditId: v.id("audits"),
+    outputVersionId: v.optional(v.id("auditOutputVersions")),
+    auditAgentRunId: v.optional(v.id("auditAgentRuns")),
     shortSummary: v.string(),
     strengths: v.array(v.string()),
     weaknesses: v.array(v.string()),
     topOpportunities: v.array(v.string()),
     nextSteps: v.array(v.string()),
+    evidenceRefs: v.optional(v.array(v.string())),
     createdAt: v.number(),
   })
     .index("by_workspaceId", ["workspaceId"])
@@ -517,10 +749,13 @@ export default defineSchema({
   outreachDrafts: defineTable({
     workspaceId: v.id("workspaces"),
     auditId: v.id("audits"),
+    outputVersionId: v.optional(v.id("auditOutputVersions")),
+    auditAgentRunId: v.optional(v.id("auditAgentRuns")),
     type: outreachDraftTypeValidator,
     subject: v.optional(v.string()),
     subjectLines: v.optional(v.array(v.string())),
     body: v.string(),
+    evidenceRefs: v.optional(v.array(v.string())),
     createdAt: v.number(),
   })
     .index("by_workspaceId", ["workspaceId"])
@@ -806,6 +1041,18 @@ export default defineSchema({
     purpose: auditAgentRunPurposeValidator,
     status: auditAgentRunStatusValidator,
     skillVersions: v.optional(v.record(v.string(), v.string())),
+    executor: v.optional(v.union(v.literal("eve"), v.literal("ai_sdk"), v.literal("deterministic"), v.literal("legacy"))),
+    releaseVersion: v.optional(v.string()),
+    promptVersion: v.optional(v.string()),
+    outputSchemaVersion: v.optional(v.string()),
+    eveVersion: v.optional(v.string()),
+    eveSessionId: v.optional(v.string()),
+    buildSha: v.optional(v.string()),
+    loadedSkillVersions: v.optional(v.record(v.string(), v.string())),
+    outputVersionId: v.optional(v.id("auditOutputVersions")),
+    schemaPass: v.optional(v.boolean()),
+    evidencePass: v.optional(v.boolean()),
+    claimSafetyPass: v.optional(v.boolean()),
     tokensIn: v.optional(v.number()),
     tokensOut: v.optional(v.number()),
     errorMessage: v.optional(v.string()),
@@ -818,6 +1065,90 @@ export default defineSchema({
     .index("by_auditId", ["auditId"])
     .index("by_workspaceId_and_purpose", ["workspaceId", "purpose"])
     .index("by_workspaceId_and_status", ["workspaceId", "status"])
+    .index("by_createdAt", ["createdAt"]),
+
+  auditOutputVersions: defineTable({
+    workspaceId: v.id("workspaces"),
+    auditId: v.id("audits"),
+    auditAgentRunId: v.optional(v.id("auditAgentRuns")),
+    versionNumber: v.number(),
+    status: v.union(
+      v.literal("candidate"),
+      v.literal("active"),
+      v.literal("rejected"),
+      v.literal("superseded"),
+    ),
+    executor: v.union(v.literal("eve"), v.literal("ai_sdk"), v.literal("deterministic"), v.literal("legacy")),
+    provider: v.optional(v.string()),
+    model: v.optional(v.string()),
+    releaseVersion: v.string(),
+    promptVersion: v.string(),
+    outputSchemaVersion: v.string(),
+    skillVersions: v.record(v.string(), v.string()),
+    eveVersion: v.optional(v.string()),
+    eveSessionId: v.optional(v.string()),
+    buildSha: v.optional(v.string()),
+    output: v.any(),
+    schemaPass: v.boolean(),
+    evidencePass: v.boolean(),
+    claimSafetyPass: v.boolean(),
+    rejectionCode: v.optional(v.string()),
+    activationReason: v.optional(v.string()),
+    activatedByUserId: v.optional(v.id("users")),
+    createdAt: v.number(),
+    activatedAt: v.optional(v.number()),
+    rejectedAt: v.optional(v.number()),
+    supersededAt: v.optional(v.number()),
+  })
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_auditId", ["auditId"])
+    .index("by_auditId_and_versionNumber", ["auditId", "versionNumber"])
+    .index("by_auditId_and_status", ["auditId", "status"])
+    .index("by_createdAt", ["createdAt"]),
+
+  eveEvalRuns: defineTable({
+    publicRunId: v.string(),
+    candidateReleaseVersion: v.string(),
+    baselineReleaseVersion: v.string(),
+    suiteVersion: v.string(),
+    fixtureVersion: v.string(),
+    eveVersion: v.optional(v.string()),
+    trigger: v.union(v.literal("pull_request"), v.literal("manual"), v.literal("nightly"), v.literal("main")),
+    status: v.union(v.literal("running"), v.literal("passed"), v.literal("failed")),
+    buildSha: v.optional(v.string()),
+    dimensionScores: v.record(v.string(), v.number()),
+    gates: v.record(v.string(), v.boolean()),
+    caseCount: v.number(),
+    passedCaseCount: v.number(),
+    failedCaseCount: v.number(),
+    errorCode: v.optional(v.string()),
+    startedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    retentionExpiresAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_publicRunId", ["publicRunId"])
+    .index("by_status_and_createdAt", ["status", "createdAt"])
+    .index("by_candidateReleaseVersion_and_createdAt", ["candidateReleaseVersion", "createdAt"])
+    .index("by_createdAt", ["createdAt"])
+    .index("by_retentionExpiresAt", ["retentionExpiresAt"]),
+
+  eveEvalCaseResults: defineTable({
+    evalRunId: v.id("eveEvalRuns"),
+    caseId: v.string(),
+    label: v.string(),
+    locale: v.union(v.literal("de"), v.literal("en")),
+    dimensionScores: v.record(v.string(), v.number()),
+    gates: v.record(v.string(), v.boolean()),
+    regressions: v.record(v.string(), v.number()),
+    passed: v.boolean(),
+    errorCode: v.optional(v.string()),
+    durationMs: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_evalRunId", ["evalRunId"])
+    .index("by_evalRunId_and_caseId", ["evalRunId", "caseId"])
+    .index("by_caseId_and_createdAt", ["caseId", "createdAt"])
     .index("by_createdAt", ["createdAt"]),
 
   auditPersonaReviews: defineTable({
@@ -1107,6 +1438,10 @@ export default defineSchema({
       v.literal("credit_adjusted"),
       v.literal("report_disabled"),
       v.literal("audit_rerun"),
+      v.literal("output_revalidated"),
+      v.literal("output_regenerated"),
+      v.literal("output_fallback_created"),
+      v.literal("output_version_activated"),
     ),
     reason: v.string(),
     metadata: v.optional(primitiveMetadataValidator),

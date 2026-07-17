@@ -4,12 +4,12 @@ title: Orchestrate pausable batch audits and safe retries
 status: Done
 assignee: []
 created_date: '2026-07-13 20:00'
-updated_date: '2026-07-14 21:33'
+updated_date: '2026-07-16 20:20'
 labels: []
 dependencies: []
 parent_task_id: TASK-5.3
 priority: high
-ordinal: 42000
+ordinal: 43000
 ---
 
 ## Description

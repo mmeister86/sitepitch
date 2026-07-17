@@ -4,11 +4,11 @@ title: Show the purchased plan in the sidebar
 status: Done
 assignee: []
 created_date: '2026-07-13 20:32'
-updated_date: '2026-07-16 07:51'
+updated_date: '2026-07-16 20:20'
 labels: []
 dependencies: []
 priority: high
-ordinal: 46000
+ordinal: 47000
 ---
 
 ## Description

@@ -9,6 +9,8 @@ import {
   Users,
   Megaphone,
   Settings,
+  Blocks,
+  Braces,
   Plus,
   Sparkles,
 } from "lucide-react"
@@ -218,6 +220,14 @@ export function AppSidebar() {
             <DropdownMenuItem onClick={() => navigate({ name: "billing-settings" })}>
               <Mail />
               Plan & Credits
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate({ name: "integration-settings" })}>
+              <Blocks />
+              Integrationen
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate({ name: "api-settings" })}>
+              <Braces />
+              Public API
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => void signOut()}>

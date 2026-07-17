@@ -1,4 +1,5 @@
 import type { NextConfig } from "next"
+import { withEve } from "eve/next"
 
 function normalizeHost(value: string | undefined): string | null {
   if (!value) return null
@@ -11,6 +12,9 @@ const rybbitHost = normalizeHost(process.env.NEXT_PUBLIC_RYBBIT_HOST)
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  turbopack: {
+    root: process.cwd(),
+  },
   async rewrites() {
     if (!rybbitHost) {
       return []
@@ -28,4 +32,4 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default nextConfig
+export default withEve(nextConfig)

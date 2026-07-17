@@ -124,6 +124,7 @@ describe("saveAuditAgentOutput", () => {
           severity: "medium",
           title: "Klarer CTA",
           evidence: "Klarer CTA fehlt",
+          evidenceRefs: ["conversion:clear_cta"],
           explanation: "Der Kontaktbereich lässt sich verbessern.",
           recommendation: "Klareren CTA setzen.",
           salesAngle: "Mehr Anfragen aus bestehendem Traffic.",
@@ -135,11 +136,12 @@ describe("saveAuditAgentOutput", () => {
         weaknesses: ["CTA lässt sich verbessern."],
         topOpportunities: ["Kontaktbereich optimieren."],
         nextSteps: ["CTA prüfen."],
+        evidenceRefs: ["conversion:clear_cta"],
       },
       outreach: [
-        { type: "email", subject: "Audit", body: "Hallo Team, Audit." },
-        { type: "linkedin", body: "Hallo, Audit." },
-        { type: "phone_note", body: "Notiz." },
+        { type: "email", subject: "Audit", body: "Hallo Team, Audit.", evidenceRefs: ["conversion:clear_cta"] },
+        { type: "linkedin", body: "Hallo, Audit.", evidenceRefs: ["conversion:clear_cta"] },
+        { type: "phone_note", body: "Notiz.", evidenceRefs: ["conversion:clear_cta"] },
       ],
       subjectLines: ["Audit example.com"],
     }
@@ -174,18 +176,42 @@ describe("saveAuditAgentOutput", () => {
     assert.deepEqual(email!.subjectLines, ["Audit example.com"])
   })
 
-  test("rejects invalid output", async () => {
+  test("stores an invalid candidate as rejected without replacing the active output", async () => {
     const t = createTest()
     const { auditId } = await seedAuditWithScores(t, "generating_findings")
 
-    await assert.rejects(
-      () =>
-        t.mutation(internal.audit_agent.saveAuditAgentOutput, {
-          auditId,
-          output: { findings: [] },
-        }),
-      /INVALID_AGENT_OUTPUT|validation/i,
-    )
+    const valid = {
+      findings: [{
+        category: "conversion", severity: "medium", title: "Klarer CTA",
+        evidence: "Klarer CTA fehlt", evidenceRefs: ["conversion:clear_cta"],
+        explanation: "Der Kontaktbereich lässt sich verbessern.", recommendation: "Klareren CTA setzen.",
+        salesAngle: "Mehr Anfragen aus bestehendem Traffic.",
+      }],
+      summary: {
+        shortSummary: "Solider Eindruck mit Potenzial.", strengths: ["Grundstruktur vorhanden."],
+        weaknesses: ["CTA lässt sich verbessern."], topOpportunities: ["Kontaktbereich optimieren."],
+        nextSteps: ["CTA prüfen."], evidenceRefs: ["conversion:clear_cta"],
+      },
+      outreach: [
+        { type: "email", subject: "Audit", body: "Hallo Team, Audit.", evidenceRefs: ["conversion:clear_cta"] },
+        { type: "linkedin", body: "Hallo, Audit.", evidenceRefs: ["conversion:clear_cta"] },
+        { type: "phone_note", body: "Notiz.", evidenceRefs: ["conversion:clear_cta"] },
+      ],
+      subjectLines: ["Audit example.com"],
+    }
+    const active = await t.mutation(internal.audit_agent.saveAuditAgentOutput, { auditId, output: valid })
+    const rejected = await t.mutation(internal.audit_agent.saveAuditAgentOutput, {
+      auditId,
+      output: { findings: [] },
+    })
+    assert.equal(active.activated, true)
+    assert.equal(rejected.activated, false)
+    assert.equal(rejected.rejectionCode, "schema_invalid")
+
+    const audit = await t.query((ctx) => ctx.db.get(auditId))
+    assert.equal(audit?.activeOutputVersionId, active.outputVersionId)
+    const rejectedVersion = await t.query((ctx) => ctx.db.get(rejected.outputVersionId))
+    assert.equal(rejectedVersion?.status, "rejected")
   })
 })
 
@@ -265,6 +291,45 @@ describe("completeAuditFromAgent", () => {
     )
     assert.equal(events.length, 1)
     assert.equal(events[0]?.isFeedActivity, true)
+  })
+
+  test("publishes an API opt-in report only from an active validated output", async () => {
+    const t = createTest()
+    const { workspaceId, auditId } = await seedAuditWithScores(t, "generating_outreach")
+    await t.mutation(async (ctx) => {
+      const current = Date.now()
+      const outputVersionId = await ctx.db.insert("auditOutputVersions", {
+        workspaceId,
+        auditId,
+        versionNumber: 1,
+        status: "active",
+        executor: "eve",
+        releaseVersion: "2026.07.16",
+        promptVersion: "1",
+        outputSchemaVersion: "1",
+        skillVersions: {},
+        output: {},
+        schemaPass: true,
+        evidencePass: true,
+        claimSafetyPass: true,
+        createdAt: current,
+        activatedAt: current,
+      })
+      await ctx.db.patch(auditId, {
+        isPublic: false,
+        publishRequested: true,
+        activeOutputVersionId: outputVersionId,
+        updatedAt: current,
+      })
+    })
+
+    await t.mutation(internal.audit_agent.completeAuditFromAgent, { auditId })
+    const audit = await t.query((ctx) => ctx.db.get(auditId))
+    assert.equal(audit?.isPublic, true)
+    const settings = await t.query((ctx) =>
+      ctx.db.query("reportSettings").withIndex("by_auditId", (q) => q.eq("auditId", auditId)).unique(),
+    )
+    assert.ok(settings)
   })
 
   test("promotes only new linked leads and preserves canonical and legacy statuses", async () => {

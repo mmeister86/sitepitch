@@ -1,10 +1,10 @@
 ---
 id: TASK-4
 title: Ship the SitePitch MVP
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-03 20:02'
-updated_date: '2026-07-12 13:00'
+updated_date: '2026-07-16 20:20'
 labels: []
 dependencies: []
 references:
@@ -12,7 +12,7 @@ references:
 documentation:
   - .docs/PRD-SitePitch.md
 priority: high
-ordinal: 1000
+ordinal: 57000
 ---
 
 ## Description

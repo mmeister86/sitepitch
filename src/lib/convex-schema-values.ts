@@ -78,6 +78,7 @@ export const creditLedgerTypeValidator = v.union(
 export const leadSourceProviderValidator = v.union(
   v.literal("manual"),
   v.literal("csv"),
+  v.literal("google_sheets"),
   v.literal("rapidapi"),
   v.literal("google_places"),
   v.literal("serpapi"),
@@ -118,6 +119,56 @@ export const leadActivityTypeValidator = v.union(
   v.literal("follow_up_scheduled"),
   v.literal("follow_up_cleared"),
   v.literal("campaign_status_changed"),
+  v.literal("crm_synced"),
+)
+
+export const integrationProviderValidator = v.union(
+  v.literal("hubspot"),
+  v.literal("pipedrive"),
+  v.literal("gmail"),
+  v.literal("google_sheets"),
+  v.literal("webhook"),
+)
+
+export const integrationConnectionStatusValidator = v.union(
+  v.literal("connecting"),
+  v.literal("connected"),
+  v.literal("error"),
+  v.literal("revoked"),
+)
+
+export const integrationRunKindValidator = v.union(
+  v.literal("crm_push"),
+  v.literal("gmail_draft"),
+  v.literal("sheet_import"),
+  v.literal("sheet_export"),
+  v.literal("webhook_delivery"),
+  v.literal("oauth_revoke"),
+)
+
+export const integrationRunStatusValidator = v.union(
+  v.literal("queued"),
+  v.literal("running"),
+  v.literal("succeeded"),
+  v.literal("retryable_failed"),
+  v.literal("permanent_failed"),
+  v.literal("unknown"),
+  v.literal("cancelled"),
+)
+
+export const integrationEventTypeValidator = v.union(
+  v.literal("audit_started"),
+  v.literal("audit_completed"),
+  v.literal("audit_failed"),
+  v.literal("report_viewed"),
+  v.literal("outreach_copied"),
+  v.literal("test"),
+)
+
+export const webhookPresetValidator = v.union(
+  v.literal("generic"),
+  v.literal("zapier"),
+  v.literal("make"),
 )
 
 export const leadStatusValidator = v.union(
@@ -246,6 +297,10 @@ export const usageEventTypeValidator = v.union(
   v.literal("upgrade_clicked"),
   v.literal("checkout_started"),
   v.literal("subscription_started"),
+  v.literal("integration_connected"),
+  v.literal("integration_disconnected"),
+  v.literal("integration_run_succeeded"),
+  v.literal("integration_run_failed"),
 )
 
 export const providerCallProviderValidator = v.union(

@@ -14,7 +14,7 @@ const POLICY_BY_PLAN: Record<SubscriptionPlan, BatchAuditPlanPolicy> = {
   free: { enabled: false, maxItems: 0, maxParallelism: 0 },
   starter: { enabled: false, maxItems: 0, maxParallelism: 0 },
   pro: { enabled: false, maxItems: 0, maxParallelism: 0 },
-  agency: { enabled: true, maxItems: 25, maxParallelism: 2 },
+  agency: { enabled: true, maxItems: 100, maxParallelism: 4 },
   scale: { enabled: true, maxItems: 100, maxParallelism: 4 },
 }
 

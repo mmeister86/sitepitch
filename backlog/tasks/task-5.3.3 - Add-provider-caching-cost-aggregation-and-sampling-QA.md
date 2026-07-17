@@ -4,12 +4,12 @@ title: Add provider caching cost aggregation and sampling QA
 status: Done
 assignee: []
 created_date: '2026-07-13 20:00'
-updated_date: '2026-07-14 21:33'
+updated_date: '2026-07-16 20:20'
 labels: []
 dependencies: []
 parent_task_id: TASK-5.3
 priority: medium
-ordinal: 43000
+ordinal: 44000
 ---
 
 ## Description

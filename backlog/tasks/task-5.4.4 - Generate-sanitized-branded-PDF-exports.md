@@ -4,7 +4,7 @@ title: Generate sanitized branded PDF exports
 status: Done
 assignee: []
 created_date: '2026-07-14 21:52'
-updated_date: '2026-07-16 07:51'
+updated_date: '2026-07-16 20:20'
 labels: []
 dependencies:
   - TASK-5.4.2
@@ -13,7 +13,7 @@ references:
   - .docs/PRD-SitePitch-Post-MVP.md
 parent_task_id: TASK-5.4
 priority: medium
-ordinal: 50000
+ordinal: 52000
 ---
 
 ## Description

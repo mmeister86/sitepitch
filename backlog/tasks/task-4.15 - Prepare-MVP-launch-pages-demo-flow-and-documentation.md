@@ -1,9 +1,10 @@
 ---
 id: TASK-4.15
 title: 'Prepare MVP launch pages, demo flow, and documentation'
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-07-03 20:04'
+updated_date: '2026-07-16 12:30'
 labels:
   - mvp
   - launch
@@ -38,3 +39,21 @@ Scope includes public marketing pages, demo audit behavior, pricing page, legal 
 - [ ] #5 README, SETUP, ENV, PROVIDER_COSTS, EVE_AGENT, and MARKETING_PLAYBOOK documentation or equivalent sections exist and are accurate for local development and operations.
 - [ ] #6 Launch QA covers at least 10 real websites, key edge cases from the PRD, test-mode billing, public report sharing, outreach copy, provider cost measurement, and no-secret exposure checks.
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Persist design context and import the selected shadcnblocks scaffold
+2. Build public marketing, pricing, examples, demo, and legal routes
+3. Add the rate-limited live quick-demo audit flow with seven-day retention
+4. Add launch, environment, provider-cost, Eve, and marketing documentation
+5. Add automated coverage and run typecheck, tests, schema checks, build, and launch QA
+6. Await explicit user confirmation before marking Done
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Frontend scaffold completed: public homepage, pricing, demo shell, examples index, and shared legal pages implemented with adapted @shadcnblocks structures. Shared pricing truth and focused route/state/legal/CTA contracts added.
+Verification: 25 focused/relevant Vitest tests passed, pnpm typecheck passed, and pnpm build passed outside the sandbox. Live demo backend, operator values, docs, launch QA, and explicit user confirmation remain pending; task intentionally stays In Progress.
+<!-- SECTION:NOTES:END -->

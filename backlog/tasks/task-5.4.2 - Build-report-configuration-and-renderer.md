@@ -4,7 +4,7 @@ title: Build report configuration and renderer
 status: Done
 assignee: []
 created_date: '2026-07-14 21:52'
-updated_date: '2026-07-16 07:51'
+updated_date: '2026-07-16 20:20'
 labels: []
 dependencies:
   - TASK-5.4.1
@@ -12,7 +12,7 @@ references:
   - .docs/PRD-SitePitch-Post-MVP.md
 parent_task_id: TASK-5.4
 priority: medium
-ordinal: 48000
+ordinal: 50000
 ---
 
 ## Description

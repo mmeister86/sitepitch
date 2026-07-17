@@ -726,8 +726,7 @@ Pricing soll Credits einfach halten, aber Expansion ermöglichen.
 |---|---|---|
 | Starter | Solo-Freelancer | mehr Audits, Templates, Report Views |
 | Pro | aktive Freelancer | Campaigns, CSV Import/Export, PDF, Re-Audit |
-| Agency | kleine Teams | Team, Batch, White Label Light, Integrationen |
-| Scale | outbound-starke Agenturen | Custom Domain, API, Webhooks, höhere Limits |
+| Agency | kleine Teams und outbound-starke Agenturen | Team, Batch Audits bis 100 URLs, White Label Light, Custom Domain, Integrationen, API und Webhooks |
 
 ## 9.3 Monetarisierungsregeln
 
@@ -1007,11 +1006,10 @@ Zusätzlich brauchen Hochrisiko-Features eigene Gates:
 1. Welche Post-MVP-Phase ist nach MVP-Launch der größte Hebel: Campaigns, Batch Audits oder White Label?
 2. Soll CRM-Light vor oder nach Integrationen kommen?
 3. Wie viele Teamrollen braucht V1 wirklich?
-4. Werden Custom Domains planbasiert oder als Add-on verkauft?
-5. Soll Batch Audit nur für gespeicherte Leads oder auch freie URL-Listen möglich sein?
-6. Welche CRM-Integration hat für die ersten Nutzer Priorität?
-7. Wie streng soll Report View Tracking datenschutzseitig limitiert werden?
-8. Welche Eve-Evals sind Pflicht vor jedem Prompt-/Skill-Update?
+4. Soll Batch Audit nur für gespeicherte Leads oder auch freie URL-Listen möglich sein?
+5. Welche CRM-Integration hat für die ersten Nutzer Priorität?
+6. Wie streng soll Report View Tracking datenschutzseitig limitiert werden?
+7. Welche Eve-Evals sind Pflicht vor jedem Prompt-/Skill-Update?
 9. Soll Monitoring für Prospect-Audits oder nur für Kunden-/Retainer-Audits gedacht sein?
 10. Welche Metrik entscheidet, ob SitePitch eher in Richtung Agency Workflow oder Local SEO Retainer expandiert?
 

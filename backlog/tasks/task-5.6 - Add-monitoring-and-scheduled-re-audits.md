@@ -1,9 +1,10 @@
 ---
 id: TASK-5.6
 title: Add monitoring and scheduled re-audits
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-07-03 20:05'
+updated_date: '2026-07-16 19:58'
 labels:
   - post-mvp
   - monitoring
@@ -16,7 +17,7 @@ documentation:
   - .docs/PRD-SitePitch-Post-MVP.md
 parent_task_id: TASK-5
 priority: low
-ordinal: 26000
+ordinal: 61000
 ---
 
 ## Description

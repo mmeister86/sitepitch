@@ -4,12 +4,12 @@ title: Assign saved leads to campaigns from the lead list
 status: Done
 assignee: []
 created_date: '2026-07-13 15:58'
-updated_date: '2026-07-13 17:31'
+updated_date: '2026-07-16 20:20'
 labels: []
 dependencies: []
 parent_task_id: TASK-5.2
 priority: high
-ordinal: 40000
+ordinal: 41000
 ---
 
 ## Description

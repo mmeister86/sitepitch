@@ -32,8 +32,7 @@ export const evaluateCompletedItem = internalMutation({
     const evidenceIssues = validateFindingEvidence(
       findings.map((finding) => ({
         title: finding.title,
-        evidence: finding.evidence,
-        category: finding.category,
+        evidenceRefs: finding.evidenceRefs ?? [],
       })),
       evidenceRefs,
     )

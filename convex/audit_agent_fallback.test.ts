@@ -5,7 +5,7 @@ import { describe, test } from "vitest"
 import { generateDeterministicAgentOutput } from "./lib/audit_agent_fallback"
 import { auditAgentOutputSchema } from "./lib/audit_agent_schemas"
 import { reviewClaimSafety } from "./lib/audit_agent_claim_safety"
-import { buildEvidenceRefs, validateFindingEvidence } from "./lib/audit_agent_evidence"
+import { buildEvidenceRefs, validateOutputEvidence } from "./lib/audit_agent_evidence"
 import type { CheckInput, CategoryScores } from "./lib/audit_scoring"
 
 function checks(): CheckInput[] {
@@ -69,7 +69,7 @@ describe("deterministic fallback", () => {
       checks: cs,
     })
     const refs = buildEvidenceRefs(cs)
-    const issues = validateFindingEvidence(output.findings, refs)
+    const issues = validateOutputEvidence(output, refs)
     assert.equal(issues.length, 0)
   })
 

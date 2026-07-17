@@ -8,16 +8,16 @@ import {
 } from "./batch_audit_policy"
 
 describe("batch audit policy", () => {
-  test("enables Agency and Scale with their bounded concurrency", () => {
-    expect(getBatchAuditPlanPolicy("agency")).toEqual({ enabled: true, maxItems: 25, maxParallelism: 2 })
+  test("gives Agency the former Scale batch profile", () => {
+    expect(getBatchAuditPlanPolicy("agency")).toEqual({ enabled: true, maxItems: 100, maxParallelism: 4 })
     expect(getBatchAuditPlanPolicy("scale")).toEqual({ enabled: true, maxItems: 100, maxParallelism: 4 })
     expect(validateBatchAuditSize("pro", 2)).toMatchObject({ ok: false, code: "BATCH_PLAN_REQUIRED" })
   })
 
   test("accepts arbitrary sizes from two through the plan maximum", () => {
     expect(validateBatchAuditSize("agency", 2).ok).toBe(true)
-    expect(validateBatchAuditSize("agency", 25).ok).toBe(true)
-    expect(validateBatchAuditSize("agency", 26)).toMatchObject({ ok: false, code: "BATCH_PLAN_LIMIT_EXCEEDED" })
+    expect(validateBatchAuditSize("agency", 100).ok).toBe(true)
+    expect(validateBatchAuditSize("agency", 101)).toMatchObject({ ok: false, code: "BATCH_PLAN_LIMIT_EXCEEDED" })
     expect(validateBatchAuditSize("scale", 100).ok).toBe(true)
   })
 

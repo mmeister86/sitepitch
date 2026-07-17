@@ -4,14 +4,14 @@ title: Match recent audits height to activation
 status: Done
 assignee: []
 created_date: '2026-07-15 19:23'
-updated_date: '2026-07-15 19:29'
+updated_date: '2026-07-16 20:20'
 labels: []
 dependencies: []
 modified_files:
   - src/views/dashboard.tsx
 parent_task_id: TASK-5.1.2
 priority: medium
-ordinal: 53000
+ordinal: 55000
 ---
 
 ## Description

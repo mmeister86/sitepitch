@@ -144,6 +144,15 @@ function pickStrengths(checks: CheckInput[], limit: number): CheckInput[] {
   return checks.filter((check) => check.status === "passed").slice(0, limit)
 }
 
+function checkRef(check: CheckInput): string {
+  return `${check.category}:${check.key}`
+}
+
+function evidenceRefsFor(checks: CheckInput[], fallbackChecks: CheckInput[], limit = 8): string[] {
+  const source = checks.length > 0 ? checks : fallbackChecks
+  return [...new Set(source.map(checkRef))].slice(0, limit)
+}
+
 function deFinding(check: CheckInput): AuditFindingOutput {
   const categoryTitle = DE_CATEGORY_TITLES[check.category] ?? check.category
   const copyText = COPY_CHECK_KEYS.has(check.key) ? DE_COPY_TEXTS[check.key] : undefined
@@ -152,6 +161,7 @@ function deFinding(check: CheckInput): AuditFindingOutput {
     severity: severityForStatus(check.status, check.weight),
     title: copyText?.title ?? check.label,
     evidence: check.evidence ?? check.label,
+    evidenceRefs: [checkRef(check)],
     explanation: copyText?.explanation ?? `${categoryTitle}: ${check.label} weist Optimierungspotenzial auf.`,
     recommendation: copyText?.recommendation ?? `Empfehlung: ${check.label} gezielt verbessern, um mehr Anfragen aus bestehenden Besuchern zu gewinnen.`,
     salesAngle: copyText?.salesAngle ?? `Ein konkreter Ansatzpunkt, um bestehenden Traffic besser in Anfragen zu verwandeln.`,
@@ -166,6 +176,7 @@ function enFinding(check: CheckInput): AuditFindingOutput {
     severity: severityForStatus(check.status, check.weight),
     title: copyText?.title ?? check.label,
     evidence: check.evidence ?? check.label,
+    evidenceRefs: [checkRef(check)],
     explanation: copyText?.explanation ?? `${categoryTitle}: ${check.label} shows room for improvement.`,
     recommendation: copyText?.recommendation ?? `Recommendation: improve ${check.label.toLowerCase()} to turn more existing visitors into enquiries.`,
     salesAngle: copyText?.salesAngle ?? `A concrete starting point to convert existing traffic into more enquiries.`,
@@ -191,6 +202,7 @@ function deSummary(ctx: FallbackContext, issues: CheckInput[], strengths: CheckI
     weaknesses: issues.slice(0, 5).map((check) => `${check.label} lässt sich verbessern.`),
     topOpportunities: issues.slice(0, 3).map((check) => `${check.label} optimieren für mehr Anfragen.`),
     nextSteps: issues.slice(0, 4).map((check, index) => `${index + 1}. ${check.label} angehen.`),
+    evidenceRefs: evidenceRefsFor([...issues, ...strengths], ctx.checks),
   }
 }
 
@@ -213,10 +225,11 @@ function enSummary(ctx: FallbackContext, issues: CheckInput[], strengths: CheckI
     weaknesses: issues.slice(0, 5).map((check) => `${check.label} can be improved.`),
     topOpportunities: issues.slice(0, 3).map((check) => `Improve ${check.label.toLowerCase()} for more enquiries.`),
     nextSteps: issues.slice(0, 4).map((check, index) => `${index + 1}. Address ${check.label.toLowerCase()}.`),
+    evidenceRefs: evidenceRefsFor([...issues, ...strengths], ctx.checks),
   }
 }
 
-function deOutreach(ctx: FallbackContext): OutreachDraftOutput[] {
+function deOutreach(ctx: FallbackContext, evidenceRefs: string[]): OutreachDraftOutput[] {
   const link = ctx.reportLink ? `\n\nAudit-Link: ${ctx.reportLink}` : ""
   const sender = ctx.workspaceName ?? "[Absender]"
   return [
@@ -224,23 +237,27 @@ function deOutreach(ctx: FallbackContext): OutreachDraftOutput[] {
       type: "email",
       subject: `Kurzer Website-Audit zu ${ctx.domain}`,
       body: `Hallo Team,\n\nich habe mir ${ctx.domain} kurz angeschaut und dabei einige konkrete Punkte entdeckt, die sich mit überschaubarem Aufwand verbessern lassen – besonders bei Kontaktaufnahme, lokaler Auffindbarkeit und Performance.\n\nIch habe daraus einen kurzen Audit erstellt.${link}\n\nVielleicht ist das für Sie interessant, unabhängig davon, ob Sie gerade aktiv über Ihre Website nachdenken.\n\nViele Grüße\n${sender}`,
+      evidenceRefs,
     },
     {
       type: "linkedin",
       body: `Hallo, ich habe mir ${ctx.domain} kurz angesehen und dabei ein paar konkrete Verbesserungschancen entdeckt (Score ${ctx.overallScore}/100). Ich teile gerne einen kurzen Audit dazu – unabhängig davon, ob gerade ein Relaunch ansteht.${link}`,
+      evidenceRefs,
     },
     {
       type: "phone_note",
       body: `Anruf-Notiz ${ctx.domain}: Website-Audit erstellt (Score ${ctx.overallScore}/100). Konkrete Punkte bei Kontaktaufnahme, lokaler Auffindbarkeit und Performance. Audit-Link bereithalten und freundlich auf vorhandenes Potenzial eingehen.`,
+      evidenceRefs,
     },
     {
       type: "follow_up",
       body: `Hallo, kurze Nachfrage zum Audit für ${ctx.domain}: Hat es denn einen guten Eindruck hinterlassen? Gerne stelle ich die Punkte individuell vor.${link}`,
+      evidenceRefs,
     },
   ]
 }
 
-function enOutreach(ctx: FallbackContext): OutreachDraftOutput[] {
+function enOutreach(ctx: FallbackContext, evidenceRefs: string[]): OutreachDraftOutput[] {
   const link = ctx.reportLink ? `\n\nAudit link: ${ctx.reportLink}` : ""
   const sender = ctx.workspaceName ?? "[Your name]"
   return [
@@ -248,18 +265,22 @@ function enOutreach(ctx: FallbackContext): OutreachDraftOutput[] {
       type: "email",
       subject: `Short website audit for ${ctx.domain}`,
       body: `Hi team,\n\nI took a quick look at ${ctx.domain} and found a few concrete points that could be improved with manageable effort – particularly around contact options, local findability, and performance.\n\nI put together a short audit from it.${link}\n\nWorth a look whether or not you're actively thinking about a relaunch right now.\n\nBest,\n${sender}`,
+      evidenceRefs,
     },
     {
       type: "linkedin",
       body: `Hi, I took a quick look at ${ctx.domain} and found a few concrete improvement opportunities (score ${ctx.overallScore}/100). Happy to share a short audit – whether or not a relaunch is on your radar.${link}`,
+      evidenceRefs,
     },
     {
       type: "phone_note",
       body: `Call note ${ctx.domain}: prepared a website audit (score ${ctx.overallScore}/100). Concrete points around contact options, local findability and performance. Keep the audit link ready and lead with the existing potential.`,
+      evidenceRefs,
     },
     {
       type: "follow_up",
       body: `Hi, quick follow-up on the audit for ${ctx.domain}: did it leave a useful impression? Happy to walk through the points individually.${link}`,
+      evidenceRefs,
     },
   ]
 }
@@ -274,7 +295,8 @@ export function generateDeterministicAgentOutput(ctx: FallbackContext): AuditAge
   )
 
   const summary = isEnglish ? enSummary(ctx, issues, strengths) : deSummary(ctx, issues, strengths)
-  const outreach = isEnglish ? enOutreach(ctx) : deOutreach(ctx)
+  const outreachRefs = evidenceRefsFor(issues, ctx.checks, 5)
+  const outreach = isEnglish ? enOutreach(ctx, outreachRefs) : deOutreach(ctx, outreachRefs)
 
   const subjectLines = isEnglish
     ? [

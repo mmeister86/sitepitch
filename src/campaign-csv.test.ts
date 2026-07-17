@@ -5,6 +5,7 @@ import {
   campaignCsvTemplate,
   exportCampaignLeadsCsv,
   parseCampaignCsv,
+  spreadsheetSafeText,
 } from "./lib/campaign-csv"
 
 describe("parseCampaignCsv", () => {
@@ -70,5 +71,15 @@ describe("exportCampaignLeadsCsv", () => {
     expect(csv).toContain("'=CMD")
     expect(csv).toContain("'+malicious.example")
     expect(csv).toContain("'@HYPERLINK")
+  })
+})
+
+describe("spreadsheetSafeText", () => {
+  test("escapes formula prefixes for CSV and Google Sheets RAW exports", () => {
+    expect(spreadsheetSafeText("=SUM(A1:A2)")).toBe("'=SUM(A1:A2)")
+    expect(spreadsheetSafeText("\t@HYPERLINK(\"https://bad.example\")")).toBe(
+      "'\t@HYPERLINK(\"https://bad.example\")",
+    )
+    expect(spreadsheetSafeText("SitePitch GmbH")).toBe("SitePitch GmbH")
   })
 })

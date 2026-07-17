@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-07-09T18:26:52.082Z",
+  "fetchedAt": "2026-07-16T20:27:54.497Z",
   "kind": "eve-model-catalog-cache",
   "models": [
     {
@@ -120,7 +120,6 @@
           "contextWindowTokens": 240000,
           "maxOutputTokens": 64000,
           "tags": [
-            "implicit-caching",
             "reasoning",
             "tool-use"
           ]
@@ -148,7 +147,6 @@
           "contextWindowTokens": 262114,
           "maxOutputTokens": 262114,
           "tags": [
-            "implicit-caching",
             "reasoning",
             "tool-use"
           ]
@@ -174,7 +172,6 @@
           "contextWindowTokens": 262144,
           "maxOutputTokens": 65536,
           "tags": [
-            "implicit-caching",
             "tool-use"
           ]
         },
@@ -260,7 +257,7 @@
       "providers": [
         {
           "provider": "alibaba",
-          "providerModelId": "qwen3-coder-plus-2025-09-23",
+          "providerModelId": "qwen3-coder-plus",
           "contextWindowTokens": 1000000,
           "maxOutputTokens": 65536,
           "tags": [
@@ -352,8 +349,7 @@
           "maxOutputTokens": 65536,
           "tags": [
             "reasoning",
-            "tool-use",
-            "implicit-caching"
+            "tool-use"
           ]
         }
       ]
@@ -535,8 +531,7 @@
             "vision",
             "file-input",
             "reasoning",
-            "tool-use",
-            "implicit-caching"
+            "tool-use"
           ]
         }
       ]
@@ -553,8 +548,7 @@
             "vision",
             "file-input",
             "reasoning",
-            "tool-use",
-            "implicit-caching"
+            "tool-use"
           ]
         }
       ]
@@ -587,22 +581,8 @@
           "tags": [
             "reasoning",
             "tool-use",
-            "implicit-caching",
             "vision",
             "file-input"
-          ]
-        },
-        {
-          "provider": "fireworks",
-          "providerModelId": "accounts/fireworks/models/qwen3p6-plus",
-          "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000,
-          "tags": [
-            "reasoning",
-            "tool-use",
-            "implicit-caching",
-            "file-input",
-            "vision"
           ]
         },
         {
@@ -868,40 +848,24 @@
       ]
     },
     {
-      "slug": "anthropic/claude-3.5-haiku",
-      "providers": [
-        {
-          "provider": "bedrock",
-          "providerModelId": "us.anthropic.claude-3-5-haiku-20241022-v1:0",
-          "contextWindowTokens": 200000,
-          "maxOutputTokens": 8192,
-          "tags": [
-            "file-input",
-            "tool-use",
-            "vision",
-            "explicit-caching"
-          ]
-        },
-        {
-          "provider": "vertex",
-          "providerModelId": "claude-3-5-haiku@20241022",
-          "contextWindowTokens": 200000,
-          "maxOutputTokens": 8192,
-          "tags": [
-            "file-input",
-            "tool-use",
-            "vision",
-            "explicit-caching"
-          ]
-        }
-      ]
-    },
-    {
       "slug": "anthropic/claude-fable-5",
       "providers": [
         {
           "provider": "anthropic",
           "providerModelId": "claude-fable-5",
+          "contextWindowTokens": 1000000,
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "explicit-caching",
+            "file-input",
+            "vision"
+          ]
+        },
+        {
+          "provider": "bedrock",
+          "providerModelId": "global.anthropic.claude-fable-5",
           "contextWindowTokens": 1000000,
           "maxOutputTokens": 128000,
           "tags": [
@@ -977,19 +941,6 @@
     {
       "slug": "anthropic/claude-opus-4",
       "providers": [
-        {
-          "provider": "anthropic",
-          "providerModelId": "claude-opus-4-20250514",
-          "contextWindowTokens": 200000,
-          "maxOutputTokens": 32000,
-          "tags": [
-            "file-input",
-            "reasoning",
-            "tool-use",
-            "vision",
-            "explicit-caching"
-          ]
-        },
         {
           "provider": "bedrock",
           "providerModelId": "us.anthropic.claude-opus-4-20250514-v1:0",
@@ -1169,7 +1120,8 @@
             "vision",
             "file-input",
             "explicit-caching",
-            "web-search"
+            "web-search",
+            "fast"
           ]
         },
         {
@@ -1216,7 +1168,8 @@
             "vision",
             "file-input",
             "explicit-caching",
-            "web-search"
+            "web-search",
+            "fast"
           ]
         },
         {
@@ -1252,19 +1205,6 @@
     {
       "slug": "anthropic/claude-sonnet-4",
       "providers": [
-        {
-          "provider": "anthropic",
-          "providerModelId": "claude-sonnet-4-20250514",
-          "contextWindowTokens": 1000000,
-          "maxOutputTokens": 64000,
-          "tags": [
-            "file-input",
-            "reasoning",
-            "tool-use",
-            "vision",
-            "explicit-caching"
-          ]
-        },
         {
           "provider": "bedrock",
           "providerModelId": "us.anthropic.claude-sonnet-4-20250514-v1:0",
@@ -1430,20 +1370,6 @@
             "file-input",
             "web-search",
             "vision"
-          ]
-        }
-      ]
-    },
-    {
-      "slug": "arcee-ai/trinity-large-preview",
-      "providers": [
-        {
-          "provider": "arcee-ai",
-          "providerModelId": "trinity-large-preview",
-          "contextWindowTokens": 131000,
-          "maxOutputTokens": 131000,
-          "tags": [
-            "tool-use"
           ]
         }
       ]
@@ -1635,7 +1561,6 @@
           "contextWindowTokens": 256000,
           "maxOutputTokens": 32000,
           "tags": [
-            "implicit-caching",
             "reasoning",
             "tool-use",
             "vision"
@@ -1652,7 +1577,6 @@
           "contextWindowTokens": 256000,
           "maxOutputTokens": 64000,
           "tags": [
-            "implicit-caching",
             "reasoning",
             "tool-use",
             "vision"
@@ -1697,7 +1621,10 @@
           "provider": "bytedance",
           "providerModelId": "seedance-1-0-pro-250528",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "video-generation"
+          ]
         }
       ]
     },
@@ -1708,7 +1635,10 @@
           "provider": "bytedance",
           "providerModelId": "seedance-1-0-pro-fast-251015",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "video-generation"
+          ]
         }
       ]
     },
@@ -1719,7 +1649,10 @@
           "provider": "bytedance",
           "providerModelId": "seedance-1-5-pro-251215",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "video-generation"
+          ]
         }
       ]
     },
@@ -1757,6 +1690,20 @@
         {
           "provider": "bytedance",
           "providerModelId": "ep-20260308024243-qt2d5",
+          "contextWindowTokens": 0,
+          "maxOutputTokens": 0,
+          "tags": [
+            "image-generation"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "bytedance/seedream-5.0-pro",
+      "providers": [
+        {
+          "provider": "bytedance",
+          "providerModelId": "ep-20260712072949-hz8kg",
           "contextWindowTokens": 0,
           "maxOutputTokens": 0,
           "tags": [
@@ -1864,7 +1811,6 @@
           "contextWindowTokens": 163840,
           "maxOutputTokens": 163840,
           "tags": [
-            "implicit-caching",
             "tool-use"
           ]
         }
@@ -1890,23 +1836,12 @@
           "contextWindowTokens": 163840,
           "maxOutputTokens": 163840,
           "tags": [
-            "implicit-caching",
             "tool-use"
           ]
         },
         {
           "provider": "sambanova",
           "providerModelId": "DeepSeek-V3.1",
-          "contextWindowTokens": 128000,
-          "maxOutputTokens": 128000,
-          "tags": [
-            "reasoning",
-            "tool-use"
-          ]
-        },
-        {
-          "provider": "togetherai",
-          "providerModelId": "deepseek-ai/DeepSeek-V3.1",
           "contextWindowTokens": 128000,
           "maxOutputTokens": 128000,
           "tags": [
@@ -2204,7 +2139,6 @@
           "maxOutputTokens": 32768,
           "tags": [
             "image-generation",
-            "implicit-caching",
             "web-search"
           ]
         },
@@ -2215,7 +2149,6 @@
           "maxOutputTokens": 65536,
           "tags": [
             "image-generation",
-            "implicit-caching",
             "web-search"
           ]
         }
@@ -2341,8 +2274,7 @@
           "maxOutputTokens": 32768,
           "tags": [
             "image-generation",
-            "web-search",
-            "implicit-caching"
+            "web-search"
           ]
         }
       ]
@@ -2403,7 +2335,6 @@
           "maxOutputTokens": 32768,
           "tags": [
             "image-generation",
-            "implicit-caching",
             "reasoning",
             "vision",
             "web-search"
@@ -2434,7 +2365,6 @@
           "maxOutputTokens": 32768,
           "tags": [
             "image-generation",
-            "implicit-caching",
             "reasoning",
             "vision",
             "web-search"
@@ -2857,7 +2787,6 @@
           "contextWindowTokens": 128000,
           "maxOutputTokens": 128000,
           "tags": [
-            "implicit-caching",
             "reasoning",
             "tool-use"
           ]
@@ -2968,7 +2897,10 @@
           "provider": "klingai",
           "providerModelId": "kling-v3.0-motion-control",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "video-generation"
+          ]
         }
       ]
     },
@@ -2980,6 +2912,22 @@
           "providerModelId": "kling-v3.0-t2v",
           "contextWindowTokens": 0,
           "maxOutputTokens": 0
+        }
+      ]
+    },
+    {
+      "slug": "kwaipilot/kat-coder-air-v2.5",
+      "providers": [
+        {
+          "provider": "streamlake",
+          "providerModelId": "ep-bpaqjj-1784100896685207084",
+          "contextWindowTokens": 256000,
+          "maxOutputTokens": 80000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
         }
       ]
     },
@@ -3014,30 +2962,17 @@
       ]
     },
     {
-      "slug": "meituan/longcat-flash-chat",
+      "slug": "kwaipilot/kat-coder-pro-v2.5",
       "providers": [
         {
-          "provider": "meituan",
-          "providerModelId": "LongCat-Flash-Chat",
-          "contextWindowTokens": 128000,
-          "maxOutputTokens": 100000,
-          "tags": [
-            "tool-use"
-          ]
-        }
-      ]
-    },
-    {
-      "slug": "meituan/longcat-flash-thinking-2601",
-      "providers": [
-        {
-          "provider": "meituan",
-          "providerModelId": "LongCat-Flash-Thinking-2601",
-          "contextWindowTokens": 32768,
-          "maxOutputTokens": 32768,
+          "provider": "streamlake",
+          "providerModelId": "ep-qqnixx-1783732345481157283",
+          "contextWindowTokens": 256000,
+          "maxOutputTokens": 80000,
           "tags": [
             "reasoning",
-            "tool-use"
+            "tool-use",
+            "implicit-caching"
           ]
         }
       ]
@@ -3251,7 +3186,11 @@
           "contextWindowTokens": 1048576,
           "maxOutputTokens": 1048576,
           "tags": [
-            "reasoning"
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision"
           ]
         }
       ]
@@ -3266,8 +3205,7 @@
           "maxOutputTokens": 205000,
           "tags": [
             "reasoning",
-            "tool-use",
-            "implicit-caching"
+            "tool-use"
           ]
         },
         {
@@ -3276,7 +3214,6 @@
           "contextWindowTokens": 204800,
           "maxOutputTokens": 131072,
           "tags": [
-            "implicit-caching",
             "reasoning",
             "tool-use"
           ]
@@ -3293,8 +3230,7 @@
           "maxOutputTokens": 131072,
           "tags": [
             "reasoning",
-            "tool-use",
-            "implicit-caching"
+            "tool-use"
           ]
         },
         {
@@ -3576,20 +3512,6 @@
       ]
     },
     {
-      "slug": "mistral/devstral-small",
-      "providers": [
-        {
-          "provider": "mistral",
-          "providerModelId": "devstral-small-2507",
-          "contextWindowTokens": 128000,
-          "maxOutputTokens": 64000,
-          "tags": [
-            "tool-use"
-          ]
-        }
-      ]
-    },
-    {
       "slug": "mistral/devstral-small-2",
       "providers": [
         {
@@ -3790,21 +3712,6 @@
         {
           "provider": "mistral",
           "providerModelId": "pixtral-12b-2409",
-          "contextWindowTokens": 128000,
-          "maxOutputTokens": 4000,
-          "tags": [
-            "tool-use",
-            "vision"
-          ]
-        }
-      ]
-    },
-    {
-      "slug": "mistral/pixtral-large",
-      "providers": [
-        {
-          "provider": "mistral",
-          "providerModelId": "pixtral-large-latest",
           "contextWindowTokens": 128000,
           "maxOutputTokens": 4000,
           "tags": [
@@ -4062,6 +3969,24 @@
       ]
     },
     {
+      "slug": "moonshotai/kimi-k3",
+      "providers": [
+        {
+          "provider": "moonshotai",
+          "providerModelId": "kimi-k3",
+          "contextWindowTokens": 1000000,
+          "maxOutputTokens": 131072,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision"
+          ]
+        }
+      ]
+    },
+    {
       "slug": "morph/morph-v3-fast",
       "providers": [
         {
@@ -4108,8 +4033,7 @@
           "maxOutputTokens": 32000,
           "tags": [
             "reasoning",
-            "tool-use",
-            "implicit-caching"
+            "tool-use"
           ]
         },
         {
@@ -4134,8 +4058,7 @@
           "maxOutputTokens": 65000,
           "tags": [
             "reasoning",
-            "tool-use",
-            "implicit-caching"
+            "tool-use"
           ]
         },
         {
@@ -4145,8 +4068,7 @@
           "maxOutputTokens": 65000,
           "tags": [
             "reasoning",
-            "tool-use",
-            "implicit-caching"
+            "tool-use"
           ]
         },
         {
@@ -4236,17 +4158,6 @@
           "tags": [
             "tool-use"
           ]
-        }
-      ]
-    },
-    {
-      "slug": "openai/gpt-3.5-turbo-instruct",
-      "providers": [
-        {
-          "provider": "openai",
-          "providerModelId": "gpt-3.5-turbo-instruct",
-          "contextWindowTokens": 8192,
-          "maxOutputTokens": 4096
         }
       ]
     },
@@ -4466,7 +4377,6 @@
           "maxOutputTokens": 128000,
           "tags": [
             "file-input",
-            "image-generation",
             "implicit-caching",
             "reasoning",
             "tool-use",
@@ -5077,7 +4987,6 @@
           "maxOutputTokens": 128000,
           "tags": [
             "file-input",
-            "implicit-caching",
             "reasoning",
             "tool-use",
             "vision",
@@ -5169,7 +5078,7 @@
       "slug": "openai/gpt-5.6-luna",
       "providers": [
         {
-          "provider": "openai",
+          "provider": "azure",
           "providerModelId": "gpt-5.6-luna",
           "contextWindowTokens": 1050000,
           "maxOutputTokens": 128000,
@@ -5181,6 +5090,35 @@
             "implicit-caching",
             "web-search"
           ]
+        },
+        {
+          "provider": "bedrock",
+          "providerModelId": "openai.gpt-5.6-luna",
+          "contextWindowTokens": 272000,
+          "maxOutputTokens": 272000,
+          "tags": [
+            "reasoning",
+            "file-input",
+            "tool-use",
+            "vision",
+            "implicit-caching",
+            "web-search"
+          ]
+        },
+        {
+          "provider": "openai",
+          "providerModelId": "gpt-5.6-luna",
+          "contextWindowTokens": 1050000,
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "file-input",
+            "tool-use",
+            "vision",
+            "implicit-caching",
+            "web-search",
+            "websocket-realtime"
+          ]
         }
       ]
     },
@@ -5188,7 +5126,7 @@
       "slug": "openai/gpt-5.6-sol",
       "providers": [
         {
-          "provider": "openai",
+          "provider": "azure",
           "providerModelId": "gpt-5.6-sol",
           "contextWindowTokens": 1050000,
           "maxOutputTokens": 128000,
@@ -5200,12 +5138,69 @@
             "vision",
             "web-search"
           ]
+        },
+        {
+          "provider": "bedrock",
+          "providerModelId": "openai.gpt-5.6-sol",
+          "contextWindowTokens": 272000,
+          "maxOutputTokens": 272000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision",
+            "web-search"
+          ]
+        },
+        {
+          "provider": "openai",
+          "providerModelId": "gpt-5.6-sol",
+          "contextWindowTokens": 1050000,
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching",
+            "file-input",
+            "vision",
+            "web-search",
+            "websocket-realtime"
+          ]
         }
       ]
     },
     {
       "slug": "openai/gpt-5.6-terra",
       "providers": [
+        {
+          "provider": "azure",
+          "providerModelId": "gpt-5.6-terra",
+          "contextWindowTokens": 1050000,
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "web-search",
+            "file-input",
+            "tool-use",
+            "vision",
+            "implicit-caching"
+          ]
+        },
+        {
+          "provider": "bedrock",
+          "providerModelId": "openai.gpt-5.6-terra",
+          "contextWindowTokens": 272000,
+          "maxOutputTokens": 272000,
+          "tags": [
+            "reasoning",
+            "web-search",
+            "file-input",
+            "tool-use",
+            "vision",
+            "implicit-caching"
+          ]
+        },
         {
           "provider": "openai",
           "providerModelId": "gpt-5.6-terra",
@@ -5217,7 +5212,8 @@
             "file-input",
             "tool-use",
             "vision",
-            "implicit-caching"
+            "implicit-caching",
+            "websocket-realtime"
           ]
         }
       ]
@@ -5489,6 +5485,17 @@
       ]
     },
     {
+      "slug": "openai/gpt-realtime-2.1",
+      "providers": [
+        {
+          "provider": "openai",
+          "providerModelId": "gpt-realtime-2.1",
+          "contextWindowTokens": 128000,
+          "maxOutputTokens": 32000
+        }
+      ]
+    },
+    {
       "slug": "openai/gpt-realtime-mini",
       "providers": [
         {
@@ -5496,6 +5503,21 @@
           "providerModelId": "gpt-realtime-mini",
           "contextWindowTokens": 0,
           "maxOutputTokens": 0
+        }
+      ]
+    },
+    {
+      "slug": "openai/gpt-realtime-whisper",
+      "providers": [
+        {
+          "provider": "openai",
+          "providerModelId": "gpt-realtime-whisper",
+          "contextWindowTokens": 0,
+          "maxOutputTokens": 0,
+          "tags": [
+            "websocket-realtime",
+            "websocket-transcription"
+          ]
         }
       ]
     },
@@ -5965,6 +5987,23 @@
       ]
     },
     {
+      "slug": "thinkingmachines/inkling",
+      "providers": [
+        {
+          "provider": "baseten",
+          "providerModelId": "thinkingmachines/inkling",
+          "contextWindowTokens": 256000,
+          "maxOutputTokens": 256000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "vision",
+            "file-input"
+          ]
+        }
+      ]
+    },
+    {
       "slug": "voyage/rerank-2.5",
       "providers": [
         {
@@ -6392,7 +6431,10 @@
           "provider": "xai",
           "providerModelId": "grok-stt",
           "contextWindowTokens": 0,
-          "maxOutputTokens": 0
+          "maxOutputTokens": 0,
+          "tags": [
+            "websocket-transcription"
+          ]
         }
       ]
     },
@@ -6415,38 +6457,6 @@
           "providerModelId": "grok-voice-think-fast-1.0",
           "contextWindowTokens": 0,
           "maxOutputTokens": 0
-        }
-      ]
-    },
-    {
-      "slug": "xiaomi/mimo-v2-flash",
-      "providers": [
-        {
-          "provider": "xiaomi",
-          "providerModelId": "mimo-v2-flash",
-          "contextWindowTokens": 262144,
-          "maxOutputTokens": 32000,
-          "tags": [
-            "implicit-caching",
-            "reasoning",
-            "tool-use"
-          ]
-        }
-      ]
-    },
-    {
-      "slug": "xiaomi/mimo-v2-pro",
-      "providers": [
-        {
-          "provider": "xiaomi",
-          "providerModelId": "mimo-v2-pro",
-          "contextWindowTokens": 1000000,
-          "maxOutputTokens": 128000,
-          "tags": [
-            "implicit-caching",
-            "reasoning",
-            "tool-use"
-          ]
         }
       ]
     },
@@ -6492,7 +6502,6 @@
           "tags": [
             "reasoning",
             "tool-use",
-            "file-input",
             "implicit-caching"
           ]
         },
@@ -6916,9 +6925,31 @@
       "slug": "zai/glm-5.2",
       "providers": [
         {
+          "provider": "alibaba",
+          "providerModelId": "glm-5.2",
+          "contextWindowTokens": 1000000,
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
+        },
+        {
           "provider": "baseten",
           "providerModelId": "zai-org/GLM-5.2",
           "contextWindowTokens": 1000000,
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
+        },
+        {
+          "provider": "crusoe",
+          "providerModelId": "zai/GLM-5.2",
+          "contextWindowTokens": 262144,
           "maxOutputTokens": 128000,
           "tags": [
             "reasoning",
@@ -6949,9 +6980,53 @@
           ]
         },
         {
+          "provider": "morph",
+          "providerModelId": "morph-glm52-744b",
+          "contextWindowTokens": 1000000,
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
+        },
+        {
+          "provider": "novita",
+          "providerModelId": "zai-org/glm-5.2",
+          "contextWindowTokens": 1000000,
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
+        },
+        {
           "provider": "parasail",
           "providerModelId": "zai-org/GLM-5.2",
           "contextWindowTokens": 262144,
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
+        },
+        {
+          "provider": "streamlake",
+          "providerModelId": "ep-l9wr6k-1784102823433037573",
+          "contextWindowTokens": 1000000,
+          "maxOutputTokens": 128000,
+          "tags": [
+            "reasoning",
+            "tool-use",
+            "implicit-caching"
+          ]
+        },
+        {
+          "provider": "togetherai",
+          "providerModelId": "zai-org/GLM-5.2",
+          "contextWindowTokens": 256000,
           "maxOutputTokens": 128000,
           "tags": [
             "reasoning",

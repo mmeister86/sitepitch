@@ -33,3 +33,9 @@ export const pdfWorkpool = new Workpool(components.pdfWorkpool, {
   retryActionsByDefault: false,
   logLevel: "WARN",
 })
+
+export const webhookWorkpool = new Workpool(components.webhookWorkpool, {
+  maxParallelism: 4,
+  retryActionsByDefault: false,
+  logLevel: "WARN",
+})

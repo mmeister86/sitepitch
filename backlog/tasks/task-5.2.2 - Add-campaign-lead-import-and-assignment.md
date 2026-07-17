@@ -4,7 +4,7 @@ title: Add campaign lead import and assignment
 status: Done
 assignee: []
 created_date: '2026-07-13 13:45'
-updated_date: '2026-07-13 17:31'
+updated_date: '2026-07-16 20:20'
 labels: []
 dependencies: []
 modified_files:
@@ -15,7 +15,7 @@ modified_files:
   - src/components/campaign-lead-import.tsx
 parent_task_id: TASK-5.2
 priority: high
-ordinal: 38000
+ordinal: 39000
 ---
 
 ## Description

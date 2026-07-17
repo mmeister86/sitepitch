@@ -4,7 +4,7 @@ title: Add white-label report distribution controls
 status: Done
 assignee: []
 created_date: '2026-07-03 20:05'
-updated_date: '2026-07-16 07:51'
+updated_date: '2026-07-16 20:20'
 labels:
   - post-mvp
   - white-label
@@ -17,7 +17,7 @@ documentation:
   - .docs/PRD-SitePitch-Post-MVP.md
 parent_task_id: TASK-5
 priority: medium
-ordinal: 47000
+ordinal: 48000
 ---
 
 ## Description
